@@ -1,0 +1,418 @@
+SpeedBus -< Worlds most powerfull, PIC-USART-Bus ;) >
+
+GENERAL NOTATIONS:
+Packages sent on startup AND ansors to broadcast packages, MUST have delay
+before
+All funktions over 0x09 is funktions implemented to the special device.
+
+TODO:
+The unescape routines on the PIC must be programmed, altho, i think the rest
+of the escape routines are programmed. !!! DONE
+
+Some kind off type number, is it a remote, is it an alarm device, is it 
+computer. Why? Well, either that, or hardcode numbers, so... but just so i 
+can se that, ooo, thats where i send the NEXA controller package
+
+
+It seems like a flag or somthing not gets zero:d, or maybe the interupt jumps 
+back without "retify". Because, somtimes, the device, stops reciving. 
+(Probobly somthing with the interupts?) !!! FiXED
+----------->
+
+
+So what is this? 
+
+This is a USART based bus system for, in my case, PIC... You are free to code
+it in anyway you want, just GPL license... The use of this software is up to
+you, but you can do almost everything on a one chip computer with it. The 
+file, .asm, is for PIC16F690. But im sure that it will work with others, maby
+even AVR. If you made a code for AVR, or something you want to share, please 
+email me, my adress will be added at the top of this text file.
+
+The packet!
+
+The packet is based on the RFC1662, but it was a few problems. In diffrence:
+* We use a 16-bit CRC instead of the checksum in the RFC - Why? only 17 
+cycles per byte
+* We use a 16-bit adress, instead of 8-bit - Why? in prevention purposes.
+* We use a dst and src adress, with, 2x2Byte adresses - Why? To make it 
+availible to send respons to the right device.
+* We have also NOT used the "Extended adress" bit, so, all the 16 adress bits
+is actually part of the adress, this is important, if you implement it with 
+HDLC devices. 
+
+B1     B2           B4           B6        B7
++------+------------+------------+---------+-----------+
+| Flag | Dst Adress | Src Adress | Control | Protocoll |
++------+------------+------------+---------+-----------+
+
+B8                   B11                     B12      B14
++--------------------+-----------------------+--------+------+
+| Data, lets say, 3B | Padding, lets say, 1B | CRC-16 | Flag |
++--------------------+-----------------------+--------+------+
+
+Flag: Just ordinary 0x7e, look at escape routines at RFC1662
+Dst Adress: The device to send package to.
+Src Adress: The device who composed the package, and send it.  
+NOTE: If DstAddr=0xFF and SrcAddr=0xFF, the package is broadcast.
+Controll: The controll byte(?), default: 0x03
+Protocoll: The protocoll byte, default: 0x01
+Data: The data....
+Padding: Say what?... Default: 0
+CRC-16: Checksum, look at the pc/ for the code.
+
+NOTE: There is, for checksum, 17cycles per byte, so keep the number down.
+NOTE: 
+
+The main functions: 
+
+0x00 <- This is a response package! To use when a device need resp.
+     	NOTE: The protokoll you want to use when exchanging response, is
+	0x01, everything else will not be resposed at.
+
+0x01 <- This is a aknowledge package, to use, when seacring for devices
+     	NOTE: A package sent to 0xFFFF will just be responsed with a 
+	devid, and ofc the adress in the package. BUT, a package sent to
+	the specific device adress, will also send a reponse
+
+0x02 <- Set PORT, DATA: {0x02,0x03,0xFF} <- Set all bits at PORTC
+
+
+0x03 <- Fetch device configuration.
+     	      0x00 or nothing, will just send back the speedlib_config details
+
+
+The adress handeling system! (Mostly, the way the PIC will handle it)
+
+After a lot of time thinking, im quite new to this... I came up with the
+design:
+
++--------+
+|  init  |
++--------+
+    ||
++-------------------------------------------------------------------+
+| Check if the adress in adress1 and adress2 registers are in use   |
+| by another device. If they are, run the init_setaddr rutine,      |
+| else, if the reset button is pressed(if you want to use one). The |
+| rutine is also executed. If none of this conditions is set, just  |
+| use adress1 and adress2! NOTICE: This is the PIC im talking about |
+| here.                                                             |
++-------------------------------------------------------------------+
+
+Well, hope it shows my modell, another exaple is:
+1: Device 1 starts up with adress1 and adress2 that NOT is 0x00
+2: Device 1 checks if the adress is taken by sending an aknowledge(0x00)
+  / If it do not get any respons it use the adress
+3:
+  \ If it get's a response, the init_setaddr rutine is executed.
+4: Well, here we are mostly done! The device now has an adress that NOT 
+change untill it will be reset:ed, anyway, i hope it not will change,
+Will be back on this point. In case of a power disruption, the adress
+MOST stay the same!
+
+
++------------------------------------------------------+____
+|__-+ The Cewd doukumentation, function, registers, etc +---+_____
+|_________________________________________________________________|
+
+Needed to write this shit down, you know, i just blinked, and there
+was 750 rows of asm code. So, for further cewd dokumentation, i made
+this section. I write a fev generally information.
+
+|_+_+_+_+_+_ | Registers Binary
+
+---
+d1,d2,d3,d4 Is general register for the delay function
+---
+tmp_W, tmp_STATUS, tmp_PCLATH  Is registers to temporary store  
+d1_tmp, d2_tmp, d3_tmp         registers on interupts
+---
+rand   Store the random value, generated for kollisson timeout
+---
+loop1, loop2   Registers for loops, just like 
+"(loop1=Pre_set__value; loop1 < 1; loop1)", when using "defsz"
+---
+rc_listen      
+|X-------| This got set if the device recive an asnswer, when sending
+the "checkadress" broadcast
+|-X------| This bit you set BEFORE you send youre byte, so the device
+know that the following input in RCREG is loopback
+|--X-----| This bit got set if the device recive an respose
+---
+
+
+
+|_+_+_+_+_+_ | Functions, rutines
+
+Well, just migrated the old cewd to a more OOP:ich style, now you can
+implement custom command and such, without changeing the "library" it
+self, this make it more easy to update the library file, becuse you 
+only got one. 
+
+Anyway, i just write down some basic documentations here. 
+I will make a file, just as an basic exaple of a small program.
+Put it someware.. 
+
+Well, looking att the kewd bellow, you may se there is somthing
+strange "USER_VARIABLE_SPACE". Well, thats the end of the "speedlib"
+variables. If you just predefinition 0x20, there will be interferance
+with the library, that also start alcollate at 0x20...
+So if you definit
+/* Variable definition
+cblock      USER_VARIABLE_SPACE
+servo_1_val
+endc
+*/
+
+There are no interupt handle definition in the library, 
+this means that the user code need to have the 
+"org 0x004" for that reason, i wrote so that all interupt
+functions goes throu:
+/* cewd
+org	  0x004
+goto	  intserv
+*/
+
+Ofcurse, it is possible to make a function of youre own, but remember
+to put the "goto intserv" at the end.
+
+Some explanations on the definitions... For those to lazy to actually 
+read the code. Currently, there is two(120508), more will be added, 
+im sure...
+
+
+
+
+
+|_+_+_+_+_+_ | General notations
+
+
+IF speedlib_main,1  is set, the device is in WAITING for response STATE.
+This means:
+It is able to get interupts that is ment for RXREG, as long as there is 
+a response package, and, the device is compleatly locked to wait for the
+response. IF an interupt acurres, that not is ment for "speedlib_main,1"
+the device drop the package, it is important to know that this rutine
+only should be done with a proper delay and a loop, to make sure that
+no deadlock will apear.
+
+
+
+ ____________________________
+| pc_to_bus_wakeup_tx-enable |
++----------------------------+
+
+I just wrote the program, so, nothing special realy BUT
+When you send somting from PC, you need ONE wakeup byte
+Use whatever you want, but just one byte before the 
+package.
+
+
+ __________________________
+| remote_on_off_controller |
++--------------------------+
+
+Yeah, hare we go again, said somone? anyway:
+
+Function:
+0x0A <- This is a command special to this unit(read general notations). Anyways, 
+When you send an data:
+
+NOTE: this is only the data "layer"
+NOTE: i do NOT use capital "b" here, so the data shown, is in bit
+b0				     	    	 	       b3
++--------------------------------------------------------------+
+| Type of signal(Old nexa, Waveman, NEXA LYC) (16st availible) |
++--------------------------------------------------------------+
+
+b4	       b5	b7	    b8
++--------------+--------+-----------+
+| Group Action | Method | Lern mode |
++--------------+--------+-----------+
+
+
+Nexa LYC:---------------------------------->
+b8	     b10	 b12	     b16    \
++------------+-----------+-----------+      |
+| Channel ID | Button ID | Dim Value |      |
++------------+-----------+-----------+    _/
+                                <--------+
+
+Nexa Old, Waveman:-------->
+b8         b12       b16   \
++----------+---------+      |
+| House ID | Unit ID |	    | <- READ DOCUMENTATION
++----------+---------+    _/
+		<--------+
+
+
+Sooo, here we are:
+Type of signal(b0-3):
+This is the typ of signal to transmit, currently, there are three availible:
+0000 - This is Nexa OLD
+0001 - This is Waveman
+0010 - This is the Nexa LYC
+
+Group Action(b4-5):
+Just set this to "1". Never mind, dont know much about this.
+
+Method(b5-7):
+This is the method to use.
+NOTE: Ofc, when you use a protocoll that "dont know" dim, you cant use it
+like in the old nexa, och waveman.
+10(2) - ON
+01(1) - OFF
+00(0) - Dim	<- Currently only avalible in Nexa LYC
+
+Lern mode(b7-8):
+This is a bit you can set when you lern the selflerning(Nexa LYC) devices.
+Now, when i think about it, i also made it availible in OLD Waveman, Nexa
+protocolls, anyway:
+1 - This makes the remothe send the package 80times
+0 - This makes it use the default set. currently 6times
+
+---> NEXA LCY
+
+Channel ID(b8-10):
+This is the channel ID to use, 4 diffrent.
+
+Button ID(b10-12):
+This is the button ID to use, 4 diffrent per channel ID
+
+Dim Value(b12-16):
+When you use absolute dim. Here is where to put the 0-15 value. To use. 
+The dim level to set
+
+<---
+/\/\/\|
+---> Old Waveman/Nexa
+
+House ID(b8-12):
+This is the 4bit house ID:
+NOTE: the binary:s are swaped. Showing some examples.
+0000 - A
+X000 - B
+0X00 - C
+XX00 - D
+and so on...
+
+Unit ID(b12-16):
+This is the 4bit unit number
+NOTE: Swap:ed the same way as the example abowe
+0000 - 1
+X000 - 2
+0X00 - 3
+XX00 - 4
+and so on...
+
+<---
+
++-----------------------------------------------_
+| This is the main logg. just dates, and changes \
++----------------------------------------------+-|
+| 121230 | { Well, its me, again, still the same dear kewder, troling
+this boat over the bigg sea:s. I thougt i may kaught up with this piece
+of log. I started to wrote the speedbible some days ago, if this folows 
+my plan. It will be banged with standards and good ideas. Just nice to 
+have all the main man at the same place. How do i make and configure a
+spb standard alarm system? look in the speedbible. And ofc everyone can 
+change it. Other then that, ive made the devee and the deve part in the
+.spb files, everyone can ofc contribute with own electronic chemas and 
+.spb files, thats the idea, and devee helps the usual human bein, to 
+configure part of the .spb files after their own setups. Ive also fixed
+the backend, so it can be run eaven in at server side, wich meen that 
+you can run HID:s on the server, and eaven send event nunbers and 
+devids directly from the app. well. hell alot of work if you ask me, 
+was kind of a hell just to make the linking part to work... but now all
+seems to work good. Going to make a raspberry server just when i got 
+the right hardware, going to have some ST4853 to save a USB port. Hmm,
+ooh, yes, allso added an event to log things to the server log, 
+Blahhh not my day, tired as hell, god damn. well, Speedy recall, over
+and out }
+
+| 120917 | { Waaay to long since i wrote here the last time. anyway, 
+here i am, again, lauging and programming... So, whats been done?
+Ive got a new cool structured system, like, versions and stuff. And here
+i am, adding all together, anyway. Iwe programmed a new SSL interface, 
+still working on the user management system. Fun. Got my school project 
+to be, making an app for android. could be fun... hmm. Also, i got my 
+hands on a raspberry pi. Wrote a ssl server host, and underlying config.
+After that, im going to continue with the android app requirements, so
+the android app gets the dev files from the server host. Also some sort
+of server mangement system. Kinda tired, cant come up with other new
+things ive done, anyway, still a long road before i am done. }
+
+| 120808 | { Your dear Speedster is here again, with some love, and some
+changes. At the gui part, i havent done to much, i fixed the small, 
+"address update issue", so the backend always is updated with the latest
+adress, of the units. Also, i rewrote so, when you change adress on a unit,
+the unit:s adress i automaticly updated(Sounds obviusly, put the programmer,
+none in mind( ;D), was to lazy to fix this when the func whas first 
+implemented). Also, i have fixed a nice litle staus icon, with a popup-menu.
+So the program can run in foregrund. But still, there are som needs to be 
+done, fore example, there should be some CLI, and som sort of TCP/IP based 
+interface, maybe a backend. But, well, all things takes its times. As with
+the PIC:s, there have been more changes. First off, ive wrote a small 
+"Speedbus pocket UI". With a 18F, and fixed the cewd nicely to use 18F arc.
+I have also fixed the smaller 12F:s, working, (With an extern windows 
+computer, becuse the PIC CLI for linux was not compatible.).
+So the library should be compatible with most of the 12F 16F and 18F 
+units by now. Iwe added a new, IAH, function, so with a button on the unit
+the user can send an, ankowleds, to identify the unit. Also, the device id
+for now on, is an uniq id, on all units. I figured out that there are like
+4billion devids availble, so... Also added a LED that indicate at poweron,
+green if adress != 0.0 and red if adress is 0.0. Well, as always, the cewd
+dont sleep... there are always changes... i only write down the once that
+are worth to care about... I am going to bed early today, so, what to be 
+done tomorow is:
+* Continue trace the fucking Bug-Zero. 
+* Fix the temp sensors at the fan-controller}
+  
+| 120726 | { No No No, this project has not died yet! As probubly known
+i dont write here to offent, but, here are som things done, and to be done
+First off: I have  combined the new gui, with usb hid:s, also written a usb
+"part" for the gui, usb.hid.cpp. With that, i also wrote the "backend" of 
+the gui. Maybe it will result in an driver or deamon later... anyway, today,
+i wrote, optimized, and fixed a stupid bug. And fixed the response time to 
+go much faster. Now, it is fully accepteble to controll and comunicate with
+other units, at a fully accepteble speed. there are some small bugs that was
+fixed some time ago. In the interupt sector at the PIC binary. The coding
+goes on, and on ;D. As i like it. Orderd some PIC12F1840, much to be done 
+before i can programm speedlib to thease. Also, i facing some problems with
+the variables in the gui(The variables specified in the conf files). The 
+config option "operations", that currently only availble for backend devices,
+are going to be neede in the gui conf files. And the problem with the 12F:s
+is that there are 31 banks, i need to figur out a way to make the "arc" 
+settings availble so i do not need to rewrite the PIC speedlib code for evry
+possible PIC type... 03:06. Need some sleep, hope i can solve a problem or 
+two in the dreams, Over'N Out, // Speedster
+
+}
+| 120630 | {Speedy here again, well, another impotant step for speedlib i 
+guess, starting to write the configuration functions, also, this will make
+the interaction with the device, and the user beter, because it will fetch
+statistics, it will read the configuration, change adress, an so on. The 
+main document will be updated with information about this, cya! // Speedster}
+| 120627 | { Well, it is 120628 now, but yeasterday, i wrote, a well woring
+rutine for the resp handeling, i write down the basics in the main 
+documentation, the response time now is werry nice. }
+| 120623 | { Starting coding the response mechanism, to use, instead of
+the old not working colission detect. }:{
+; 120623 A new era has become speedbus, all package that are need to, shall for
+; now be sent with an respons, and, for that reason, i no more use command 0x00
+; for is_occupied commands. When an 0x01 NOT is broadcast(it got a real adress)
+; It is ment to bee like an old 0x00, if it is not an bc, send is_occupied.
+; For now on, 0x00 is used to respond packages that need a response! Over'n out
+; // Speedster}
+
+| 120508 | { Keept up, working with the documentation, and cowd for the 
+new library type, will be a bit strange from the solution used before.}
+| 120507 | { I wote a small branch table to handle all the diffrent types
+of Command_Byte funktions, look at the basic code, for a good example.}
+| 120506 | { Wrote the function for use of "definitions" to handle user
+implemented functions...}
+| 120425 | { Just rewritten the "remote_on_off_controller", so that i can 
+fully, use the package to change the transmitter data. Also, i put in a
+funktion, on the single, not used bit in the package, so that it sends a
+longer time when it is programming, units. }
