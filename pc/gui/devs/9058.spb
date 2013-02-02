@@ -1,0 +1,91 @@
+name="Outside camera lamp";
+source_width=20;
+
+data = (25,25,25);
+
+// Important! event=0 is simply no event at all, you cant add a event with number 0
+spb =
+{
+  frontend = (  { 
+		type  = "button";
+		label = "Light On";
+		event = 1;
+		row   = 0; 
+		},{ 
+		type  = "button";
+		label = "Light Off";
+		event = 2;
+		row   = 0;
+		},{ 
+		type  = "button";
+		label = "Turn";
+		event = 3;
+		row   = 1;
+		},{
+		type = "scale";
+		min   = 6;
+		max   = 17;
+		step  = 2;
+		row   = 1;
+		variable = 257; // Variables is 257-267, may be extended in the future
+		},{ 
+		type  = "button";
+		label = "Get Light";
+		event = 4;
+		row   = 2;
+		},{ 
+		type  = "label";
+		label = "Light: %d";
+		var1  = 258;
+		var2  = 259;
+		row   = 3;
+		});
+		
+
+  events = ( { event = 1;
+               type = "send";
+               data = (0x0A,0x01);},
+             { event = 2;
+               type = "send";
+               data = (0x0A,0x00);},
+             { event = 3;
+               type = "send";
+               data = (0x0B,257);},
+	     { event = 4;
+               type = "getvars";	
+               data = (0x0C);
+               var_num = (258,259);
+               at_byte = (1,2);},
+       	     { event = 5;
+               type = "getvars";	
+               data = (0xAA);
+               var_num = (260,261);
+               at_byte = (1,2);},
+	     { event = 6;
+               type = "log";	
+               data = (0xAA);
+	       log_str = "Alarm was recieved with signal %d at detector %d";
+               var_num = (260,261);
+	       }
+
+
+           );
+};
+
+  operations = (
+
+  	      // { event = 0;
+  	      //   device_id = 123456;
+              //   type = 1;
+	      //   affected_byte = 5;
+	      //   second_arg = 6;}
+              // Variables
+
+            { variable = 259;
+              type = 4;
+              second_arg = 8;},
+	      
+            { variable = 258;
+              type = 7;
+              second_arg = 259;}
+);

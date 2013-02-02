@@ -1,0 +1,56 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides: cman
+# Required-Start: $remote_fs $syslog
+# Required-Stop: $remote_fs $syslog
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Example initscript
+# Description: This file should be used to construct scripts to be
+# placed in /etc/init.d.
+### END INIT INFO
+
+if [ "$(id -u)" != "0" ]; then
+   echo "This script must be run as root" 1>&2
+   exit 1
+fi
+
+case "$1" in
+start)
+	if [ "$(screen -S spb -ls|wc -l)" = "4" ]; then
+	    echo "Server already running"
+	    exit 1
+	fi
+	screen -d -m -S spb spbserver
+	echo "Server started"
+			  
+;;
+
+stop)
+	if [ "$(screen -S spb -ls|wc -l)" = "2" ]; then
+	    echo "Server already stoped"
+	    exit 1
+	fi	
+	screen -S spb -X quit
+	echo "Server stoped"
+;;
+
+restart)
+	$0 stop
+  	$0 start
+;;
+
+status)
+             if [ "$(screen -S spb -ls|wc -l)" = "4" ]; then
+                     echo "Running"
+                     exit 0
+             else
+                     echo "Not running"
+                     exit 1
+             fi
+;;
+
+*)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+esac

@@ -1,0 +1,5 @@
+Warning[205] /home/oscar/speedbus/pic/mplabx.proj/speedlib/Servo.Camera.Lamp/newAsmTemplate.asm 1 : Found directive in column 1. (List)
+Warning[208] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 807 : Label truncated at 32 characters. (func_is_ocupied_send_response_got_resp)
+Warning[208] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 811 : Label truncated at 32 characters. (func_is_ocupied_send_response_pack)
+Message[302] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 1148 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 1294 : Register in operand not in bank 0.  Ensure that bank bits are correct.

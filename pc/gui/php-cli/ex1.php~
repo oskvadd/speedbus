@@ -1,0 +1,96 @@
+<?php
+//
+function strtohex($string)
+{
+    $hex='';
+    for ($i=0; $i < strlen($string); $i++)
+    {
+        $hex .= dechex(ord($string[$i]));
+    }
+    return $hex;
+}
+
+//
+
+class spb
+{
+private $fp;
+private $is_root;
+
+
+public function __construct($host,$username,$password, $port = 306)
+{
+spb_connect($host,$username,$password , $port); 
+}
+
+public function spb_connect($host,$username,$password , $port = 306){
+$fp = fsockopen("ssl://$host", 306, $errno, $errstr, 30);
+if (!$fp) {
+    return;
+} else {
+	$out = "$username\n$password";
+    	fwrite($fp, $out);
+    	if(!feof($fp)) {
+          $recv = fgets($fp, 128);
+	  if(strpos($recv, "Login Failed") !== FALSE){
+	  fclose($fp);
+	  return -111; // login failed
+	  }
+    	}
+    }
+    $is_root=0;
+    if(strpos($run[1], "root")){
+    $is_root=1;
+    }
+      
+    return $ret;
+}
+
+public function spb_event_exec($fp, $devid, $event, $vars = ""){
+$out = "evexec $devid $event $vars\n";
+fwrite($fp, $out);
+while($recv = fread($fp, 128)){
+if(strpos($recv, "good") !== FALSE){
+return 1;
+}
+if(strpos($recv, "info Cant send") !== FALSE || strpos($recv, "info Error when") !== FALSE){
+return 0;
+}
+}
+}
+}
+
+$devlist = array();
+$spb = new spb("192.168.2.2", "root", "toor");
+
+if($run == -111){
+die("login failed");
+}
+if(!$run[0]){
+die("Connection failed");
+}
+
+print($run[1]);
+while(!feof($run[0])){
+$recv = fgets($run[0], 128);
+if(strpos($recv, "devlistadd") !== FALSE){
+$develem = array();
+sscanf($recv, "devlistadd %s %s", $dev_addr, $dev_id);
+$develem[0] = $dev_addr;
+$develem[1] = $dev_id;
+array_push($devlist, $develem);
+}
+if(strpos($recv, "udevlist") !== FALSE){
+break;
+}
+print($recv);
+}
+
+if(spb_event_exec($run[0], 16432, $argv[1], $argv[2])){
+print("Succefully executed the event!\n");
+}else{
+print("Error executing the event, check event and devid nr!\n");
+}
+fclose($run[0]);
+//print_r($devlist);
+?>

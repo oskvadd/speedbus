@@ -1,0 +1,125 @@
+<?php
+//
+function strtohex($string)
+{
+    $hex='';
+    for ($i=0; $i < strlen($string); $i++)
+    {
+        $hex .= dechex(ord($string[$i]));
+    }
+    return $hex;
+}
+
+//
+
+class spb
+{
+  private $fp;
+  private $is_root;
+  private $devlist;
+  private $status;
+  
+  public function __construct($host,$username,$password, $port = 306)
+  {
+    $this->devlist = array();
+    if(isset($password)){
+      $this->spb_connect($host,$username,$password , $port); 
+    }
+  }
+  
+  public function spb_connect($host,$username,$password , $port = 306){
+    $this->fp = fsockopen("ssl://$host", 306, $errno, $errstr, 30);
+    if (!$this->fp) {
+      $this->status = 0;
+      return 0;
+    } else {
+      $out = "$username\n$password";
+      fwrite($this->fp, $out);
+      if(!feof($this->fp)) {
+	$recv = fgets($this->fp, 128);
+	if(strpos($recv, "Login Failed") !== FALSE){
+	  fclose($this->fp);
+	  $this->status = -1; // login fail
+	  return -1; // login failed
+	}
+      }
+    }
+    // Check if i am root
+    $is_root=0;
+    if(strpos($recv, "root")){
+      $is_root=1;
+    }
+    // 
+
+    // Make the dev list
+    while(!feof($this->fp)){
+      $recv = fgets($this->fp, 128);
+      if(strpos($recv, "devlistadd") !== FALSE){
+	$develem = array();
+	sscanf($recv, "devlistadd %s %s", $dev_addr, $dev_id);
+	$develem[0] = $dev_addr;
+	$develem[1] = $dev_id;
+	array_push($this->devlist, $develem);
+      }
+      if(strpos($recv, "udevlist") !== FALSE){
+	break;
+      }
+    }
+    //
+ 
+    return 1;
+  }
+
+  public function spb_errc(){
+    // everything under 1 is error, so just take this in to a if statement
+
+    if(!$this->fp){
+      return 0; // Not connected
+    }
+    
+    if($this->status){
+      return $this->status;
+    }
+    
+    return 1;
+  }
+  
+  public function spb_errcm(){
+    switch($this->status){
+    case 0:
+      return "Unable to make a connection.";
+    case -1:
+      return "Wrong login credentials.";
+    default:
+      if($this->status){
+	return "Connection seems fine";
+      }
+    }
+  }
+
+  public function spb_event_exec($devid, $event, $vars = ""){
+    $out = "evexec $devid $event $vars\n";
+    fwrite($this->fp, $out);
+    while($recv = fread($this->fp, 128)){
+     if(strpos($recv, "good") !== FALSE){
+	return 1;
+      }
+      if(strpos($recv, "info Cant send") !== FALSE || strpos($recv, "info Error when") !== FALSE){
+	return 0;
+      }
+    }
+  }
+}
+$spb = new spb("192.168.2.2", "root", "toor");
+if(!$spb->spb_errc()){
+  die($spb->spb_errcm() . "\n");
+}
+
+
+if($spb->spb_event_exec($argv[1], $argv[2], $argv[3])){
+print("Succefully executed the event!\n");
+}else{
+print("Error executing the event, check event and devid nr!\n");
+}
+//print_r($devlist);
+?>

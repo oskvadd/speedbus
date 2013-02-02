@@ -1,0 +1,144 @@
+vendor_id="0810";
+product_id="0003";
+bwidth=8;
+
+usb_hid =
+{
+	/* event types:
+	   0 = basic binary toggle(second_arg is affected bit)
+	   1 = 4bit low variable(second_arg is dest variable)
+	   2 = 4bit high variable(second_arg is dest variable)
+	   3 = 8bit variable (second_arg is dest variable)
+	   4 = 4bit low variable(second_arg is the value that will trigger event)
+	   5 = 4bit high variable(second_arg is the value that will trigger event)
+	   6 = 8bit variable (second_arg is the value that will trigger event)
+
+	*/
+  events = (// { event = 0;
+  	    //   device_id = 123456;
+            //   type = 1;
+	    //   affected_byte = 5;
+	    //   second_arg = 6;}
+            
+	    // Variables
+
+            { event = 0;
+              device_id = 4206592;
+              type = 3;
+              affected_byte = 4;
+              second_arg = 257;},
+	    
+	    { event = 0;
+              device_id = 16432;
+              type = 3;
+              affected_byte = 4;
+              second_arg = 257;},
+
+	    //
+
+	    { event = 11;
+  	      device_id = 16432;
+              type = 0;
+	      affected_byte = 5;
+	      second_arg = 6;},
+
+	    { event = 2;
+  	      device_id = 16432;
+              type = 0;
+	      affected_byte = 5;
+	      second_arg = 5;},
+
+	    { event = 12;
+  	      device_id = 16432;
+              type = 0;
+	      affected_byte = 5;
+	      second_arg = 7;},
+
+	    { event = 5;
+  	      device_id = 16432;
+              type = 0;
+	      affected_byte = 5;
+	      second_arg = 4;},
+
+	    { event = 7;
+  	      device_id = 16432;
+              type = 0;
+	      affected_byte = 6;
+	      second_arg = 1;},
+
+	    { event = 8;
+  	      device_id = 16432;
+              type = 0;
+	      affected_byte = 6;
+	      second_arg = 3;}, 
+
+	    { event = 9;
+  	      device_id = 16432;
+              type = 0;
+	      affected_byte = 6;
+	      second_arg = 0;},             
+
+	    { event = 10;
+  	      device_id = 16432;
+              type = 0;
+	      affected_byte = 6;
+	      second_arg = 2;},                                                   
+
+	    { event = 1;
+  	      device_id = 9058;
+              type = 0;
+	      affected_byte = 6;
+	      second_arg = 5;},                                                   
+
+	    { event = 2;
+  	      device_id = 9058;
+              type = 0;
+	      affected_byte = 6;
+	      second_arg = 4;},                                                   
+
+	    { event = 13;
+  	      device_id = 16432;
+              type = 4;
+	      affected_byte = 5;
+	      second_arg = 6;},                                                   
+
+	    { event = 14;
+  	      device_id = 16432;
+              type = 4;
+	      affected_byte = 5;
+	      second_arg = 2;}                                                   
+
+	     );
+
+
+};
+
+
+	/* event types:
+	   0 = shift down, with second_arg
+	   1 = invert variable, second arg not used
+	   2 = subtract with second arg
+	   3 = add with second arg
+	   4 = shift up with second arg
+	   5 = And
+	   6 = Or
+	*/
+  operations = (
+
+  	      // { event = 0;
+  	      //   device_id = 123456;
+              //   type = 1;
+	      //   affected_byte = 5;
+	      //   second_arg = 6;}
+              // Variables
+
+            { variable = 257;
+              device_id = 16432;
+              type = 0;
+              second_arg = 4;},
+
+            { variable = 257;
+              device_id = 16432;
+              type = 1;
+              second_arg = 0;}
+	      );

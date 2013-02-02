@@ -1,0 +1,99 @@
+[23:31:17] <+Clunk> Busskommunikation med användande av asynkrona (UART): http://www.ietf.org/rfc/rfc1662.txt
+[23:31:30] <Speedster> http://i.ebayimg.com/t/Lot-5-Netgear-Model-DS108-8-Port-10-100MB-Dual-Speed-Network-Hub-No-Power-/00/s/ODUzWDEyODA=/$%28KGrHqZ,!o4E8VYGGIm5BPR9qjrw9w~~60_57.JPG
+[23:31:44] <Speedster> SKOJAR DU, KAN MAN ANVÄNDA UART!
+[23:32:03] <Speedster> Fuck, jag sitter här och skall använda analoga utgångar... wtf
+[23:32:09] <Speedster> trodde inte att det gick :P'
+[23:33:50] <Speedster> jo just det, poblemet som jag tänkte med UART, är ju att man måste adressera och sånt... hum hum hum...
+[23:33:50] <+Clunk> Jepp, du behöver bara koppla upp interfacet på rätt sätt (RS422) och använda rätt protokoll.
+[23:34:33] <+Clunk> Speedster: Kör HDLC, första byten är adressen. Om inte addressen stämmer, tappa helt enkelt paketet på golvet.
+[23:35:22] <Speedster> och du menar att man skall ha interupt på UART, som sedan lägger typ uart, bytes i minnet? minneshanteringen oxå...
+[23:35:36] <+Clunk> Jepp.
+[23:36:13] <+Clunk> Paketet ser ut såhär FLAG ADDRESS DATA FCS FLAG
+[23:38:54] <Speedster> nice
+[23:39:01] Speedster bokmärker
+[23:40:42] <Speedster> hur kollar man kollisioner då? :P skall man typ se så att det är samma på output som det är på input?
+[23:41:28] <Speedster> om två st nod:er sänder samtidigt, så måste ju det som sänds på en nod, som uppfattas i registret på samma nod, vara helskumm data typ?
+[23:51:24] <+Clunk> Speedster: Kollision == När dit utgående paket != inkommande paket. FIXD.
+[23:52:01] <Speedster> Oki, :)
+[23:52:41] <+Clunk> Vill du ha så få trådar som möjligt?
+[23:52:55] <+Clunk> Till varje PIC's serieport?
+[23:53:34] <Speedster> Ja, tänker mig 2pars kabel, med + - och buss då :P men visst!
+[23:54:22] <+Clunk> Skulle du digga 1par?
+[23:54:24] <+Clunk> http://www.m-bus.com/
+[23:54:40] <Speedster> :O
+[23:55:13] <+Clunk> Strömförsörjning o komm på samma sladd. Inte det snabbaste här i världen, men...
+[23:55:38] <Speedster> Menar du baud?
+[23:55:47] <Speedster> som inte är snabb?
+[23:56:27] <Speedster> skall köra styrning mellan två/flera PICer, skall ju inte ladda ner på den lixom :P
+[23:58:55] <+Clunk> I alla fall, dokumentationen 
+[23:59:26] <+Clunk> har du ovan - behöver du mer ström, så kan du köra lokal försörjning eller ett extra par.
+[00:01:07] <+Clunk> Notera att all trafik måste gå via mastern.
+[00:05:06] <+Clunk> Speedster: En annan tanke: Microchips Ethernet-chip som är gjorda för microcontrollers + PoE :P
+[00:05:46] Clunk noterar att man tyvärr skulle vara tvungen att skriva en rudimentär IP-stack.
+[00:06:10] <Speedster> Jajo... PoE... du menar att man skall bygga PoE switch oxå då? finns ju inte på clas ohllson direkt :P
+[00:06:42] <Speedster> Och PoE mottagare... på PIC enheten
+[00:08:07] <Speedster> mjo... sedan så måste man ha mycket byte för att kunna köra vanliga protokoll oxå...
+[00:08:20] <Speedster> det krävs många byte i minnet...
+[00:09:17] <Speedster> 3 alltenativt 4 block med 80byte har man tillgängligt på dessa PIC:er
+[00:09:37] <Speedster> Räcker till ett litet paket dock :P
+[00:10:20] <+Clunk> Men jag skulle tro att det enklaste och billigaste skulle vara 2 par, skärmat, 1 par för spänningsförsörjning, 1 par för HDLC-like pakettrafik a la rfc1667, skärm för jord och referens
+[00:10:51] <Speedster> Skärm oxå!=
+[00:10:52] <+Clunk> och pakettrafiken skulle använda http://en.wikipedia.org/wiki/EIA-485 
+[00:10:54] <Speedster> !?*
+[00:11:19] <+Clunk> Speedster: Hur mycket kostar Cat5 FTP? Inte mycket. Tillräckligt.
+[00:11:40] <Speedster> mjo, 4par dock
+[00:12:58] <+Clunk> Speedster: IIRC, så kan man fortfarande använda de oanvända paren i en 10 el 100 Mbits/s nätkabel, right?
+[00:13:00] <+Clunk> 2 par har du där.
+[00:14:28] <Speedster> hur menar du använda dom oanvända paren?
+[00:15:03] <+Clunk> Koppla in sig på de paren och använda dem för strömförsörjning och comms.
+[00:15:58] <Speedster> du menar att man skall köra ethernet parallellt på nätverks kabelt?
+[00:16:00] <Speedster> kablen*
+[00:16:15] <+Clunk> 1 1.5 FTP kabel, klipp mitt itu, koppla upp pinnarna som behövs för ethernet till en hona, pinnarna som krävs för de två andra paren till picen.
+[00:16:47] <+Clunk> 1.5m nätverkskabel.
+[00:17:22] <+Clunk> Det enda som jag ser som problem är att du kan hamna i situationen att du åker ner på 10Mbits/s på nätet.
+[00:17:52] <Speedster> Varför vill jag haethernet på samma kabel? :O
+[00:17:58] <Speedster> :P
+[00:18:40] <Speedster> jag införskaffar skärmad tvåpars, alltenativt FTP kabel, och använder endast till PIC:erna annars
+[00:19:24] <Speedster> ja, 10Mbits, Halvduplex oxå skall vi inte glömma
+[00:21:27] <+Clunk> Speedster: Det var mera tanken på att då blir det inte så mycket stök för dig - har du nätverkskabel dit du vill ha PIC:en, använd den existerande kabeln med adaptern.. http://en.wikipedia.org/wiki/100BASE-TX#100BASE-TX 
+[00:21:46] <Speedster> jaahaa :)
+[00:22:01] <+Clunk> Ska vara okej om du har en ren spänningsförsörjning och inte så kraftig signalering för PIC:arna.
+[00:23:06] Clunk noterar att skärmen skall vara /referens/ och inte för strömförsörjning (d.v.s. 12 o 0 på ett par).
+[00:23:35] <+Clunk> Det kan vara viss impedans i kontakten nämligen.
+[00:23:40] <Speedster> Vet du vad PE står för Clunk?
+[00:23:42] <Speedster> :D
+[00:23:52] <Speedster> El samanhang
+[00:23:54] <+Clunk> Polyetylen?
+[00:24:02] <+Clunk> Protective Earth.
+[00:24:02] <Speedster> Protection Erth
+[00:24:07] <Speedster> aha, hehe
+[00:24:38] <+Clunk> Jo, och skärmen skall vara, när du kan hjälpa det, ordentligt jordad.
+[00:24:53] <Speedster> blir det inte impedans i skärmen oxå?
+[00:25:14] <Speedster> kontakten med skärmen alltså. på samma sätt som den vanliga nollan?
+[00:25:23] <Speedster> -*
+[00:25:24] <+Clunk> Jo, men det brukar inte störa vid låga hastigheter, och ethernet har lite skydd för det.
+[00:26:06] <+Clunk> En jordpunkt på 0:an till skärm på varje PIC-nod.
+[00:26:52] <Speedster> hmm, ok :P
+[00:27:01] <+Clunk> Och kom ihåg att inte snåla på skyddskretsar för kommunikationen.
+[00:27:27] <Speedster> Som tex?
+[00:27:40] <+Clunk> zenerdioder, varistorer.
+[00:28:03] <Speedster> *host* *host*
+[00:28:06] <Speedster> :)
+[00:28:16] <Speedster> men Ok, skall kolla på det oxå...
+[00:28:20] <+Clunk> Enda som jag ser som problem är vart du ska få -5V ifrån :P
+[00:28:35] <+Clunk> Finns chip för det men de kostar.
+[00:28:48] <Speedster> vad ska jag med -5V till?
+[00:29:09] <Speedster> räcker väll med +5V ?
+[00:30:19] <+Clunk> Tittar i ELFA:n, ser ut som MAX485 och ST485 ska klara sig med assymetrisk kräm.
+[00:30:37] <+Clunk> Prisklass: 30-50 kr.
+[00:32:14] <+Clunk> zenerdioder kostar inte mycket, och kan skydda om du får spänningsspikar i kabeln
+[00:33:38] <+Clunk> Speedster: Två zenerdioder rygg mot rygg, så att det totala spänningsfallet ligger kring 5V eller strax över (men inte mer en kretsen bakom klarar av).
+[00:34:38] <+Clunk> Jag skulle ha 4 st, två rygg mot rygg från varje signalledning till 0 och skärm.
+[00:34:39] <Speedster> hmm, oki, detta ska bli interresant! hehe, får köra TTL mellan dom, medans de programmeras...
+[00:35:31] <Speedster> :)
+[00:35:42] <+Clunk> Speedster: Och lite mer än 5V så att du inte kapar din egen trafik och bränner dyra chip, men lågt nog att en spänningsspik inte steker kretsen.
+[00:35:59] <Speedster> Oki! :)
+[00:36:19] <+Clunk> RS485 är balanserad, och lite störokänsligare än TTL eller RS232.
+[00:36:50] <Speedster> oki :) nice!
+[00:38:00] <+Clunk> Och kom ihåg, håll PIC-kretsarna separerade från det som går till vanlig nätverksutrustning.
+[00:38:37] <Speedster> hur menar du? inte koppla in nätverket till PIC:erna, fel, typ?

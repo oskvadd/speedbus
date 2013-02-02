@@ -1,0 +1,78 @@
+name="Computer remothe controll, on/off";
+source_width=20;
+
+
+// Important! event=0 is simply no event at all, you cant add a event with number 0
+spb =
+{
+  frontend = (  {		
+		type  = "label";
+		label = "Start/Stop";
+		row   = 0;
+		},{ 
+		type  = "button";
+		label = "Start/Stop Computer";
+		event = 1;
+		row   = 2;
+		},{
+		type  = "label";
+		label = "Reset Computer";
+		row   = 3;
+		},{ 
+		type  = "button";
+		label = "Set Temp";
+		event = 2;
+		row   = 4;
+		}
+//		,{
+//		type  = "button";
+//                label = "PORTC On";
+//                event = 9;
+//                row   = 7;
+//		},{
+//		type  = "button";
+//                label = "PORTC Off";
+//                event = 10;
+//                row   = 7;
+//*		}
+		);
+
+  events = (   { event = 1;
+               type = "send";
+               data = (0x0A,3);},
+	       { event = 2;
+               type = "send";
+               data = (0x0B,3);}
+
+//	     { event = 9;
+//               type = "send";
+//               data = (0x02,0x03,0xFE);},
+//	     { event = 10;
+//               type = "send";
+//               data = (0x02,0x03,0x00);}
+                	
+           );
+
+};
+
+	/* event types:
+	   0 = shift down, with second_arg
+	   1 = invert variable, second arg not used
+	   2 = subtract with second arg
+	   3 = add with second arg
+	   4 = shift up with second arg
+	   5 = And
+	   6 = Or
+	   7 = add, second arg is variable
+	   8 = sub, second arg is variable
+	*/
+
+  operations = (
+
+  	      // { event = 0;
+  	      //   device_id = 123456;
+              //   type = 1;
+	      //   affected_byte = 5;
+	      //   second_arg = 6;}
+              // Variables
+);

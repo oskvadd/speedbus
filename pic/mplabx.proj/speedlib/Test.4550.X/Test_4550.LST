@@ -1,0 +1,2859 @@
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Warning[205]: Found directive in column 1. (List)
+                      00001 List      P=18f4550             ; list directive to define processor
+                      00002 #include "/usr/share/gputils/header/p18f4550.inc"
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC18F4550 processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2007 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      01643         LIST
+                      00003 ; IMPORTATNT! All the speedlib pre definitions, MUST be definde before the include
+                      00004 ;#define ARC_16F         1
+                      00005 #define ARC_18F         1
+                      00006 ;#define REC_CUSTOM_JUMP custom_command_handler
+                      00007 #include "../SpeedBus.PIC.Lib.X/speedlib_main.asm"
+                      00001 ;#include "/usr/share/gputils/header/p16f690.inc"
+                      00002 ;            errorlevel -302
+                      00003 
+                      00004 ;
+                      00005 ;   #define     REC_CUSTOM_JUMP         custom_command_handler ; This is the name of the command to use,
+                             if it is a custom command. like, "jump to this statment if it is a custom command"
+                      00006 ;   #define     CUSTOM_INTERRUPT        c_intserv              ; NOTE: When use this define, remember th
+                            at the jumpback, to the ordinary interupthandler, need to be "ci_restore", if the interupt does 
+                      00007 ;
+                      00008 ;
+                      00009 ; Using two device id:s, maybe not predefined, so...
+                      00010 ; The definition of thease bytes should not be done in the lib file, but in the main asm file, so difren
+                            t deviceid:s on difrent sources can be used.
+                      00011 
+                      00012 #ifndef DEV_ID1
+                      00013 #define DEV_ID1 0
+                      00014 #endif
+                      00015 #ifndef DEV_ID2
+                      00016 #define DEV_ID2 0
+                      00017 #endif
+                      00018 
+                      00019 #ifndef FSR
+                      00020 #define FSR FSR1
+                      00021 #endif
+                      00022 
+                      00023 #ifndef INDF
+                      00024 #define INDF INDF1
+                      00025 #endif
+                      00026 
+                      00027 #ifndef EEDAT
+                      00028 #define EEDAT EEDATA
+                      00029 #endif
+                      00030 
+                      00031 #define SPEEDLIB_RESPONSE_DELAY 9
+                      00032 
+                      00033 
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00034         radix dec
+                      00035 ; IMPORTANT, do NOT change any of the varables down here, to a new bank, because
+                      00036 ; the banksel instructions are configured, as all the varables bellow are in the
+                      00037 ; same bank. As they should be.
+                      00038 #define     USER_VARIABLE_SPACE         0x49    ; 0x66 but added two, just in case
+                      00039         cblock  0x20
+  00000020            00040              d1                 ; Define three file registers for the
+  00000021            00041              d2                 ; delay loop
+  00000022            00042              d3
+  00000023            00043              d4
+  00000024            00044              tmp_W
+  00000025            00045              tmp_STATUS
+  00000026            00046              tmp_PCLATH
+  00000027            00047              d1_tmp
+  00000028            00048              d2_tmp
+  00000029            00049              d3_tmp
+  0000002A            00050              rand
+  0000002B            00051              loop1              ; Loop mem 1
+  0000002C            00052              loop2              ; Loop mem 2
+  0000002D            00053              rc_listen          ; |X-------|b7 = NoNE
+                      00054                                 ; |-X------|b6 = NoNE
+                      00055                                 ; |--X-----|b5 = NoNE
+                      00056                                 ; |---X----|b4 = NoNE
+                      00057                                 ; |----X---|b3 = This bit got set if the device recive a usual response 
+                            package (0x00)
+                      00058                                 ; |-----X--|b2 = This is an internal function for the recsave rutine, so
+                             the cewd know that following byte is escaped.
+                      00059                                 ; |------X-|b1 = If you set this bit to 1 the cewd will handle the byte 
+                            as loopback, and if it dosent match the byte in rc_nocoll
+                      00060                                 ; |-------X|b0 = This bit got set if the device recive an answer to a "c
+                            heck_addr" package, to confirm that the adress is ocupied
+  0000002E            00061              rc_counter         ; RC framelen
+  0000002F            00062              rc_gotflag         ; Set to 1 if it "got a flag"
+  00000030            00063              rc_nocoll          ; Use this to confim that no collission has ocurred
+  00000031            00064              rc_add_byte        ; recsave_add temporary argument
+  00000032            00065              rsp_adress1        ; The response adress at the bus
+  00000033            00066              rsp_adress2        ; The response adress at the bus
+  00000034            00067              adress1            ; The adress at the bus
+  00000035            00068              adress2            ; The adress at the bus
+  00000036            00069              speedlib_config    ; |X-------|b7 = NoNE
+                      00070                                 ; |-X------|b6 = NoNE
+                      00071                                 ; |--X-----|b5 = NoNE
+                      00072                                 ; |---X----|b4 = NoNE
+                      00073                                 ; |----X---|b3 = NoNe
+                      00074                                 ; |-----X--|b2 = NoNe
+                      00075                                 ; |------X-|b1 = Set this bit 1 if adress is stamped.
+                      00076                                 ; |-------X|b0 = On, Off this bit, if you want to make the device check 
+                            the adress on startup.
+  00000037            00077              speedlib_main      ; |X-------|b7 = NoNE
+                      00078                                 ; |-X------|b6 = NoNE
+                      00079                                 ; |--X-----|b5 = NoNE
+                      00080                                 ; |---X----|b4 = NoNE
+                      00081                                 ; |----X---|b3 = NoNe
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00082                                 ; |-----X--|b2 = If this bit got set, the cewd will send a response pack
+                            age when returning to restore
+                      00083                                 ; |------X-|b1 = This bit should be set, if the device has sent an packa
+                            ge, that should be responde to
+                      00084                                 ; |-------X|b0 = This bit, is SET when an interupt has occured. If you s
+                            et this to zero before youre rutine, and check the bit after, you will se if an interupt has ocu
+  00000038            00085              crc0
+  00000039            00086              crc1
+  0000003A            00087              crcloop
+  0000003B            00088              crctmp
+  0000003C            00089              framelen           ; TX framelen
+  0000003D            00090              txtmp              ; temporary before sending
+  0000003E            00091              txreturn           ; Hardcoded return, if nessesary(in interupts)
+  0000003F            00092              txframe, tx1, tx2, tx3, tx4, tx5, tx6, tx7, tx8, tx9, tx10 ; Current package limit, 20B
+  0000004A            00093              tx11, tx12, tx13, tx14, tx15, tx16, tx17, tx18, tx19, tx20
+  00000054            00094              rcframe, rc1, rc2, rc3, rc4, rc5, rc6, rc7, rc8, rc9, rc10 ; Current package limit, 20B
+  0000005F            00095              rc11, rc12, rc13, rc14, rc15, rc16, rc17, rc18, rc19, rc20
+                      00096         endc
+                      00097         ;; EEPROM
+                      00098         ;; 0x00 ; addr1
+                      00099         ;; 0x01 ; addr2
+                      00100         ;; 0x02 ; Speedbus configuration register
+                      00101 
+Error[149]  : Directive only allowed when generating an object file
+                      00102 .code_page0_ CODE
+                      00103 
+000000                00104 init_speedlib:
+                      00105     ;; Preset some values
+000000 0100           00106     banksel speedlib_main
+000002 9437           00107     bcf     speedlib_main,2
+000004 9237           00108     bcf     speedlib_main,1
+000006 010F           00109     banksel PORTB
+000008 9881           00110     bcf     PORTB,4
+00000A 0100           00111     banksel rc_listen
+00000C 922D           00112     bcf     rc_listen,1
+                      00113 
+                      00114 
+                      00115     ;; Take adress from eeprom, if it is set.
+00000E 0E00           00116     movlw   0
+000010 ECA0 F003      00117     call    read_eeprom
+000014 0100           00118     banksel adress1
+000016 6E34           00119     movwf   adress1
+000018 0E01           00120     movlw   1
+00001A ECA0 F003      00121     call    read_eeprom
+00001E 0100           00122     banksel adress2
+000020 6E35           00123     movwf   adress2
+000022 0E02           00124     movlw   2
+000024 ECA0 F003      00125     call    read_eeprom
+000028 0100           00126     banksel speedlib_config
+00002A 6E36           00127     movwf   speedlib_config
+00002C B036           00128     btfsc   speedlib_config,0
+00002E EC2D F000      00129     call    init_checkaddr
+                      00130 
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00131     ; If adress is 0xFFFF, force init_checkaddr
+000032 0EFF           00132     movlw       0xFF
+000034 0100           00133     banksel     adress1
+000036 5C34           00134     subwf       adress1,W
+000038 010F           00135     banksel     STATUS
+00003A A4D8           00136     btfss       STATUS,Z
+00003C EF2C F000      00137     goto        init_speedlib_e
+000040 0EFF           00138     movlw       0xFF
+000042 0100           00139     banksel     adress2
+000044 5C35           00140     subwf       adress2,W
+000046 010F           00141     banksel     STATUS
+000048 A4D8           00142     btfss       STATUS,Z
+00004A EF2C F000      00143     goto        init_speedlib_e
+00004E 0100           00144     banksel     adress1
+000050 6A34           00145     clrf        adress1
+000052 6A35           00146     clrf        adress2
+000054 EC2D F000      00147     call        init_checkaddr
+                      00148 
+000058                00149 init_speedlib_e:
+                      00150 
+000058 0012           00151     return
+                      00152 
+00005A                00153 init_checkaddr:
+00005A 0E03           00154         movlw   3
+00005C 6E2B           00155         movwf   loop1
+                      00156         
+00005E                00157 init_checkaddr_l:
+00005E 0100           00158         banksel framelen
+                      00159 
+                      00160         ;; Send porta over TX
+000060 0E09           00161         movlw   9
+000062 6E3C           00162         movwf   framelen
+                      00163         ;; * adress
+000064 5034           00164         movf    adress1,W
+000066 6E3F           00165         movwf   txframe 
+                      00166         ;; * adress
+000068 5035           00167         movf    adress2,W
+00006A 6E40           00168         movwf   txframe+1
+                      00169         ;; 0xff broadcast adress
+00006C 0EFF           00170         movlw   0xff
+00006E 6E41           00171         movwf   txframe+2
+                      00172         ;; 0xff broadcast adress
+000070 0EFF           00173         movlw   0xff
+000072 6E42           00174         movwf   txframe+3
+                      00175         ;; 0x03 control bit
+000074 0E03           00176         movlw   0x03
+000076 6E43           00177         movwf   txframe+4
+                      00178         ;; 0x01 protocoll
+000078 0E00           00179         movlw   0x00
+00007A 6E44           00180         movwf   txframe+5
+                      00181         ;; Data
+00007C 0E01           00182         movlw   0x01
+00007E 6E45           00183         movwf   txframe+6
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00184         ;; Padding bit
+000080 0E00           00185         movlw   0x00
+000082 6E46           00186         movwf   txframe+7
+                      00187 
+                      00188 
+000084 EC18 F003      00189         call    txdo
+                      00190 
+000088 0100           00191         banksel rc_listen
+00008A 802D           00192         bsf     rc_listen,0
+00008C 0E0A           00193         movlw   10
+00008E EC8C F003      00194         call    Delay
+000092 0100           00195         banksel rc_listen
+000094 B02D           00196         btfsc   rc_listen,0
+000096 EF4F F000      00197         goto    init_checkaddr_not_ocupied
+00009A EF55 F000      00198         goto    init_checkaddr_ocupied
+                      00199 
+00009E                00200 init_checkaddr_not_ocupied:
+00009E 0100           00201         banksel loop1
+0000A0 2E2B           00202         decfsz  loop1, f
+0000A2 EF2F F000      00203         goto    init_checkaddr_l
+0000A6 902D           00204         bcf     rc_listen,0     
+0000A8 0012           00205         return
+                      00206 
+                      00207         
+0000AA                00208 init_checkaddr_ocupied:
+0000AA EC58 F000      00209         call    setaddr
+0000AE 0012           00210         return
+                      00211 
+0000B0                00212 setaddr:
+0000B0 0100           00213         banksel adress1
+0000B2 0E00           00214         movlw   0x00
+0000B4 6E34           00215         movwf   adress1
+0000B6 0E00           00216         movlw   0x00
+0000B8 6E35           00217         movwf   adress2
+                      00218 
+0000BA                00219 setaddr1:       
+0000BA 0100           00220         banksel adress2
+                      00221 
+0000BC 3E35           00222         incfsz  adress2, f
+0000BE EF67 F000      00223         goto    setaddr2
+                      00224 
+0000C2 0E00           00225         movlw   0x00
+0000C4 6E2C           00226         movwf   loop2
+                      00227 
+0000C6 3E34           00228         incfsz  adress1, f
+0000C8 EF67 F000      00229         goto    setaddr2
+0000CC 0012           00230         return                  ; ALERT!!! Change this to a rutin that show an error that no adress is a
+                            vailible (all ~65535 is taken)
+                      00231 
+0000CE                00232 setaddr2:
+                      00233         ;; Send porta over TX
+0000CE 0E09           00234         movlw   9
+0000D0 6E3C           00235         movwf   framelen
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00236         ;; * adress
+0000D2 5034           00237         movf    adress1,W
+0000D4 6E3F           00238         movwf   txframe 
+                      00239         ;; * adress
+0000D6 5035           00240         movf    adress2,W
+0000D8 6E40           00241         movwf   txframe+1
+                      00242         ;; 0xff broadcast adress
+0000DA 0EFF           00243         movlw   0xff
+0000DC 6E41           00244         movwf   txframe+2
+                      00245         ;; 0xff broadcast adress
+0000DE 0EFF           00246         movlw   0xff
+0000E0 6E42           00247         movwf   txframe+3
+                      00248         ;; 0x03 control bit
+0000E2 0E03           00249         movlw   0x03
+0000E4 6E43           00250         movwf   txframe+4
+                      00251         ;; 0x01 protocoll
+0000E6 0E00           00252         movlw   0x00
+0000E8 6E44           00253         movwf   txframe+5
+                      00254         ;; Data
+0000EA 0E01           00255         movlw   0x01
+0000EC 6E45           00256         movwf   txframe+6
+                      00257         ;; Padding bit
+0000EE 0E00           00258         movlw   0x00
+0000F0 6E46           00259         movwf   txframe+7
+                      00260 
+                      00261 
+0000F2 EC18 F003      00262         call    txdo
+                      00263 
+0000F6 0100           00264         banksel rc_listen
+0000F8 802D           00265         bsf     rc_listen,0
+0000FA 0E01           00266         movlw   1
+0000FC EC8C F003      00267         call    Delay
+000100 0100           00268         banksel rc_listen
+000102 B02D           00269         btfsc   rc_listen,0
+000104 EF86 F000      00270         goto    setaddr_testloop
+000108 EF5D F000      00271         goto    setaddr1
+                      00272 
+                      00273         
+00010C                00274 setaddr_testloop:               ; Send this rutine another 2 times, to make sure that the previus packet
+                             not was droped
+00010C 0100           00275         banksel loop1
+00010E 0E02           00276         movlw   2
+000110 6E2B           00277         movwf   loop1
+000112                00278 setaddr_testloop_l:     
+                      00279 
+000112 EC18 F003      00280         call    txdo
+                      00281 
+000116 0100           00282         banksel rc_listen
+000118 802D           00283         bsf     rc_listen,0
+00011A 0E01           00284         movlw   1
+00011C EC8C F003      00285         call    Delay
+000120 0100           00286         banksel rc_listen
+000122 A02D           00287         btfss   rc_listen,0
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000124 EF5D F000      00288         goto    setaddr1
+000128 2E2B           00289         decfsz  loop1,  f
+00012A EF89 F000      00290         goto    setaddr_testloop_l
+00012E 0012           00291         return                  ; The adress sems nice! Returning, and keep the composed adress!
+                      00292         
+                      00293         
+                      00294         
+000130                00295 intserv:
+                      00296 
+000130 0100           00297         banksel speedlib_main
+000132 8037           00298         bsf     speedlib_main,0 ;       Set this bit to one, when an interupt ocurres
+                      00299 
+                      00300 
+000134 A237           00301         btfss   speedlib_main,1         ;; Waiting for response STATE? Jump direct to recend_no_broadcas
+                            t
+000136 EFA3 F000      00302         goto    intserv_norm
+00013A 010F           00303         banksel PIR1
+00013C BA9E           00304         btfsc   PIR1,RCIF       ;       Check if the recived data bit is set
+00013E EFC4 F000      00305         goto    rec             ;       Jump to recive data rutine if the PIR1 bit is 1
+000142 EFB4 F000      00306         goto    restore
+                      00307 
+000146                00308 intserv_norm:
+000146 0100           00309         banksel tmp_W
+000148 6E24           00310         movwf   tmp_W           ;       Register BKP before the interup code exec
+00014A 50D8           00311         movf    STATUS,W
+00014C 6AD8           00312         clrf    STATUS
+00014E 6E25           00313         movwf   tmp_STATUS
+000150 50FA           00314         movf    PCLATH,W
+000152 6E26           00315         movwf   tmp_PCLATH
+000154 5020           00316         movf    d1,W
+000156 6E27           00317         movwf   d1_tmp
+000158 5021           00318         movf    d2,W
+00015A 6E28           00319         movwf   d2_tmp
+00015C 5022           00320         movf    d3,W
+00015E 6E29           00321         movwf   d3_tmp
+                      00322         #ifdef  CUSTOM_INTERRUPT
+                      00323         goto    CUSTOM_INTERRUPT
+                      00324 ci_restore:
+                      00325         #endif
+                      00326 
+000160 010F           00327         banksel PIR1
+000162 BA9E           00328         btfsc   PIR1,RCIF       ;       Check if the recived data bit is set
+000164 EFC4 F000      00329         goto    rec             ;       Jump to recive data rutine if the PIR1 bit is 1
+                      00330 
+                      00331 
+000168                00332 restore:
+000168 0100           00333         banksel speedlib_main   ;       Restore the regisers
+00016A B237           00334         btfsc   speedlib_main,1         ;; Waiting for response STATE? Dont
+00016C 0010           00335         retfie                          ;; restore saved, nothing is saved
+                      00336 
+                      00337         ;; If:  Send back a response package, to confirm that the package has been recived
+                      00338 ;        btfss   speedlib_main,2
+                      00339 ;        goto    restore_norm
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00340 ;        bcf     speedlib_main,2
+                      00341 ;        call    func_send_response
+                      00342         ;;
+                      00343 
+00016E                00344 restore_norm:
+                      00345 
+                      00346     
+00016E 5027           00347         movf    d1_tmp,W
+000170 6E20           00348         movwf   d1
+000172 5028           00349         movf    d2_tmp,W
+000174 6E21           00350         movwf   d2
+000176 5029           00351         movf    d3_tmp,W
+000178 6E22           00352         movwf   d3      
+00017A 5026           00353         movf    tmp_PCLATH,W
+00017C 6EFA           00354         movwf   PCLATH
+00017E 5025           00355         movf    tmp_STATUS,W
+000180 6ED8           00356         movwf   STATUS
+000182 3A24           00357         swapf   tmp_W,F
+000184 3824           00358         swapf   tmp_W,W
+000186 0010           00359         retfie
+                      00360         
+                      00361 
+000188                00362 rec:
+000188 0100           00363         banksel rc_listen
+00018A A22D           00364         btfss   rc_listen,1             ; If rc_listen is set to NOT drop the loopback package, jump dir
+                            ectly to the rec_start
+00018C EFD7 F000      00365         goto    rec_start               
+                      00366 
+000190 922D           00367         bcf     rc_listen,1             ;; Start this rutine with checking that the recived bit NOT was 
+                            send from this own device
+000192 5030           00368         movf    rc_nocoll,W
+000194 010F           00369         banksel RCREG
+000196 5CAE           00370         subwf   RCREG,W
+000198 A4D8           00371         btfss   STATUS,Z
+00019A EFD1 F000      00372         goto    rec_oops_coll           ; Anyway, if the rc_listen,1  is 1, and it do not match RCREG, w
+                            e may be detected an collission
+00019E EFB4 F000      00373         goto    restore
+0001A2                00374 rec_oops_coll:
+0001A2 010F           00375         banksel PORTC
+0001A4 8082           00376         bsf     PORTC,0
+0001A6 0100           00377         banksel txreturn
+0001A8 823E           00378         bsf     txreturn,1
+0001AA EFB4 F000      00379         goto    restore
+                      00380         
+0001AE                00381 rec_start:
+0001AE 010F           00382         banksel RCREG
+0001B0 0E7E           00383         movlw   0x7e
+0001B2 5CAE           00384         subwf   RCREG,W
+0001B4 B4D8           00385         btfsc   STATUS,Z
+0001B6 EFE3 F000      00386         goto    recx            ; Jump if this is a flag bit
+0001BA 0100           00387         banksel rc_gotflag
+0001BC B02F           00388         btfsc   rc_gotflag,0
+0001BE EFED F000      00389         goto    recsave         ; Jump if the flag bit is set
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0001C2 EFEB F000      00390         goto    recr
+0001C6                00391 recx:
+0001C6 0100           00392         banksel rc_gotflag
+0001C8 B02F           00393         btfsc   rc_gotflag,0
+0001CA EF22 F001      00394         goto    recend          ; If this may be end flag, check the package, finalize, check crc
+0001CE 802F           00395         bsf     rc_gotflag,0    ; Else set the gotflag, and start recording package!
+0001D0 6A2E           00396         clrf    rc_counter      ; Clear the counter :)
+0001D2 EFB4 F000      00397         goto    restore
+0001D6                00398 recr:   
+                      00399         ;       movf    RCREG,W
+                      00400         ;       movwf   TXREG           
+0001D6 EFB4 F000      00401         goto    restore
+                      00402 
+0001DA                00403 recsave:
+0001DA 010F           00404         banksel RCREG
+0001DC 0E7D           00405         movlw   0x7d
+0001DE 5CAE           00406         subwf   RCREG,W
+0001E0 B4D8           00407         btfsc   STATUS,Z
+0001E2 EFFB F000      00408         goto    recsave_set     ; Set bit in the rc_listen to aktivate escape routines when the next byt
+                            e is recived
+0001E6 0100           00409         banksel rc_listen
+0001E8 B42D           00410         btfsc   rc_listen,2
+0001EA EFFF F000      00411         goto    recsave_unescape
+                      00412 
+0001EE 010F           00413         banksel RCREG
+0001F0 50AE           00414         movf    RCREG,W
+0001F2 EF14 F001      00415         goto    recsave_add
+                      00416 
+0001F6                00417 recsave_set:
+0001F6 0100           00418         banksel rc_listen
+0001F8 842D           00419         bsf     rc_listen,2
+0001FA EFB4 F000      00420         goto    restore
+                      00421 
+0001FE                00422 recsave_unescape:
+0001FE 0100           00423         banksel rc_listen
+000200 942D           00424         bcf     rc_listen,2
+000202 0E5E           00425         movlw   0x5e
+000204 010F           00426         banksel RCREG
+000206 5CAE           00427         subwf   RCREG,W
+000208 B4D8           00428         btfsc   STATUS,Z
+00020A EF0E F001      00429         goto    recsave_unescape_1
+00020E 0E5D           00430         movlw   0x5d
+000210 5CAE           00431         subwf   RCREG,W
+000212 B4D8           00432         btfsc   STATUS,Z
+000214 EF11 F001      00433         goto    recsave_unescape_2
+000218 EFB4 F000      00434         goto    restore         ; Maybe you can change this, but a fail package that is the result, will
+                             also be CRC checked
+                      00435         
+00021C                00436 recsave_unescape_1:
+00021C 0E7E           00437         movlw   0x7e
+00021E EF14 F001      00438         goto    recsave_add
+000222                00439 recsave_unescape_2:
+000222 0E7D           00440         movlw   0x7d
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000224 EF14 F001      00441         goto    recsave_add
+                      00442         
+000228                00443 recsave_add:
+000228 0100           00444         banksel rc_add_byte
+00022A 6E31           00445         movwf   rc_add_byte
+00022C 0E54           00446         movlw   rcframe         ; Place where to put the receiving byte
+00022E 242E           00447         addwf   rc_counter,W    ; Add the number in rc_flow, to the pointer, like rcframe[rc_flow] 
+000230 0100           00448         banksel FSR
+000232 6E01           00449         movwf   FSR
+000234 0100           00450         banksel rc_add_byte
+000236 5031           00451         movf    rc_add_byte,W
+000238 010F           00452         banksel INDF
+00023A 6EE7           00453         movwf   INDF
+00023C 0100           00454         banksel rc_counter
+00023E 2A2E           00455         incf    rc_counter,F
+000240 EFB4 F000      00456         goto    restore
+                      00457         
+000244                00458 recend:
+000244 0100           00459         banksel rc_counter
+000246 042E           00460         decf    rc_counter,W
+000248 6E2E           00461         movwf   rc_counter
+00024A 6E3A           00462         movwf   crcloop
+00024C 0E54           00463         movlw   rcframe
+00024E 0100           00464         banksel FSR
+000250 6E01           00465         movwf   FSR
+000252 0100           00466         banksel crc0
+000254 6A38           00467         clrf    crc0
+000256 6A39           00468         clrf    crc1
+000258 EC27 F003      00469         call    crcloopr        ; Call CRC function
+                      00470 
+00025C 0100           00471         banksel rcframe
+00025E 0E54           00472         movlw   rcframe
+000260 242E           00473         addwf   rc_counter,W
+000262 0100           00474         banksel FSR
+000264 6E01           00475         movwf   FSR
+                      00476 
+000266 010F           00477         banksel INDF
+000268 50E7           00478         movf    INDF,W
+00026A 0100           00479         banksel crc1
+00026C 5C39           00480         subwf   crc1,W
+00026E A4D8           00481         btfss   STATUS,Z
+000270 EFC5 F002      00482         goto    reccrcfail
+                      00483 
+000274 0100           00484         banksel FSR
+000276 0401           00485         decf    FSR,W
+000278 6E01           00486         movwf   FSR
+                      00487 
+00027A 010F           00488         banksel INDF
+00027C 50E7           00489         movf    INDF,W
+00027E 0100           00490         banksel crc0
+000280 5C38           00491         subwf   crc0,W
+000282 A4D8           00492         btfss   STATUS,Z
+000284 EFC5 F002      00493         goto    reccrcfail
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 11
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00494 
+                      00495         
+                      00496         ;; fix so that the cheksum is check:ed and do things ;)
+                      00497 
+                      00498         ;; REMEMBER, if checksum is right, clear rc_gotflag, else, untuched
+000288 902F           00499         bcf     rc_gotflag,0
+                      00500 
+00028A 0E5A           00501         movlw   rcframe+6       ; Move recived byte to W
+00028C 0100           00502         banksel FSR
+00028E 6E01           00503         movwf   FSR
+                      00504 
+000290                00505 recend_tmp:
+                      00506 
+000290 0100           00507         banksel speedlib_main
+000292 B237           00508         btfsc   speedlib_main,1 ; No CUSTOM command when in Whait for RESP STATE
+000294 EF52 F001      00509         goto    recend_no_broadcast
+                      00510 
+000298 0E01           00511         movlw   0x01
+00029A 010F           00512         banksel INDF
+00029C 5CE7           00513         subwf   INDF,W
+00029E B4D8           00514         btfsc   STATUS,Z
+0002A0 EF4E F002      00515         goto    func_bc
+                      00516 
+0002A4                00517 recend_no_broadcast:
+                      00518 
+0002A4 0100           00519         banksel rcframe
+0002A6 0E54           00520         movlw   rcframe
+0002A8 0100           00521         banksel FSR
+0002AA 6E01           00522         movwf   FSR
+0002AC 010F           00523         banksel INDF
+0002AE 50E7           00524         movf    INDF,W          ; Check so that the adress is destinated for me
+0002B0 0100           00525         banksel adress1
+0002B2 5C34           00526         subwf   adress1,W
+0002B4 A4D8           00527         btfss   STATUS,Z
+0002B6 EFB4 F000      00528         goto    restore
+0002BA 0100           00529         banksel FSR
+0002BC 2801           00530         incf    FSR,W
+0002BE 6E01           00531         movwf   FSR
+0002C0 010F           00532         banksel INDF
+0002C2 50E7           00533         movf    INDF,W
+0002C4 0100           00534         banksel adress2
+0002C6 5C35           00535         subwf   adress2,W
+0002C8 A4D8           00536         btfss   STATUS,Z
+0002CA EFB4 F000      00537         goto    restore
+                      00538 
+0002CE 0E5A           00539         movlw   rcframe+6       ; Move recived byte to W
+0002D0 0100           00540         banksel FSR
+0002D2 6E01           00541         movwf   FSR
+                      00542 
+0002D4 0E00           00543         movlw   0x00            ; Got response
+0002D6 010F           00544         banksel INDF
+0002D8 5CE7           00545         subwf   INDF,W
+0002DA B4D8           00546         btfsc   STATUS,Z
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 12
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0002DC EF1D F002      00547         goto    func_check_response
+                      00548 
+0002E0 0100           00549         banksel speedlib_main
+0002E2 B237           00550         btfsc   speedlib_main,1 ; No CUSTOM command when in Whait for RESP STATE
+0002E4 EFB4 F000      00551         goto    restore
+                      00552 
+0002E8 5059           00553         movf    rcframe+5,W
+0002EA 0801           00554         sublw   0x01
+0002EC B4D8           00555         btfsc   STATUS,Z
+0002EE ECFA F001      00556         call    func_send_response
+                      00557 ;        bsf     speedlib_main,2 ; Set this bit, so the cewd knows that WHEN
+                      00558 ;        btfss  STATUS,Z        ; returning to restore, send a response package
+                      00559 ;        bcf     speedlib_main,2
+                      00560 
+                      00561 
+                      00562         ;; Make sure that the FSR pointer is pointed right
+0002F2 0E5A           00563         movlw   rcframe+6       ; Move recived byte to W
+0002F4 0100           00564         banksel FSR
+0002F6 6E01           00565         movwf   FSR
+                      00566 
+0002F8 0E01           00567         movlw   0x01            ; Send respons for, 0x01 message, destionated for me
+0002FA 010F           00568         banksel INDF
+0002FC 5CE7           00569         subwf   INDF,W
+0002FE B4D8           00570         btfsc   STATUS,Z
+000300 EF21 F002      00571         goto    func_is_ocupied_send_response
+                      00572         
+000304 0E02           00573         movlw   0x02
+000306 5CE7           00574         subwf   INDF,W
+000308 B4D8           00575         btfsc   STATUS,Z
+00030A EF90 F002      00576         goto    func_setport
+                      00577 
+00030E 0E03           00578         movlw   0x03
+000310 5CE7           00579         subwf   INDF,W
+000312 B4D8           00580         btfsc   STATUS,Z
+000314 EF8E F001      00581         goto    func_speedlib_config
+                      00582 
+                      00583 #ifdef  REC_CUSTOM_JUMP
+                      00584         goto    custom_command_handler
+                      00585 #endif
+000318 EFB4 F000      00586         goto    restore
+                      00587 
+00031C                00588 func_speedlib_config:
+00031C 0E09           00589         movlw   9
+00031E 0100           00590         banksel rc_counter
+000320 5C2E           00591         subwf   rc_counter,W
+000322 B4D8           00592         btfsc   STATUS,Z
+000324 EFD2 F001      00593         goto    func_speedlib_config_basics
+                      00594 
+000328 B0D8           00595         btfsc   STATUS,C
+00032A EF99 F001      00596         goto    func_speedlib_config_extended
+00032E EFB4 F000      00597         goto    restore
+                      00598 
+000332                00599 func_speedlib_config_extended:
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 13
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000332 0E5B           00600         movlw   rcframe+7       ; Move recived byte to W
+000334 0100           00601         banksel FSR
+000336 6E01           00602         movwf   FSR
+000338 0E00           00603         movlw   0x00
+00033A 010F           00604         banksel INDF
+00033C 5CE7           00605         subwf   INDF,W
+00033E B4D8           00606         btfsc   STATUS,Z
+000340 EFD2 F001      00607         goto    func_speedlib_config_basics
+000344 0E01           00608         movlw   0x01
+000346 5CE7           00609         subwf   INDF,W
+000348 B4D8           00610         btfsc   STATUS,Z
+00034A EFA9 F001      00611         goto    func_speedlib_config_caddr
+00034E EFB4 F000      00612         goto    restore
+                      00613 
+                      00614 
+000352                00615 func_speedlib_config_caddr:
+000352 0E0C           00616         movlw   12
+000354 0100           00617         banksel rc_counter
+000356 5C2E           00618         subwf   rc_counter,W
+000358 A0D8           00619         btfss   STATUS,C    ;; If rc_counter NOT is more och equal to twelve, jump back
+00035A EFB4 F000      00620         goto    restore
+                      00621 
+00035E ECFA F001      00622         call    func_send_response
+                      00623 
+                      00624 
+000362 0E5C           00625         movlw   rcframe+8       ; Move recived byte to W
+000364 0100           00626         banksel FSR
+000366 6E01           00627         movwf   FSR
+000368 010F           00628         banksel INDF
+00036A 50E7           00629         movf    INDF,W
+00036C 0100           00630         banksel adress1
+00036E 6E34           00631         movwf   adress1
+000370 0100           00632         banksel FSR
+000372 2A01           00633         incf    FSR,f
+000374 010F           00634         banksel INDF
+000376 50E7           00635         movf    INDF,W
+000378 0100           00636         banksel adress2
+00037A 6E35           00637         movwf   adress2
+                      00638 
+00037C 8236           00639         bsf     speedlib_config,1
+                      00640         ;; Here you probobly want some cewd that writes tha adress to eeprom TODO
+00037E 0E00           00641         movlw   0
+000380 6E30           00642         movwf   rc_nocoll
+000382 5034           00643         movf    adress1,W
+000384 ECA8 F003      00644         call    write_eeprom
+000388 0100           00645         banksel rc_nocoll
+00038A 0E01           00646         movlw   1
+00038C 6E30           00647         movwf   rc_nocoll
+00038E 5035           00648         movf    adress2,W
+000390 ECA8 F003      00649         call    write_eeprom
+000394 0100           00650         banksel rc_nocoll
+000396 0E02           00651         movlw   2
+000398 6E30           00652         movwf   rc_nocoll
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 14
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00039A 5036           00653         movf    speedlib_config,W
+00039C ECA8 F003      00654         call    write_eeprom
+0003A0 EFB4 F000      00655         goto    restore
+                      00656 
+0003A4                00657 func_speedlib_config_basics:
+0003A4 0E0C           00658         movlw   12
+0003A6 EC8C F003      00659         call    Delay
+0003AA 0E0B           00660         movlw   11
+0003AC 0100           00661         banksel framelen
+0003AE 6E3C           00662         movwf   framelen
+                      00663         ;; 0xff broadcast dst adress
+0003B0 0E56           00664         movlw   rcframe+2         ;       dst addr
+0003B2 0100           00665         banksel FSR
+0003B4 6E01           00666         movwf   FSR
+0003B6 010F           00667         banksel INDF
+0003B8 50E7           00668         movf    INDF,W
+0003BA 0100           00669         banksel txframe
+0003BC 6E3F           00670         movwf   txframe
+                      00671         ;; 0xff broadcast dst adress
+0003BE 0E57           00672         movlw   rcframe+3         ;       dst addr
+0003C0 0100           00673         banksel FSR
+0003C2 6E01           00674         movwf   FSR
+0003C4 010F           00675         banksel INDF
+0003C6 50E7           00676         movf    INDF,W
+0003C8 0100           00677         banksel txframe
+0003CA 6E40           00678         movwf   txframe+1
+                      00679         ;; * my own src adress
+0003CC 5034           00680         movf    adress1, W
+0003CE 6E41           00681         movwf   txframe+2
+                      00682         ;; * my own src adress
+0003D0 5035           00683         movf    adress2, W
+0003D2 6E42           00684         movwf   txframe+3
+                      00685         ;; 0x03 control bit
+0003D4 0E03           00686         movlw   0x03
+0003D6 6E43           00687         movwf   txframe+4
+                      00688         ;; 0x01 protocoll
+0003D8 0E00           00689         movlw   0x00
+0003DA 6E44           00690         movwf   txframe+5
+                      00691         ;; Data
+0003DC 0E03           00692         movlw   0x03
+0003DE 6E45           00693         movwf   txframe+6
+                      00694         ;; 0x00 Basic config response
+0003E0 0E00           00695         movlw   0x00
+0003E2 6E46           00696         movwf   txframe+7
+                      00697         ;; Send back speedlib_config
+0003E4 0E36           00698         movlw   speedlib_config
+0003E6 6E47           00699         movwf   txframe+8
+                      00700         ;; Padding bit
+0003E8 0E00           00701         movlw   0x00
+0003EA 6E48           00702         movwf   txframe+9
+                      00703 
+0003EC EC18 F003      00704         call    txdo
+0003F0 EFB4 F000      00705         goto    restore
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 15
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00706 
+0003F4                00707 func_send_response:
+0003F4 0E09           00708         movlw   SPEEDLIB_RESPONSE_DELAY
+0003F6 EC8C F003      00709         call    Delay
+0003FA 0100           00710         banksel framelen
+0003FC 0E09           00711         movlw   9
+0003FE 6E3C           00712         movwf   framelen
+                      00713         ;; 0xff broadcast dst adress
+000400 0E56           00714         movlw   rcframe+2         ;       dst addr
+000402 0100           00715         banksel FSR
+000404 6E01           00716         movwf   FSR
+000406 010F           00717         banksel INDF
+000408 50E7           00718         movf    INDF,W
+00040A 0100           00719         banksel txframe
+00040C 6E3F           00720         movwf   txframe
+                      00721         ;; 0xff broadcast dst adress
+00040E 0E57           00722         movlw   rcframe+3         ;       dst addr
+000410 0100           00723         banksel FSR
+000412 6E01           00724         movwf   FSR
+000414 010F           00725         banksel INDF
+000416 50E7           00726         movf    INDF,W
+000418 0100           00727         banksel txframe
+00041A 6E40           00728         movwf   txframe+1
+                      00729         ;; * my own src adress
+00041C 5034           00730         movf    adress1, W
+00041E 6E41           00731         movwf   txframe+2
+                      00732         ;; * my own src adress
+000420 5035           00733         movf    adress2, W
+000422 6E42           00734         movwf   txframe+3
+                      00735         ;; 0x03 control bit
+000424 0E03           00736         movlw   0x03
+000426 6E43           00737         movwf   txframe+4
+                      00738         ;; 0x01 protocoll
+000428 0E01           00739         movlw   0x01
+00042A 6E44           00740         movwf   txframe+5
+                      00741         ;; Data
+00042C 0E00           00742         movlw   0x00
+00042E 6E45           00743         movwf   txframe+6
+                      00744         ;; Padding bit
+000430 0E00           00745         movlw   0x00
+000432 6E46           00746         movwf   txframe+7
+                      00747 
+                      00748         ;; This is a broadcast package with adress on it
+                      00749 
+000434 EC18 F003      00750         call    txdo
+000438 0012           00751         return
+                      00752 
+00043A                00753 func_check_response:
+                      00754 ; May be more advanced in the future, but for now, i dont se any reason why
+                      00755 ; we should make this functione more advanced, how many response packages are
+                      00756 ; realy exchange in a cuple of ms? -.- //  Speedster
+00043A 0100           00757         banksel rc_listen
+00043C 862D           00758         bsf     rc_listen,3
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 16
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00043E EFB4 F000      00759         goto    restore
+                      00760 
+                      00761 
+000442                00762 func_is_ocupied_send_response:
+000442 0E0C           00763         movlw   12              ; Pretty strange, but you need this, so no colission or somthing will be
+                             made betwen PC and ansoring device
+000444 EC8C F003      00764         call    Delay
+000448 0100           00765         banksel rc_listen
+                      00766         ;; Send Package:
+00044A B02D           00767         btfsc   rc_listen,0
+00044C EF2A F002      00768         goto    func_is_ocupied_send_response_got_resp
+000450 EF2D F002      00769         goto    func_is_ocupied_send_response_pack
+Warning[208]: Label truncated at 32 characters. (func_is_ocupied_send_response_got_resp)
+000454                00770 func_is_ocupied_send_response_got_resp:
+000454 902D           00771         bcf     rc_listen,0
+000456 EFB4 F000      00772         goto    restore
+                      00773 
+Warning[208]: Label truncated at 32 characters. (func_is_ocupied_send_response_pack)
+00045A                00774 func_is_ocupied_send_response_pack:
+00045A 0E09           00775         movlw   9
+00045C 0100           00776         banksel framelen
+00045E 6E3C           00777         movwf   framelen
+                      00778         ;; 0xff broadcast dst adress
+000460 0E56           00779         movlw   rcframe+2         ;       dst addr
+000462 0100           00780         banksel FSR
+000464 6E01           00781         movwf   FSR
+000466 010F           00782         banksel INDF
+000468 50E7           00783         movf    INDF,W
+00046A 0100           00784         banksel txframe
+00046C 6E3F           00785         movwf   txframe
+                      00786         ;; 0xff broadcast dst adress
+00046E 0E57           00787         movlw   rcframe+3         ;       dst addr
+000470 0100           00788         banksel FSR
+000472 6E01           00789         movwf   FSR
+000474 010F           00790         banksel INDF
+000476 50E7           00791         movf    INDF,W
+000478 0100           00792         banksel txframe
+00047A 6E40           00793         movwf   txframe+1
+                      00794         ;; * my own src adress
+00047C 5034           00795         movf    adress1, W
+00047E 6E41           00796         movwf   txframe+2
+                      00797         ;; * my own src adress
+000480 5035           00798         movf    adress2, W
+000482 6E42           00799         movwf   txframe+3
+                      00800         ;; 0x03 control bit
+000484 0E03           00801         movlw   0x03
+000486 6E43           00802         movwf   txframe+4
+                      00803         ;; 0x01 protocoll
+000488 0E00           00804         movlw   0x00
+00048A 6E44           00805         movwf   txframe+5
+                      00806         ;; Data
+00048C 0E01           00807         movlw   0x01
+00048E 6E45           00808         movwf   txframe+6
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 17
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00809         ;; Padding bit
+000490 0E00           00810         movlw   0x00
+000492 6E46           00811         movwf   txframe+7
+                      00812         
+                      00813         ;; This is a broadcast package with adress on it
+                      00814 
+000494 EC18 F003      00815         call    txdo    
+                      00816 
+000498 EFB4 F000      00817         goto    restore
+                      00818 
+                      00819         
+00049C                00820 func_bc:
+                      00821 ; 120623 A new era has become speedbus, all package that are need to, shall for
+                      00822 ; now be sent with an respons, and, for that reason, i no more use command 0x00
+                      00823 ; for is_occupied commands. When an 0x01 NOT is broadcast(it got a real adress)
+                      00824 ; It is ment to bee like an old 0x00, if it is not an bc, send is_occupied.
+                      00825 ; For now on, 0x00 is used to respond packages that need a response! Over'n out
+                      00826 ; // Speedster
+                      00827 
+00049C 0100           00828         banksel rcframe
+00049E 0E54           00829         movlw   rcframe         ;       dst addr
+0004A0 0100           00830         banksel FSR
+0004A2 6E01           00831         movwf   FSR
+                      00832         
+0004A4 0EFF           00833         movlw   0xFF            ;       check dst adress1
+0004A6 010F           00834         banksel INDF
+0004A8 5CE7           00835         subwf   INDF,W
+0004AA A4D8           00836         btfss   STATUS,Z
+0004AC EF52 F001      00837         goto    recend_no_broadcast
+                      00838 
+0004B0 0100           00839         banksel FSR
+0004B2 2801           00840         incf    FSR,W           ;       Increase the address    
+0004B4 6E01           00841         movwf   FSR
+                      00842 
+0004B6 0EFF           00843         movlw   0xFF            ;       check dst adress2
+0004B8 010F           00844         banksel INDF
+0004BA 5CE7           00845         subwf   INDF,W
+0004BC A4D8           00846         btfss   STATUS,Z
+0004BE EF52 F001      00847         goto    recend_no_broadcast
+                      00848         
+0004C2 0E5A           00849         movlw   rcframe+6        
+0004C4 0100           00850         banksel FSR
+0004C6 6E01           00851         movwf   FSR
+0004C8 0E01           00852         movlw   0x01
+0004CA 010F           00853         banksel INDF
+0004CC 5CE7           00854         subwf   INDF,W
+0004CE B4D8           00855         btfsc   STATUS,Z
+0004D0 EF6C F002      00856         goto    func_bc_sendaddr
+0004D4 EFB4 F000      00857         goto    restore
+                      00858         
+0004D8                00859 func_bc_sendaddr:       
+0004D8 EC6E F003      00860         call    trd      ; Three random delay:s before ansor broadcast
+                      00861 
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 18
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0004DC EC99 F002      00862         call    func_set_rsp_addr ;; Set rsp_adress to the src adress of the last recived package
+                      00863 
+                      00864         ;; Send Package:
+0004E0 0100           00865         banksel framelen
+0004E2 0E0B           00866         movlw   11
+0004E4 6E3C           00867         movwf   framelen
+                      00868         ;; dst adress
+0004E6 5032           00869         movf    rsp_adress1,W
+0004E8 6E3F           00870         movwf   txframe
+                      00871         ;; dst adress
+0004EA 5033           00872         movf    rsp_adress2,W
+0004EC 6E40           00873         movwf   txframe+1
+                      00874         ;; * my own src adress
+0004EE 5034           00875         movf    adress1, W
+0004F0 6E41           00876         movwf   txframe+2
+                      00877         ;; * my own src adress
+0004F2 5035           00878         movf    adress2, W
+0004F4 6E42           00879         movwf   txframe+3
+                      00880         ;; 0x03 control bit
+0004F6 0E03           00881         movlw   0x03
+0004F8 6E43           00882         movwf   txframe+4
+                      00883         ;; 0x01 protocoll
+0004FA 0E01           00884         movlw   0x01
+0004FC 6E44           00885         movwf   txframe+5
+                      00886         ;; Data
+0004FE 0E01           00887         movlw   0x01
+000500 6E45           00888         movwf   txframe+6
+                      00889         ;; Data - DeviceID
+000502 0E00           00890         movlw   DEV_ID1
+000504 6E46           00891         movwf   txframe+7
+                      00892         ;; Data - DeviceID
+000506 0E00           00893         movlw   DEV_ID2
+000508 6E47           00894         movwf   txframe+8
+                      00895         ;; Padding bit
+00050A 0E00           00896         movlw   0x00
+00050C 6E48           00897         movwf   txframe+9
+                      00898         
+                      00899         ;; This is a broadcast package with adress on it
+                      00900 ;
+00050E 0E01           00901         movlw   0x01
+000510 5C59           00902         subwf   rcframe+5,W
+000512 B4D8           00903         btfsc   STATUS,Z
+000514 EFA8 F002      00904         goto    handle_response
+000518 EC18 F003      00905         call    txdo
+                      00906 ;
+                      00907 
+00051C                00908 func_bc_sended_packet:
+00051C EFB4 F000      00909         goto    restore
+                      00910 
+000520                00911 func_setport:
+000520 0E02           00912         movlw   2
+000522 0100           00913         banksel FSR
+000524 2601           00914         addwf   FSR,F
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 19
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000526 010F           00915         banksel INDF
+000528 50E7           00916         movf    INDF,W
+00052A 010F           00917         banksel PORTC
+00052C 6E82           00918         movwf   PORTC
+00052E EFB4 F000      00919         goto    restore
+                      00920 
+000532                00921 func_set_rsp_addr:
+                      00922         ;; Add last rec package src addr to rsp_adress1 rsp_adress2
+000532 0E56           00923         movlw   rcframe+2         ;       dst addr
+000534 0100           00924         banksel FSR
+000536 6E01           00925         movwf   FSR
+000538 010F           00926         banksel INDF
+00053A 50E7           00927         movf    INDF,W
+00053C 0100           00928         banksel rsp_adress1
+00053E 6E32           00929         movwf   rsp_adress1
+000540 0E57           00930         movlw   rcframe+3         ;       dst addr
+000542 0100           00931         banksel FSR
+000544 6E01           00932         movwf   FSR
+000546 010F           00933         banksel INDF
+000548 50E7           00934         movf    INDF,W
+00054A 0100           00935         banksel rsp_adress2
+00054C 6E33           00936         movwf   rsp_adress2
+00054E 0012           00937         return
+                      00938 
+000550                00939 handle_response:
+000550 0100           00940         banksel rc_listen
+000552 962D           00941         bcf     rc_listen,3
+000554 8237           00942         bsf     speedlib_main,1
+000556 922D           00943         bcf     rc_listen,1
+                      00944 
+                      00945 
+                      00946     ; Important, this should be run in "main space", not interupt space, soo,
+                      00947     ; well, now it is runed somewheare in the middle, wait for response STATE
+000558 010F           00948         banksel INTCON
+00055A 8EF2           00949         bsf     INTCON,GIE
+00055C 0E0A           00950         movlw   10
+00055E 0100           00951         banksel loop1
+000560 6E2B           00952         movwf   loop1
+000562                00953 handle_response_loop:
+000562 EC18 F003      00954         call    txdo
+000566 0EFA           00955         movlw   250
+000568 EC8C F003      00956         call    Delay
+                      00957 
+                      00958         ;; If error
+00056C 010F           00959         banksel RCSTA
+00056E B2AB           00960         btfsc   RCSTA,OERR
+000570 ECCC F002      00961         call    recerror
+                      00962         ;;
+000574 0100           00963         banksel rc_listen
+000576 B62D           00964         btfsc   rc_listen,3
+000578 EFC1 F002      00965         goto    handle_response_ret
+00057C 2E2B           00966         decfsz  loop1,f
+00057E EFB1 F002      00967         goto    handle_response_loop
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 20
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00968 
+000582                00969 handle_response_ret:
+000582 962D           00970         bcf     rc_listen,3
+000584 9237           00971         bcf     speedlib_main,1
+000586 EFB4 F000      00972         goto    restore
+                      00973 
+00058A                00974 reccrcfail:
+                      00975         ;; Because that this happend directrly after a crc-fail, here we need to clear the counter, so t
+                            he newxt comming package will start allover
+00058A 0100           00976         banksel rc_counter
+00058C 6A2E           00977         clrf    rc_counter
+                      00978         ;; Do somthing
+00058E 0E01           00979         movlw    B'00000001'    ;toggle bit3
+000590 010F           00980         banksel  PORTC
+000592 1A82           00981         xorwf    PORTC,F
+000594 EFB4 F000      00982         goto    restore
+                      00983         
+000598                00984 recerror:
+                      00985         ;; Do somthing
+000598 010F           00986         banksel RCSTA
+00059A 98AB           00987         bcf     RCSTA,CREN
+00059C 88AB           00988         bsf     RCSTA,CREN
+00059E 0012           00989         return
+0005A0                00990 txoops:                         ; Colisson has ocurred
+0005A0 0100           00991         banksel txreturn
+0005A2 923E           00992         bcf     txreturn,1
+0005A4 EC81 F003      00993         call    lfsr_func
+0005A8 0100           00994         banksel rand
+0005AA 502A           00995         movf    rand,W
+0005AC EC8C F003      00996         call    Delay
+0005B0 EF45 F003      00997         goto    txdo2
+                      00998 
+0005B4                00999 tx_send:
+0005B4 0100           01000         banksel txtmp
+0005B6 6E3D           01001         movwf   txtmp
+0005B8 0E7E           01002         movlw   0x7e            
+0005BA 5C3D           01003         subwf   txtmp,W         
+0005BC B4D8           01004         btfsc   STATUS,Z
+0005BE EF0A F003      01005         goto    tx_send_escape_1
+                      01006 
+0005C2 0E7D           01007         movlw   0x7d
+0005C4 5C3D           01008         subwf   txtmp,W
+0005C6 B4D8           01009         btfsc   STATUS,Z
+0005C8 EF11 F003      01010         goto    tx_send_escape_2
+0005CC 503D           01011         movf    txtmp,W
+                      01012         
+0005CE                01013 tx_send_noescape:       
+0005CE 0100           01014         banksel txtmp
+0005D0 6E3D           01015         movwf   txtmp
+0005D2 010F           01016         banksel TXSTA
+0005D4 A2AC           01017         btfss   TXSTA,TRMT
+Warning[226]: Destination address must be word aligned
+0005D6 EFEA F002      01018         goto    $-1
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 21
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0005DA 0100           01019         banksel d1
+0005DC 0E02           01020         movlw   0x02
+0005DE 6E20           01021         movwf   d1
+0005E0 0EFF           01022         movlw   0xFF
+0005E2 2E00           01023         decfsz  W,f
+Warning[226]: Destination address must be word aligned
+0005E4 EFF1 F002      01024         goto    $-1
+0005E8 2E20           01025         decfsz  d1,f
+0005EA EFF3 F002      01026         goto    $-4
+                      01027 
+0005EE 503D           01028         movf    txtmp,W
+0005F0 822D           01029         bsf     rc_listen, 1
+0005F2 6E30           01030         movwf   rc_nocoll
+0005F4 010F           01031         banksel TXREG
+0005F6 6EAD           01032         movwf   TXREG
+                      01033 
+0005F8 0100           01034         banksel d1
+0005FA 0E02           01035         movlw   0x02
+0005FC 6E20           01036         movwf   d1
+0005FE 0EFF           01037         movlw   0xFF
+000600 2E00           01038         decfsz  W,f
+Warning[226]: Destination address must be word aligned
+000602 EF00 F003      01039         goto    $-1
+000606 2E20           01040         decfsz  d1,f
+000608 EF02 F003      01041         goto    $-4
+                      01042 
+00060C B23E           01043         btfsc   txreturn,1
+00060E EFD0 F002      01044         goto    txoops
+000612 0012           01045         return
+                      01046 
+000614                01047 tx_send_escape_1:
+000614 0E7D           01048         movlw   0x7d
+000616 ECE7 F002      01049         call    tx_send_noescape
+00061A 0E5E           01050         movlw   0x5e
+00061C ECE7 F002      01051         call    tx_send_noescape
+000620 0012           01052         return
+                      01053 
+000622                01054 tx_send_escape_2:
+000622 0E7D           01055         movlw   0x7d
+000624 ECE7 F002      01056         call    tx_send_noescape
+000628 0E5D           01057         movlw   0x5d
+00062A ECE7 F002      01058         call    tx_send_noescape
+00062E 0012           01059         return
+                      01060         
+                      01061 
+000630                01062 txdo:                           ; This is like the funktion argumnents, they need to be set at every pre
+                            sense of crcloopr
+                      01063         ;; Set TX enable
+000630 010F           01064         banksel PORTB
+000632 8881           01065         bsf     PORTB,4
+                      01066         ;;
+000634 0100           01067         banksel framelen
+000636 503C           01068         movf    framelen,W
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 22
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000638 6E3A           01069         movwf   crcloop
+00063A 0E3F           01070         movlw   txframe
+00063C 0100           01071         banksel FSR
+00063E 6E01           01072         movwf   FSR
+000640 0100           01073         banksel crc0
+000642 6A38           01074         clrf    crc0
+000644 6A39           01075         clrf    crc1
+000646 EC27 F003      01076         call    crcloopr
+00064A EF45 F003      01077         goto    txdo2
+00064E                01078 crcloopr:
+00064E 0100           01079         banksel crcloop
+000650 2E3A           01080         decfsz  crcloop, f
+000652 EF2C F003      01081         goto    crccalc
+000656 0012           01082         return
+                      01083 
+000658                01084 crccalc:
+000658 010F           01085         banksel INDF
+00065A 50E7           01086         movf  INDF,W            ;;load w with next databyte
+00065C 0100           01087         banksel crc1
+00065E 1839           01088         xorwf crc1,W            ;;(a^x):(b^y)
+000660 6E3B           01089         movwf crctmp            ;;
+000662 0BF0           01090         andlw 0xf0              ;; W = (a^x):0
+000664 3A3B           01091         swapf crctmp,F          ;; Index = (b^y):(a^x)
+000666 1A3B           01092         xorwf crctmp,F          ;; Index = (a^b^x^y):(a^x) = i2:i1
+                      01093 
+                      01094                                 ;; High byte
+000668 503B           01095         movf  crctmp,W
+00066A 0BF0           01096         andlw 0xf0
+00066C 1838           01097         xorwf crc0,W
+00066E 6E39           01098         movwf crc1
+                      01099 #ifdef  ARC_18F
+000670 343B           01100         rlcf crctmp,W
+000672 343B           01101         rlcf crctmp,W
+                      01102 #endif
+                      01103 #ifdef  ARC_16F
+                      01104         rlf  crctmp,W           ;; use rlf for PIC16
+                      01105         rlf  crctmp,W           ;; use rlf for PIC16
+                      01106 #endif
+000674 1A39           01107         xorwf crc1,F
+000676 0BE0           01108         andlw 0xe0
+000678 1A39           01109         xorwf crc1,F
+                      01110 
+00067A 3A3B           01111         swapf crctmp,F
+00067C 183B           01112         xorwf crctmp,W
+00067E 6E38           01113         movwf crc0
+000680 0100           01114         banksel FSR
+000682 2801           01115         incf    FSR,W
+000684 6E01           01116         movwf   FSR
+000686 EF27 F003      01117         goto crcloopr
+                      01118 
+00068A                01119 txdo2:
+00068A 0E7E           01120         movlw   0x7e
+00068C ECE7 F002      01121         call    tx_send_noescape
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 23
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+000690 0100           01122         banksel txframe
+000692 0E3F           01123         movlw   txframe
+000694 0100           01124         banksel FSR
+000696 6E01           01125         movwf   FSR
+000698 0100           01126         banksel framelen
+00069A 503C           01127         movf    framelen,W
+00069C 6E3A           01128         movwf   crcloop
+00069E                01129 send:
+00069E 0100           01130         banksel crcloop
+0006A0 2E3A           01131         decfsz  crcloop,f
+0006A2 EF55 F003      01132         goto    lopp
+0006A6 EF5E F003      01133         goto    crcsend
+0006AA                01134 lopp:
+0006AA 010F           01135         banksel INDF
+0006AC 50E7           01136         movf    INDF,W
+0006AE ECDA F002      01137         call    tx_send
+0006B2 0100           01138         banksel FSR
+0006B4 2801           01139         incf    FSR,W
+0006B6 6E01           01140         movwf   FSR
+0006B8 EF4F F003      01141         goto    send
+                      01142 
+0006BC                01143 crcsend:
+0006BC 0100           01144         banksel crc0
+0006BE 5038           01145         movf    crc0,W
+0006C0 ECDA F002      01146         call    tx_send
+0006C4 0100           01147         banksel crc1
+0006C6 5039           01148         movf    crc1,W
+0006C8 ECDA F002      01149         call    tx_send
+0006CC EF68 F003      01150         goto    endflag
+                      01151 
+0006D0                01152 endflag:
+0006D0 0E7E           01153         movlw   0x7e
+0006D2 ECE7 F002      01154         call    tx_send_noescape
+                      01155         ;; Disable TX enable
+0006D6 010F           01156         banksel PORTB
+0006D8 9881           01157         bcf     PORTB,4
+                      01158 
+0006DA 0012           01159         return
+                      01160 
+0006DC                01161 trd:    
+0006DC EC81 F003      01162         call    lfsr_func               ; Three random delays before sending broadcast
+0006E0 0100           01163         banksel rand
+0006E2 502A           01164         movf    rand,W
+0006E4 EC8C F003      01165         call    Delay
+0006E8 EC81 F003      01166         call    lfsr_func
+0006EC 0100           01167         banksel rand
+0006EE 502A           01168         movf    rand,W
+0006F0 EC8C F003      01169         call    Delay
+0006F4 EC81 F003      01170         call    lfsr_func
+0006F8 0100           01171         banksel rand
+0006FA 502A           01172         movf    rand,W
+0006FC EC8C F003      01173         call    Delay
+000700 0012           01174         return
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 24
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      01175         
+000702                01176 lfsr_func:
+000702 0100           01177         banksel rand
+                      01178 #ifdef  ARC_18F
+000704 342A           01179         rlcf     rand,W
+000706 342A           01180         rlcf     rand,W
+                      01181 #endif
+                      01182 #ifdef  ARC_16F
+                      01183         rlf     rand,W
+                      01184         rlf     rand,W
+                      01185 #endif
+000708 B82A           01186         btfsc   rand,4
+00070A 0A01           01187         xorlw   1
+00070C BA2A           01188         btfsc   rand,5
+00070E 0A01           01189         xorlw   1
+000710 B62A           01190         btfsc   rand,3
+000712 0A01           01191         xorlw   1
+000714 6E2A           01192         movwf   rand
+000716 0C00           01193         retlw   0
+                      01194         
+000718                01195 Delay:
+000718 0100           01196         banksel d1
+                      01197         ;; 499994 cycles
+00071A 6E22           01198         movwf   d3
+00071C 0EFF           01199         movlw   0xFF
+00071E 6E21           01200         movwf   d2
+000720 0E32           01201         movlw   50
+000722 6E20           01202         movwf   d1
+000724                01203 Delay_0:
+000724 2E20           01204         decfsz  d1, f
+Warning[226]: Destination address must be word aligned
+000726 EF92 F003      01205         goto    $-1
+00072A 0E14           01206         movlw   20              ; Need this for tuning
+00072C 6E20           01207         movwf   d1
+00072E 2E21           01208         decfsz  d2, f
+000730 EF95 F003      01209         goto    $-6
+000734 0E64           01210         movlw   100
+000736 6E21           01211         movwf   d2
+000738 2E22           01212         decfsz  d3, f
+00073A EF92 F003      01213         goto    Delay_0
+00073E 0012           01214         return
+                      01215 
+000740                01216 read_eeprom:
+000740 010F           01217         banksel EEADR
+                      01218         ;; Take the preset W number, and take the byte from the addr
+000742 6EA9           01219         movwf   EEADR
+000744 010F           01220         banksel EECON1
+000746 9EA6           01221         bcf     EECON1, EEPGD
+000748 80A6           01222         bsf     EECON1, RD
+                      01223         ;; Put the result in W
+00074A 010F           01224         banksel EEDAT
+00074C 50A8           01225         movf    EEDAT, W
+00074E 0012           01226         return
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 25
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      01227 
+000750                01228 write_eeprom:
+000750 010F           01229         banksel EEDAT
+000752 6EA8           01230         movwf   EEDAT ; write the value already in W to EEDAT, the data
+000754 0100           01231         banksel rc_nocoll
+000756 5030           01232         movf    rc_nocoll,W
+000758 010F           01233         banksel EEADR
+00075A 6EA9           01234         movwf   EEADR
+00075C 010F           01235         banksel EECON1
+00075E 9EA6           01236         bcf     EECON1, EEPGD
+000760 84A6           01237         bsf     EECON1, WREN
+                      01238 
+000762 010F           01239         banksel EECON2
+                      01240         ; bcf   INTCON, GIE ; Well, GIE should be zero when it gets here
+000764 0E55           01241         movlw   0x55
+000766 6EA7           01242         movwf   EECON2
+000768 0EAA           01243         movlw   0xAA
+00076A 6EA7           01244         movwf   EECON2
+00076C 010F           01245         banksel EECON1
+00076E 82A6           01246         bsf     EECON1, WR
+                      01247         ; bsf     INTCON, GIE
+                      01248 
+000770 B2A6           01249         btfsc   EECON1, WR
+Warning[226]: Destination address must be word aligned
+000772 EFB8 F003      01250         goto    $-1
+                      01251 
+                      01252 
+000776 94A6           01253         bcf     EECON1, WREN
+000778 0012           01254         return
+                      00008 
+                      00009              errorlevel -302
+                      00010 ;                       __config (_INTRC_OSC_NOCLKOUT & _WDT_OFF & _PWRTE_OFF & _MCLRE_OFF & _CP_OFF & _
+                            BOR_OFF & _IESO_OFF & _FCMEN_OFF)
+                      00011 
+                      00012         ;;      __config  _FCMEN_OFF& _IESO_OFF& _MCLRE_OFF& _WDT_OFF& _INTOSCIO
+                      00013 ;;;
+                      00014 ;;;    _FCMEN_OFF           ; -- fail safe clock monitor enable off
+                      00015 ;;;    _IESO_OFF            ; -- int/ext switch over enable off
+                      00016 ;;;    _BOR_ON              ; default, brown out reset on
+                      00017 ;;;    _CPD_OFF             ; default, data eeprom protection off
+                      00018 ;;;    _CP_OFF              ; default, program code protection off
+                      00019 ;;;    _MCLR_OFF            ; -- use MCLR pin as digital input
+                      00020 ;;;    _PWRTE_OFF           ; default, power up timer off
+                      00021 ;;;    _WDT_OFF             ; -- watch dog timer off
+                      00022 ;;;    _INTOSCIO            ; -- internal osc, RA6 and RA7 I/O
+                      00023 ;;;
+                      00024 
+                      00025 ;;;  --< constants >---------------------------------------------------
+                      00026         cblock      USER_VARIABLE_SPACE
+  00000049            00027         servo_1_val
+                      00028         endc
+                      00029 ;
+                      00030 
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 26
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00031         radix dec ;
+                      00032 
+  00000008            00033 clock   equ     8       ; 8 MHz
+  00004B00            00034 baud    equ     19200  ; 19200, 57600, or 115200
+  00000004            00035 brgdiv  equ     4       ; divider value for BRG16 = 1
+  00000067            00036 brgval  equ     (clock*10000000/baud/brgdiv+5)/10-1
+                      00037 
+                      00038 
+                      00039 
+000000                00040         org     0x000
+Error[118]  : Overwriting previous address contents (0000)
+Error[118]  : Overwriting previous address contents (0001)
+Error[118]  : Overwriting previous address contents (0002)
+Error[118]  : Overwriting previous address contents (0003)
+000000 EF04 F000      00041         goto    v_reset
+000004                00042         org     0x004
+Error[118]  : Overwriting previous address contents (0004)
+Error[118]  : Overwriting previous address contents (0005)
+Error[118]  : Overwriting previous address contents (0006)
+Error[118]  : Overwriting previous address contents (0007)
+000004 EF98 F000      00043         goto    intserv
+                      00044 
+000008                00045 v_reset:
+Error[118]  : Overwriting previous address contents (0008)
+Error[118]  : Overwriting previous address contents (0009)
+000008 8082           00046                   bsf   PORTC,0
+Error[118]  : Overwriting previous address contents (000A)
+Error[118]  : Overwriting previous address contents (000B)
+00000A 6AD8           00047                   clrf    STATUS ; force bank 0 and IRP = 0        |B0
+Error[118]  : Overwriting previous address contents (000C)
+Error[118]  : Overwriting previous address contents (000D)
+Error[118]  : Overwriting previous address contents (000E)
+Error[118]  : Overwriting previous address contents (000F)
+00000C EF08 F000      00048                   goto    Init   ;                                 |B0
+                      00049 
+                      00050         ;; ******************************************************************
+                      00051         ;;   main init                                                      *
+                      00052         ;; ******************************************************************
+                      00053 
+000010                00054 Init:
+                      00055 ;                 bsf     STATUS,RP1 ; bank 2                          |B2
+                      00056 ;                 clrf    ANSEL      ; turn off ADC pins               |B2
+                      00057 ;                 clrf    ANSELH     ; turn off ADC pins               |B2
+                      00058         ;;
+                      00059         ;;   setup 8 MHz INTOSC
+                      00060         ;;
+                      00061 ;                 bcf     STATUS,RP1 ; bank 0                          |B0
+                      00062 ;                 bsf     STATUS,RP0 ; bank 1                          |B1
+                      00063 ;                 movlw   b'01110000' ; '01110000'                      |B1
+                      00064 ;                 movwf   OSCCON      ;                                 |B1
+                      00065 ;Stable:
+                      00066 ;                 btfss   OSCCON,HTS ; osc stable? yes, skip, else     |B1
+                      00067 ;                 goto    Stable     ; test again                      |B1
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 27
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00068         ;;
+                      00069         ;;   setup ports
+                      00070         ;;
+Error[118]  : Overwriting previous address contents (0010)
+Error[118]  : Overwriting previous address contents (0011)
+000010 0EFF           00071                   movlw 0xFF
+Error[118]  : Overwriting previous address contents (0012)
+Error[118]  : Overwriting previous address contents (0013)
+000012 6E92           00072                   movwf TRISA   ; Make PortA all input
+Error[118]  : Overwriting previous address contents (0014)
+Error[118]  : Overwriting previous address contents (0015)
+000014 6A93           00073                   clrf    TRISB ; setup PORT B all outputs        |B1
+Error[118]  : Overwriting previous address contents (0016)
+Error[118]  : Overwriting previous address contents (0017)
+000016 6A94           00074                   clrf    TRISC ; setup PORT C all outputs        |B1
+                      00075         ;;
+                      00076         ;; Set interupts
+                      00077         ;;
+                      00078 
+Error[118]  : Overwriting previous address contents (0018)
+Error[118]  : Overwriting previous address contents (0019)
+000018 0E20           00079                 movlw   b'00100000'
+Error[118]  : Overwriting previous address contents (001A)
+Error[118]  : Overwriting previous address contents (001B)
+00001A 6E9D           00080                 movwf   PIE1
+                      00081 
+                      00082         ;;
+                      00083         ;;   setup UART module for 19200 baud (8 MHz Clock)
+                      00084         ;;
+Error[118]  : Overwriting previous address contents (001C)
+Error[118]  : Overwriting previous address contents (001D)
+00001C 0E67           00085                   movlw   low(brgval) ;                                 |B1
+Error[118]  : Overwriting previous address contents (001E)
+Error[118]  : Overwriting previous address contents (001F)
+00001E 6EAF           00086                   movwf   SPBRG       ;                                 |B1
+Error[118]  : Overwriting previous address contents (0020)
+Error[118]  : Overwriting previous address contents (0021)
+000020 0E00           00087                   movlw   high(brgval) ;                                 |B1
+Error[118]  : Overwriting previous address contents (0022)
+Error[118]  : Overwriting previous address contents (0023)
+000022 6EB0           00088                   movwf   SPBRGH       ;                                 |B1
+                      00089                   #ifdef    ARC_16
+                      00090                   bsf     BAUDCTL,BRG16 ; select 16 bit BRG               |B1
+                      00091                   #endif
+                      00092                   #ifdef    ARC_18
+                      00093                   bsf     BAUDCON,BRG16 ; select 16 bit BRG               |B1
+                      00094                   #endif
+Error[118]  : Overwriting previous address contents (0024)
+Error[118]  : Overwriting previous address contents (0025)
+000024 0E24           00095                   movlw   b'00100100'   ; '0-------' CSRC, n/a (async)    |B1
+                      00096         ;;  '-0------' TX9 off, 8 bits      |B1
+                      00097         ;;  '--1-----' TXEN, tx enabled     |B1
+                      00098         ;;  '---0----' SYNC, async mode     |B1
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 28
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00099         ;;  '----0---' SENDB, send brk      |B1
+                      00100         ;;  '-----1--' BRGH, high speed     |B1
+                      00101         ;;  '------00' TRMT, TX9D           |B1
+Error[118]  : Overwriting previous address contents (0026)
+Error[118]  : Overwriting previous address contents (0027)
+000026 6EAC           00102                   movwf   TXSTA ;                                 |B1
+                      00103 ;                 bcf     STATUS,RP0 ; bank 0                          |B0
+Error[118]  : Overwriting previous address contents (0028)
+Error[118]  : Overwriting previous address contents (0029)
+000028 0E90           00104                   movlw   b'10010000' ; '1-------' SPEN, port enabled   |B0
+                      00105         ;;  '-0------' RX9 off, 8 bits      |B0
+                      00106         ;;  '--0-----' SREN, n/a (async)    |B0
+                      00107         ;;  '---1----' CREN, rx enabled     |B0
+                      00108         ;;  '----0---' ADDEN off            |B0
+                      00109         ;;  '-----000' FERR, OERR, RX9D     |B0
+Error[118]  : Overwriting previous address contents (002A)
+Error[118]  : Overwriting previous address contents (002B)
+00002A 6EAB           00110                   movwf   RCSTA ;                                 |B0
+Error[118]  : Overwriting previous address contents (002C)
+Error[118]  : Overwriting previous address contents (002D)
+00002C 50AE           00111                   movf    RCREG,W ; flush Rx Buffer                 |B0
+Error[118]  : Overwriting previous address contents (002E)
+Error[118]  : Overwriting previous address contents (002F)
+00002E 50AE           00112                   movf    RCREG,W ;                                 |B0
+                      00113 
+                      00114         ;;
+                      00115         ;; Set Interrupts
+                      00116         ;;
+                      00117 
+Error[118]  : Overwriting previous address contents (0030)
+Error[118]  : Overwriting previous address contents (0031)
+000030 8EF2           00118                 bsf     INTCON, GIE
+Error[118]  : Overwriting previous address contents (0032)
+Error[118]  : Overwriting previous address contents (0033)
+000032 8CF2           00119                 bsf     INTCON, PEIE
+                      00120         ;;
+                      00121         ;; SET RX/TX parameters
+                      00122         ;;
+                      00123 
+Error[118]  : Overwriting previous address contents (0034)
+Error[118]  : Overwriting previous address contents (0035)
+000034 6A3E           00124         clrf    txreturn
+                      00125 
+                      00126         ;;      Do not clear the adress:es, use the one that is set, read the speedbus text, "Adress han
+                            deling system!"
+                      00127         ;;      clrf    adress1
+                      00128         ;;      movlw   0x7e
+                      00129         ;;      movwf   adress1
+                      00130         ;;      movlw   0x7d
+                      00131         ;;      movwf   adress2
+                      00132         ;;      clrf    adress1
+                      00133         ;;      clrf    adress2
+                      00134 
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 29
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Error[118]  : Overwriting previous address contents (0036)
+Error[118]  : Overwriting previous address contents (0037)
+000036 902F           00135         bcf     rc_gotflag,0
+Error[118]  : Overwriting previous address contents (0038)
+Error[118]  : Overwriting previous address contents (0039)
+Error[118]  : Overwriting previous address contents (003A)
+Error[118]  : Overwriting previous address contents (003B)
+000038 EC00 F000      00136         call    init_speedlib
+                      00137         ;;
+                      00138         ;; Put a inalization value in the servo area/:s....
+Error[118]  : Overwriting previous address contents (003C)
+Error[118]  : Overwriting previous address contents (003D)
+00003C 0E0E           00139         movlw   0x0E
+Error[118]  : Overwriting previous address contents (003E)
+Error[118]  : Overwriting previous address contents (003F)
+00003E 6E49           00140         movwf   servo_1_val
+                      00141 
+Error[118]  : Overwriting previous address contents (0040)
+Error[118]  : Overwriting previous address contents (0041)
+000040 6A81           00142         clrf    PORTB
+                      00143 
+000042                00144 main:
+Error[118]  : Overwriting previous address contents (0042)
+Error[118]  : Overwriting previous address contents (0043)
+000042 010F           00145         banksel RCSTA
+Error[118]  : Overwriting previous address contents (0044)
+Error[118]  : Overwriting previous address contents (0045)
+000044 B2AB           00146         btfsc   RCSTA,OERR
+Error[118]  : Overwriting previous address contents (0046)
+Error[118]  : Overwriting previous address contents (0047)
+Error[118]  : Overwriting previous address contents (0048)
+Error[118]  : Overwriting previous address contents (0049)
+000046 ECCC F002      00147         call    recerror
+Error[118]  : Overwriting previous address contents (004A)
+Error[118]  : Overwriting previous address contents (004B)
+00004A 9082           00148         bcf     PORTC,0
+                      00149         ;btfsc  PORTA, 0
+                      00150         ;call   txporta
+Error[118]  : Overwriting previous address contents (004C)
+Error[118]  : Overwriting previous address contents (004D)
+00004C 2A2A           00151         incf    rand,F          ; Increase the random value
+Error[118]  : Overwriting previous address contents (004E)
+Error[118]  : Overwriting previous address contents (004F)
+Error[118]  : Overwriting previous address contents (0050)
+Error[118]  : Overwriting previous address contents (0051)
+00004E EF21 F000      00152         goto    main
+                      00153 
+                      00154         end
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 30
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+A                                 00000000
+ABDEN                             00000000
+ABDOVF                            00000007
+ACCESS                            00000000
+ACKDT                             00000005
+ACKEN                             00000004
+ACKSTAT                           00000006
+ACQT0                             00000003
+ACQT1                             00000004
+ACQT2                             00000005
+ACTVIE                            00000002
+ACTVIF                            00000002
+ADCON0                            00000FC2
+ADCON1                            00000FC1
+ADCON2                            00000FC0
+ADCS0                             00000000
+ADCS1                             00000001
+ADCS2                             00000002
+ADDEN                             00000003
+ADDR0                             00000000
+ADDR1                             00000001
+ADDR2                             00000002
+ADDR3                             00000003
+ADDR4                             00000004
+ADDR5                             00000005
+ADDR6                             00000006
+ADEN                              00000003
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADIP                              00000006
+ADON                              00000000
+ADRES                             00000FC3
+ADRESH                            00000FC4
+ADRESL                            00000FC3
+AN0                               00000000
+AN1                               00000001
+AN2                               00000002
+AN3                               00000003
+AN4                               00000005
+ARC_18F                           1
+BANKED                            00000001
+BAUDCON                           00000FB8
+BCLIE                             00000003
+BCLIF                             00000003
+BCLIP                             00000003
+BF                                00000000
+BGST                              00000005
+BOR                               00000000
+BRG16                             00000003
+BRGH                              00000002
+BSR                               00000FE0
+BTOEE                             00000004
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 31
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+BTOEF                             00000004
+BTSEE                             00000007
+BTSEF                             00000007
+C                                 00000000
+C1INV                             00000004
+C1OUT                             00000006
+C2INV                             00000005
+C2OUT                             00000007
+CCP1                              00000002
+CCP1AS                            00000FB6
+CCP1CON                           00000FBD
+CCP1DEL                           00000FB7
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1IP                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP2CON                           00000FBA
+CCP2IE                            00000000
+CCP2IF                            00000000
+CCP2IP                            00000000
+CCP2M0                            00000000
+CCP2M1                            00000001
+CCP2M2                            00000002
+CCP2M3                            00000003
+CCPR1                             00000FBE
+CCPR1H                            00000FBF
+CCPR1L                            00000FBE
+CCPR2                             00000FBB
+CCPR2H                            00000FBC
+CCPR2L                            00000FBB
+CFGS                              00000006
+CHS0                              00000002
+CHS1                              00000003
+CHS2                              00000004
+CHS3                              00000005
+CIS                               00000003
+CK                                00000006
+CK1SPP                            00000000
+CK2SPP                            00000001
+CKE                               00000006
+CKP                               00000004
+CLK1EN                            00000004
+CLKCFG0                           00000006
+CLKCFG1                           00000007
+CM0                               00000000
+CM1                               00000001
+CM2                               00000002
+CMCON                             00000FB4
+CMIE                              00000006
+CMIF                              00000006
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 32
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+CMIP                              00000006
+CRC16EE                           00000002
+CRC16EF                           00000002
+CRC5EE                            00000001
+CRC5EF                            00000001
+CREN                              00000004
+CSEN                              00000005
+CSRC                              00000007
+CVR0                              00000000
+CVR1                              00000001
+CVR2                              00000002
+CVR3                              00000003
+CVRCON                            00000FB5
+CVREF                             00000004
+CVREN                             00000007
+CVROE                             00000006
+CVRR                              00000005
+CVRSS                             00000004
+D                                 00000005
+DATA_ADDRESS                      00000005
+DC                                00000001
+DC1B0                             00000004
+DC1B1                             00000005
+DC2B0                             00000004
+DC2B1                             00000005
+DDRA                              TRISA
+DDRB                              TRISB
+DDRC                              TRISC
+DDRD                              TRISD
+DDRE                              TRISE
+DEV_ID1                           0
+DEV_ID2                           0
+DFN8EE                            00000003
+DFN8EF                            00000003
+DIR                               00000002
+DONE                              00000001
+D_A                               00000005
+Delay                             00000718
+Delay_0                           00000724
+ECCP1AS                           00000FB6
+ECCP1CON                          00000FBD
+ECCP1DEL                          00000FB7
+ECCPAS0                           00000004
+ECCPAS1                           00000005
+ECCPAS2                           00000006
+ECCPASE                           00000007
+EEADR                             00000FA9
+EECON1                            00000FA6
+EECON2                            00000FA7
+EEDAT                             EEDATA
+EEDATA                            00000FA8
+EEIE                              00000004
+EEIF                              00000004
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 33
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+EEIP                              00000004
+EEPGD                             00000007
+ENDP0                             00000003
+ENDP1                             00000004
+ENDP2                             00000005
+ENDP3                             00000006
+EPCONDIS                          00000003
+EPHSHK                            00000004
+EPINEN                            00000001
+EPOUTEN                           00000002
+EPSTALL                           00000000
+FAST                              00000001
+FERR                              00000002
+FLTS                              00000002
+FREE                              00000004
+FRM0                              00000000
+FRM1                              00000001
+FRM10                             00000002
+FRM2                              00000002
+FRM3                              00000003
+FRM4                              00000004
+FRM5                              00000005
+FRM6                              00000006
+FRM7                              00000007
+FRM8                              00000000
+FRM9                              00000001
+FSEN                              00000002
+FSR                               FSR1
+FSR0                              00000000
+FSR0H                             00000FEA
+FSR0L                             00000FE9
+FSR1                              00000001
+FSR1H                             00000FE2
+FSR1L                             00000FE1
+FSR2                              00000002
+FSR2H                             00000FDA
+FSR2L                             00000FD9
+GCEN                              00000007
+GIE                               00000007
+GIEH                              00000007
+GIEL                              00000006
+GO                                00000001
+GO_DONE                           00000001
+HLVDCON                           00000FD2
+HLVDEN                            00000004
+HLVDIE                            00000002
+HLVDIF                            00000002
+HLVDIN                            00000005
+HLVDIP                            00000002
+HLVDL0                            00000000
+HLVDL1                            00000001
+HLVDL2                            00000002
+HLVDL3                            00000003
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 34
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+I2C_DAT                           00000005
+I2C_READ                          00000002
+I2C_START                         00000003
+I2C_STOP                          00000004
+IDLEIE                            00000004
+IDLEIF                            00000004
+IDLEN                             00000007
+INDF                              INDF1
+INDF0                             00000FEF
+INDF1                             00000FE7
+INDF2                             00000FDF
+INT0                              00000000
+INT0E                             00000004
+INT0F                             00000001
+INT0IE                            00000004
+INT0IF                            00000001
+INT1                              00000001
+INT1E                             00000003
+INT1F                             00000000
+INT1IE                            00000003
+INT1IF                            00000000
+INT1IP                            00000006
+INT1P                             00000006
+INT2                              00000002
+INT2E                             00000004
+INT2F                             00000001
+INT2IE                            00000004
+INT2IF                            00000001
+INT2IP                            00000007
+INT2P                             00000007
+INTCON                            00000FF2
+INTCON2                           00000FF1
+INTCON3                           00000FF0
+INTEDG0                           00000006
+INTEDG1                           00000005
+INTEDG2                           00000004
+INTSRC                            00000007
+IOFS                              00000002
+IPEN                              00000007
+IPR1                              00000F9F
+IPR2                              00000FA2
+IRCF0                             00000004
+IRCF1                             00000005
+IRCF2                             00000006
+IRVST                             00000005
+IVRST                             00000005
+Init                              00000010
+LATA                              00000F89
+LATA0                             00000000
+LATA1                             00000001
+LATA2                             00000002
+LATA3                             00000003
+LATA4                             00000004
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 35
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+LATA5                             00000005
+LATA6                             00000006
+LATB                              00000F8A
+LATB0                             00000000
+LATB1                             00000001
+LATB2                             00000002
+LATB3                             00000003
+LATB4                             00000004
+LATB5                             00000005
+LATB6                             00000006
+LATB7                             00000007
+LATC                              00000F8B
+LATC0                             00000000
+LATC1                             00000001
+LATC2                             00000002
+LATC6                             00000006
+LATC7                             00000007
+LATD                              00000F8C
+LATD0                             00000000
+LATD1                             00000001
+LATD2                             00000002
+LATD3                             00000003
+LATD4                             00000004
+LATD5                             00000005
+LATD6                             00000006
+LATD7                             00000007
+LATE                              00000F8D
+LATE0                             00000000
+LATE1                             00000001
+LATE2                             00000002
+LVDCON                            00000FD2
+LVDEN                             00000004
+LVDIE                             00000002
+LVDIF                             00000002
+LVDIN                             00000005
+LVDIP                             00000002
+LVDL0                             00000000
+LVDL1                             00000001
+LVDL2                             00000002
+LVDL3                             00000003
+LVV0                              00000000
+LVV1                              00000001
+LVV2                              00000002
+LVV3                              00000003
+N                                 00000004
+NOT_A                             00000005
+NOT_ADDRESS                       00000005
+NOT_BOR                           00000000
+NOT_DONE                          00000001
+NOT_IPEN                          00000007
+NOT_PD                            00000002
+NOT_POR                           00000001
+NOT_RBPU                          00000007
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 36
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+NOT_RI                            00000004
+NOT_T1SYNC                        00000002
+NOT_T3SYNC                        00000002
+NOT_TO                            00000003
+NOT_W                             00000002
+NOT_WRITE                         00000002
+OERR                              00000001
+OESPP                             00000002
+OSC2                              00000006
+OSCCON                            00000FD3
+OSCFIE                            00000007
+OSCFIF                            00000007
+OSCFIP                            00000007
+OSCTUNE                           00000F9B
+OSTS                              00000003
+OV                                00000003
+P                                 00000004
+P1A                               00000002
+P1M0                              00000006
+P1M1                              00000007
+PC                                00000FF9
+PCFG0                             00000000
+PCFG1                             00000001
+PCFG2                             00000002
+PCFG3                             00000003
+PCL                               00000FF9
+PCLATH                            00000FFA
+PCLATU                            00000FFB
+PD                                00000002
+PDC0                              00000000
+PDC1                              00000001
+PDC2                              00000002
+PDC3                              00000003
+PDC4                              00000004
+PDC5                              00000005
+PDC6                              00000006
+PEIE                              00000006
+PEN                               00000002
+PGC                               00000006
+PGD                               00000007
+PGM                               00000005
+PIDEE                             00000000
+PIDEF                             00000000
+PIE1                              00000F9D
+PIE2                              00000FA0
+PIR1                              00000F9E
+PIR2                              00000FA1
+PKTDIS                            00000004
+PLUSW0                            00000FEB
+PLUSW1                            00000FE3
+PLUSW2                            00000FDB
+POR                               00000001
+PORTA                             00000F80
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 37
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+PORTB                             00000F81
+PORTC                             00000F82
+PORTD                             00000F83
+PORTE                             00000F84
+POSTDEC0                          00000FED
+POSTDEC1                          00000FE5
+POSTDEC2                          00000FDD
+POSTINC0                          00000FEE
+POSTINC1                          00000FE6
+POSTINC2                          00000FDE
+PPB0                              00000000
+PPB1                              00000001
+PPBI                              00000001
+PPBRST                            00000006
+PR2                               00000FCB
+PREINC0                           00000FEC
+PREINC1                           00000FE4
+PREINC2                           00000FDC
+PROD                              00000FF3
+PRODH                             00000FF4
+PRODL                             00000FF3
+PRSEN                             00000007
+PSA                               00000003
+PSSAC0                            00000002
+PSSAC1                            00000003
+PSSBD0                            00000000
+PSSBD1                            00000001
+R                                 00000002
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RA6                               00000006
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RBIP                              00000000
+RBPU                              00000007
+RC0                               00000000
+RC1                               00000001
+RC2                               00000002
+RC4                               00000004
+RC5                               00000005
+RC6                               00000006
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 38
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+RC7                               00000007
+RCEN                              00000003
+RCIDL                             00000006
+RCIE                              00000005
+RCIF                              00000005
+RCIP                              00000005
+RCMT                              00000006
+RCON                              00000FD0
+RCREG                             00000FAE
+RCSTA                             00000FAB
+RD                                00000000
+RD0                               00000000
+RD1                               00000001
+RD16                              00000007
+RD2                               00000002
+RD3                               00000003
+RD4                               00000004
+RD5                               00000005
+RD6                               00000006
+RD7                               00000007
+RDPU                              00000007
+RDSPP                             00000007
+RE0                               00000000
+RE1                               00000001
+RE2                               00000002
+RE3                               00000003
+READ_WRITE                        00000002
+RESUME                            00000002
+RI                                00000004
+RSEN                              00000001
+RX                                00000007
+RX9                               00000006
+RX9D                              00000000
+RXDTP                             00000005
+R_W                               00000002
+S                                 00000003
+SBOREN                            00000006
+SCKP                              00000004
+SCS0                              00000000
+SCS1                              00000001
+SE0                               00000005
+SEN                               00000000
+SENDB                             00000003
+SMP                               00000007
+SOFIE                             00000006
+SOFIF                             00000006
+SPBRG                             00000FAF
+SPBRGH                            00000FB0
+SPEEDLIB_RESPONSE_DELAY           9
+SPEN                              00000007
+SPP0                              00000000
+SPP1                              00000001
+SPP2                              00000002
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 39
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+SPP3                              00000003
+SPP4                              00000004
+SPP5                              00000005
+SPP6                              00000006
+SPP7                              00000007
+SPPBUSY                           00000004
+SPPCFG                            00000F63
+SPPCON                            00000F65
+SPPDATA                           00000F62
+SPPEN                             00000000
+SPPEPS                            00000F64
+SPPIE                             00000007
+SPPIF                             00000007
+SPPIP                             00000007
+SPPOWN                            00000001
+SREN                              00000005
+SSPADD                            00000FC8
+SSPBUF                            00000FC9
+SSPCON1                           00000FC6
+SSPCON2                           00000FC5
+SSPEN                             00000005
+SSPIE                             00000003
+SSPIF                             00000003
+SSPIP                             00000003
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPOV                             00000006
+SSPSTAT                           00000FC7
+STALLIE                           00000005
+STALLIF                           00000005
+STATUS                            00000FD8
+STKFUL                            00000007
+STKPTR                            00000FFC
+STKPTR0                           00000000
+STKPTR1                           00000001
+STKPTR2                           00000002
+STKPTR3                           00000003
+STKPTR4                           00000004
+STKUNF                            00000006
+SUSPND                            00000001
+SWDTE                             00000000
+SWDTEN                            00000000
+SYNC                              00000004
+T08BIT                            00000006
+T0CKI                             00000004
+T0CON                             00000FD5
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0IP                              00000002
+T0PS0                             00000000
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 40
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+T0PS1                             00000001
+T0PS2                             00000002
+T0SE                              00000004
+T13CKI                            00000000
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000FCD
+T1OSCEN                           00000003
+T1OSI                             00000001
+T1OSO                             00000000
+T1RUN                             00000006
+T1SYNC                            00000002
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000FCA
+T2OUTPS0                          00000003
+T2OUTPS1                          00000004
+T2OUTPS2                          00000005
+T2OUTPS3                          00000006
+T3CCP1                            00000003
+T3CCP2                            00000006
+T3CKPS0                           00000004
+T3CKPS1                           00000005
+T3CON                             00000FB1
+T3NSYNC                           00000002
+T3SYNC                            00000002
+TABLAT                            00000FF5
+TBLPTR                            00000FF6
+TBLPTRH                           00000FF7
+TBLPTRL                           00000FF6
+TBLPTRU                           00000FF8
+TMR0H                             00000FD7
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR0IP                            00000002
+TMR0L                             00000FD6
+TMR0ON                            00000007
+TMR1CS                            00000001
+TMR1H                             00000FCF
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1IP                            00000000
+TMR1L                             00000FCE
+TMR1ON                            00000000
+TMR2                              00000FCC
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2IP                            00000001
+TMR2ON                            00000002
+TMR3CS                            00000001
+TMR3H                             00000FB3
+TMR3IE                            00000001
+TMR3IF                            00000001
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 41
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR3IP                            00000001
+TMR3L                             00000FB2
+TMR3ON                            00000000
+TO                                00000003
+TOS                               00000FFD
+TOSH                              00000FFE
+TOSL                              00000FFD
+TOSU                              00000FFF
+TRISA                             00000F92
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISA6                            00000006
+TRISB                             00000F93
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRISC                             00000F94
+TRISC0                            00000000
+TRISC1                            00000001
+TRISC2                            00000002
+TRISC6                            00000006
+TRISC7                            00000007
+TRISD                             00000F95
+TRISD0                            00000000
+TRISD1                            00000001
+TRISD2                            00000002
+TRISD3                            00000003
+TRISD4                            00000004
+TRISD5                            00000005
+TRISD6                            00000006
+TRISD7                            00000007
+TRISE                             00000F96
+TRISE0                            00000000
+TRISE1                            00000001
+TRISE2                            00000002
+TRMT                              00000001
+TRNIE                             00000003
+TRNIF                             00000003
+TUN0                              00000000
+TUN1                              00000001
+TUN2                              00000002
+TUN3                              00000003
+TUN4                              00000004
+TX                                00000006
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 42
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TX9                               00000006
+TX9D                              00000000
+TXCKP                             00000004
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXIP                              00000004
+TXREG                             00000FAD
+TXSTA                             00000FAC
+UA                                00000001
+UADDR                             00000F6E
+UCFG                              00000F6F
+UCON                              00000F6D
+UEIE                              00000F6B
+UEIR                              00000F6A
+UEP0                              00000F70
+UEP1                              00000F71
+UEP10                             00000F7A
+UEP11                             00000F7B
+UEP12                             00000F7C
+UEP13                             00000F7D
+UEP14                             00000F7E
+UEP15                             00000F7F
+UEP2                              00000F72
+UEP3                              00000F73
+UEP4                              00000F74
+UEP5                              00000F75
+UEP6                              00000F76
+UEP7                              00000F77
+UEP8                              00000F78
+UEP9                              00000F79
+UERRIE                            00000001
+UERRIF                            00000001
+UFRM                              00000F66
+UFRMH                             00000F67
+UFRML                             00000F66
+UIE                               00000F69
+UIR                               00000F68
+UOEMON                            00000006
+UPUEN                             00000004
+URSTIE                            00000000
+URSTIF                            00000000
+USBEN                             00000003
+USBIE                             00000005
+USBIF                             00000005
+USBIP                             00000005
+USER_VARIABLE_SPACE               0x49
+USTAT                             00000F6C
+UTEYE                             00000007
+UTRDIS                            00000003
+VCFG0                             00000004
+VCFG1                             00000005
+VDIRMAG                           00000007
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 43
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+VREFM                             00000002
+VREFP                             00000003
+W                                 00000000
+WCOL                              00000007
+WDTCON                            00000FD1
+WR                                00000001
+WREG                              00000FE8
+WREN                              00000002
+WRERR                             00000003
+WRSPP                             00000006
+WS0                               00000000
+WS1                               00000001
+WS2                               00000002
+WS3                               00000003
+WUE                               00000001
+Z                                 00000002
+_BORV_0_2L                        000000E7
+_BORV_1_2L                        000000EF
+_BORV_2_2L                        000000F7
+_BORV_3_2L                        000000FF
+_BOR_OFF_2L                       000000F9
+_BOR_ON_2L                        000000FF
+_BOR_ON_ACTIVE_2L                 000000FD
+_BOR_SOFT_2L                      000000FB
+_CCP2MX_OFF_3H                    000000FE
+_CCP2MX_ON_3H                     000000FF
+_CONFIG1H                         00300001
+_CONFIG1L                         00300000
+_CONFIG2H                         00300003
+_CONFIG2L                         00300002
+_CONFIG3H                         00300005
+_CONFIG4L                         00300006
+_CONFIG5H                         00300009
+_CONFIG5L                         00300008
+_CONFIG6H                         0030000B
+_CONFIG6L                         0030000A
+_CONFIG7H                         0030000D
+_CONFIG7L                         0030000C
+_CP0_OFF_5L                       000000FF
+_CP0_ON_5L                        000000FE
+_CP1_OFF_5L                       000000FF
+_CP1_ON_5L                        000000FD
+_CP2_OFF_5L                       000000FF
+_CP2_ON_5L                        000000FB
+_CP3_OFF_5L                       000000FF
+_CP3_ON_5L                        000000F7
+_CPB_OFF_5H                       000000FF
+_CPB_ON_5H                        000000BF
+_CPD_OFF_5H                       000000FF
+_CPD_ON_5H                        0000007F
+_CPUDIV_OSC1_PLL2_1L              000000E7
+_CPUDIV_OSC2_PLL3_1L              000000EF
+_CPUDIV_OSC3_PLL4_1L              000000F7
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 44
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_CPUDIV_OSC4_PLL6_1L              000000FF
+_DEBUG_OFF_4L                     000000FF
+_DEBUG_ON_4L                      0000007F
+_DEVID1                           003FFFFE
+_DEVID2                           003FFFFF
+_EBTR0_OFF_7L                     000000FF
+_EBTR0_ON_7L                      000000FE
+_EBTR1_OFF_7L                     000000FF
+_EBTR1_ON_7L                      000000FD
+_EBTR2_OFF_7L                     000000FF
+_EBTR2_ON_7L                      000000FB
+_EBTR3_OFF_7L                     000000FF
+_EBTR3_ON_7L                      000000F7
+_EBTRB_OFF_7H                     000000FF
+_EBTRB_ON_7H                      000000BF
+_FCMEN_OFF_1H                     000000BF
+_FCMEN_ON_1H                      000000FF
+_FOSC_ECIO_EC_1H                  000000F4
+_FOSC_ECPLLIO_EC_1H               000000F6
+_FOSC_ECPLL_EC_1H                 000000F7
+_FOSC_EC_EC_1H                    000000F5
+_FOSC_HSPLL_HS_1H                 000000FE
+_FOSC_HS_1H                       000000FC
+_FOSC_INTOSCIO_EC_1H              000000F8
+_FOSC_INTOSC_EC_1H                000000F9
+_FOSC_INTOSC_HS_1H                000000FB
+_FOSC_INTOSC_XT_1H                000000FA
+_FOSC_XTPLL_XT_1H                 000000F2
+_FOSC_XT_XT_1H                    000000F0
+_ICPRT_OFF_4L                     000000DF
+_ICPRT_ON_4L                      000000FF
+_IDLOC0                           00200000
+_IDLOC1                           00200001
+_IDLOC2                           00200002
+_IDLOC3                           00200003
+_IDLOC4                           00200004
+_IDLOC5                           00200005
+_IDLOC6                           00200006
+_IDLOC7                           00200007
+_IESO_OFF_1H                      0000007F
+_IESO_ON_1H                       000000FF
+_LPT1OSC_OFF_3H                   000000FB
+_LPT1OSC_ON_3H                    000000FF
+_LVP_OFF_4L                       000000FB
+_LVP_ON_4L                        000000FF
+_MCLRE_OFF_3H                     0000007F
+_MCLRE_ON_3H                      000000FF
+_PBADEN_OFF_3H                    000000FD
+_PBADEN_ON_3H                     000000FF
+_PLLDIV_10_1L                     000000FE
+_PLLDIV_12_1L                     000000FF
+_PLLDIV_1_1L                      000000F8
+_PLLDIV_2_1L                      000000F9
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 45
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_PLLDIV_3_1L                      000000FA
+_PLLDIV_4_1L                      000000FB
+_PLLDIV_5_1L                      000000FC
+_PLLDIV_6_1L                      000000FD
+_PWRT_OFF_2L                      000000FF
+_PWRT_ON_2L                       000000FE
+_STVREN_OFF_4L                    000000FE
+_STVREN_ON_4L                     000000FF
+_USBDIV_1_1L                      000000DF
+_USBDIV_2_1L                      000000FF
+_VREGEN_OFF_2L                    000000DF
+_VREGEN_ON_2L                     000000FF
+_WDTPS_1024_2H                    000000F5
+_WDTPS_128_2H                     000000EF
+_WDTPS_16384_2H                   000000FD
+_WDTPS_16_2H                      000000E9
+_WDTPS_1_2H                       000000E1
+_WDTPS_2048_2H                    000000F7
+_WDTPS_256_2H                     000000F1
+_WDTPS_2_2H                       000000E3
+_WDTPS_32768_2H                   000000FF
+_WDTPS_32_2H                      000000EB
+_WDTPS_4096_2H                    000000F9
+_WDTPS_4_2H                       000000E5
+_WDTPS_512_2H                     000000F3
+_WDTPS_64_2H                      000000ED
+_WDTPS_8192_2H                    000000FB
+_WDTPS_8_2H                       000000E7
+_WDT_OFF_2H                       000000FE
+_WDT_ON_2H                        000000FF
+_WRT0_OFF_6L                      000000FF
+_WRT0_ON_6L                       000000FE
+_WRT1_OFF_6L                      000000FF
+_WRT1_ON_6L                       000000FD
+_WRT2_OFF_6L                      000000FF
+_WRT2_ON_6L                       000000FB
+_WRT3_OFF_6L                      000000FF
+_WRT3_ON_6L                       000000F7
+_WRTB_OFF_6H                      000000FF
+_WRTB_ON_6H                       000000BF
+_WRTC_OFF_6H                      000000FF
+_WRTC_ON_6H                       000000DF
+_WRTD_OFF_6H                      000000FF
+_WRTD_ON_6H                       0000007F
+_XINST_OFF_4L                     000000BF
+_XINST_ON_4L                      000000FF
+__18F4550                         00000001
+adress1                           00000034
+adress2                           00000035
+baud                              00004B00
+brgdiv                            00000004
+brgval                            00000067
+clock                             00000008
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 46
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+crc0                              00000038
+crc1                              00000039
+crccalc                           00000658
+crcloop                           0000003A
+crcloopr                          0000064E
+crcsend                           000006BC
+crctmp                            0000003B
+d1                                00000020
+d1_tmp                            00000027
+d2                                00000021
+d2_tmp                            00000028
+d3                                00000022
+d3_tmp                            00000029
+d4                                00000023
+endflag                           000006D0
+framelen                          0000003C
+func_bc                           0000049C
+func_bc_sendaddr                  000004D8
+func_bc_sended_packet             0000051C
+func_check_response               0000043A
+func_is_ocupied_send_response     00000442
+func_is_ocupied_send_response_go  00000454
+func_is_ocupied_send_response_pa  0000045A
+func_send_response                000003F4
+func_set_rsp_addr                 00000532
+func_setport                      00000520
+func_speedlib_config              0000031C
+func_speedlib_config_basics       000003A4
+func_speedlib_config_caddr        00000352
+func_speedlib_config_extended     00000332
+handle_response                   00000550
+handle_response_loop              00000562
+handle_response_ret               00000582
+init_checkaddr                    0000005A
+init_checkaddr_l                  0000005E
+init_checkaddr_not_ocupied        0000009E
+init_checkaddr_ocupied            000000AA
+init_speedlib                     00000000
+init_speedlib_e                   00000058
+intserv                           00000130
+intserv_norm                      00000146
+lfsr_func                         00000702
+loop1                             0000002B
+loop2                             0000002C
+lopp                              000006AA
+main                              00000042
+rand                              0000002A
+rc1                               00000055
+rc10                              0000005E
+rc11                              0000005F
+rc12                              00000060
+rc13                              00000061
+rc14                              00000062
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 47
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+rc15                              00000063
+rc16                              00000064
+rc17                              00000065
+rc18                              00000066
+rc19                              00000067
+rc2                               00000056
+rc20                              00000068
+rc3                               00000057
+rc4                               00000058
+rc5                               00000059
+rc6                               0000005A
+rc7                               0000005B
+rc8                               0000005C
+rc9                               0000005D
+rc_add_byte                       00000031
+rc_counter                        0000002E
+rc_gotflag                        0000002F
+rc_listen                         0000002D
+rc_nocoll                         00000030
+rcframe                           00000054
+read_eeprom                       00000740
+rec                               00000188
+rec_oops_coll                     000001A2
+rec_start                         000001AE
+reccrcfail                        0000058A
+recend                            00000244
+recend_no_broadcast               000002A4
+recend_tmp                        00000290
+recerror                          00000598
+recr                              000001D6
+recsave                           000001DA
+recsave_add                       00000228
+recsave_set                       000001F6
+recsave_unescape                  000001FE
+recsave_unescape_1                0000021C
+recsave_unescape_2                00000222
+recx                              000001C6
+restore                           00000168
+restore_norm                      0000016E
+rsp_adress1                       00000032
+rsp_adress2                       00000033
+send                              0000069E
+servo_1_val                       00000049
+setaddr                           000000B0
+setaddr1                          000000BA
+setaddr2                          000000CE
+setaddr_testloop                  0000010C
+setaddr_testloop_l                00000112
+speedlib_config                   00000036
+speedlib_main                     00000037
+tmp_PCLATH                        00000026
+tmp_STATUS                        00000025
+tmp_W                             00000024
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 48
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+trd                               000006DC
+tx1                               00000040
+tx10                              00000049
+tx11                              0000004A
+tx12                              0000004B
+tx13                              0000004C
+tx14                              0000004D
+tx15                              0000004E
+tx16                              0000004F
+tx17                              00000050
+tx18                              00000051
+tx19                              00000052
+tx2                               00000041
+tx20                              00000053
+tx3                               00000042
+tx4                               00000043
+tx5                               00000044
+tx6                               00000045
+tx7                               00000046
+tx8                               00000047
+tx9                               00000048
+tx_send                           000005B4
+tx_send_escape_1                  00000614
+tx_send_escape_2                  00000622
+tx_send_noescape                  000005CE
+txdo                              00000630
+txdo2                             0000068A
+txframe                           0000003F
+txoops                            000005A0
+txreturn                          0000003E
+txtmp                             0000003D
+v_reset                           00000008
+write_eeprom                      00000750
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0100 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0140 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0180 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+01C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0200 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+MPASM  5.42  /HOME/OSCAR/SPEEDBUS/PIC/MPLABX.   7-27-2012  14:28:46         PAGE 49
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+
+0240 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0280 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+02C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0300 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0340 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0380 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+03C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0400 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0440 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0480 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+04C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0500 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0540 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0580 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+05C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0600 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0640 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0680 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+06C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0700 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0740 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXX------
+
+All other memory blocks unused.
+
+Program Memory Bytes Used:  1914
+Program Memory Bytes Free: 30854
+
+
+Errors   :    83
+Warnings :     8 reported,     0 suppressed
+Messages :     0 reported,     0 suppressed
+
+

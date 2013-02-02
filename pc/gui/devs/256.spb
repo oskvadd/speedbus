@@ -1,0 +1,33 @@
+name="Old Test Device";
+source_width=20;
+
+spb =
+{
+  frontend = (  { 
+		type  = "button";
+		label = "Light On";
+		event = 1;
+		row   = 0; 
+		},{ 
+		type  = "button";
+		label = "Light Off";
+		event = 2;
+		row   = 0;
+		});
+
+  movies = ( { title = "Brazil";
+               media = "DVD";
+               price = 19.99;
+               qty = 11; },
+             { title = "The City of Lost Children";
+               media = "DVD";
+               price = 18.99;
+               qty = 5; },
+             { title = "Memento";
+               media = "Blu-Ray";
+               price = 24.99;
+               qty = 20;
+             },
+             { title = "Howard the Duck"; }
+           );
+};

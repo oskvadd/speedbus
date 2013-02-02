@@ -1,0 +1,29 @@
+Warning[208] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 806 : Label truncated at 32 characters. (func_is_ocupied_send_response_got_resp)
+Warning[208] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 810 : Label truncated at 32 characters. (func_is_ocupied_send_response_pack)
+Message[302] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 1158 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 1286 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 67 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 69 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 76 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 78 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 85 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 86 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 87 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 93 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 100 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 103 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 105 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 114 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 697 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 699 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 700 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 703 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 709 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 713 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 715 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 716 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 720 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 722 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 723 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 726 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/v0.016/pic/mplabx.proj/speedlib/Remote_on_off_controller.X/main.asm 730 : Register in operand not in bank 0.  Ensure that bank bits are correct.

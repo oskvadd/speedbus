@@ -1,0 +1,7 @@
+#!/usr/bin/perl -w
+
+$gpf = `gpasm pc_to_bus_wakeup_tx-enable/main.asm`;
+if(length($gpf) < 2){
+    system("./pk2cmd -PPIC16F690 -T -M -F pc_to_bus_wakeup_tx-enable/main.hex");}
+else{
+print($gpf);}

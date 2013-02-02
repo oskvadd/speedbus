@@ -1,0 +1,43 @@
+all: usb.hid.o ssl.socket.o main spbserver
+
+spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp usb.hid.o
+	g++ -ggdb -I "/usr/local/ssl/include/" -o spbserver spb.server.cpp ssl.socket.o usb.hid.o /usr/local/lib/libserial.a `pkg-config --cflags --libs libconfig libusb-1.0 libssl libcrypto` -lpthread
+ssl.socket.o: ssl.socket.cpp
+	g++ -ggdb -I "/usr/local/ssl/include/" -c -o ssl.socket.o ssl.socket.cpp
+usb.hid.o: usb.hid.cpp
+	gcc -ggdb -c -o usb.hid.o usb.hid.cpp 
+main: main.cpp usb.hid.o ssl.socket.o
+	gcc -ggdb main.cpp -o main ssl.socket.o usb.hid.o `pkg-config --cflags --libs gtk+-2.0 libconfig libserial libusb-1.0` -lssl -lcrypto
+
+install: spbserver
+	cp spbserver /usr/bin/
+	if test ! -d /etc/spbserver/; then \
+	mkdir /etc/spbserver/; \
+	fi
+	if test ! -d /etc/spbserver/usb/; then \
+	mkdir /etc/spbserver/usb/; \
+	fi
+	if test ! -d /etc/spbserver/devs/; then \
+	mkdir /etc/spbserver/devs/; \
+	fi
+	cp -f usb/*.hid /etc/spbserver/usb/
+	cp -f devs/*.spb /etc/spbserver/devs/
+	if test -r server.crt; then \
+	cp -f server.cfg /etc/spbserver/; \
+	cp server.crt /etc/spbserver/; \
+	cp server.key /etc/spbserver/; \
+	cp server.csr /etc/spbserver/; \
+	else \
+	./script/ssl.server-make.cert.pl; \
+	cp -f server.cfg /etc/spbserver/; \
+	cp server.crt /etc/spbserver/; \
+	cp server.key /etc/spbserver/; \
+	cp server.csr /etc/spbserver/; \
+	fi
+	if which screen >/dev/null; then \
+	cp script/spbd /etc/init.d/; \
+	chmod 755 /etc/init.d/spbd; \
+	else \
+	echo "ERROR: screen is not installed"; \
+	exit 0; \
+	fi 

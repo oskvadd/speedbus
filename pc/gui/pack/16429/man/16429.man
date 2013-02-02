@@ -1,0 +1,99 @@
++----------------------------------------------------------+
+|                Termo controller for PC fan               |
++----------------------------------------------------------+
+| Date: 120810 23:56 | Email: opencline@hotmail.se |______/
++--------------------------------------------------+
+
++----------------------------------------------------------+
+|			   Summary			   |
++----------------------------------------------------------+
+
+Use an ordinary PC fan, and the included thermistor:s to 
+help compensate the temperature inside, to the goal 
+temperature. If goal is 22 degrees, and the temp inside is
+>22 and the temp outside is <=22 the fan starts. And stops 
+when the inside temp reach 22... 
+
++----------------------------------------------------------+
+|			Tech data			   |
++----------------------------------------------------------+
+___________________________________________________________
+[  Component  |  Art.nr |  pc  |           NOTE            ]
+| Main Device | 16429   | 1 pc | 12V, Spb protocoll, fully |
+|______________________________| Remote controlled by spb  |
+| Temp sensor | mcp9700a | 2pc | +-2°C, 5V, Microship.     |
+|__________________________________________________________|
+
++----------------------------------------------------------+
+|			Protocoll			   |
++----------------------------------------------------------+
+
+First off, this unit basicly has three data inputs, (if not 
+counting the built in speedlib func:s ofc). There are
+temp_goal: Wich can bee everything between 0 and 128.
+mspeed:    Wich is the max speed, when, in auto mode.
+speed:     Wich is the manual speed.
+NOTE: all abowe variables are stored in EEPROM
+\ = AND grid
+IF speed NOT is 0, it should bee in manual mode else auto.
+\IF temp_goal is 0, the device shall be shut off
+\IF temp_goal not 0, it shall be set to auto mode, and the
+ device shall try to reach temp_goal.
+
+NOTE: 
+(temp_goal == 0 && speed == 0): Device off
+(temp_goal > 0 && speed == 0): auto mode
+(temp_goal > 0 && speed > 0): manual mode
+(temp_goal == 0 && speed > 0): manual mode
+
+therfore, setting speed to 0, does not neccecerly mean that
+the device stops, it depends on what is inside temp_goal.
+
+The EEPROM shall be zeroed when programming, and 
+all three variables are stored there, so they are 
+non-volatile. 
+
+{ event = 1;	// Basic operation to set speed, (0-255)
+  type = "send";
+  data = (0x0A,257);}
+
+{ event = 2;     // Basic operation to get the values of 
+  type = "send"; // the two temp sensors. 
+  data = (0x0B,0);} // NOTE: The values are signed, so 
+		    // Zero is 128... 
+// ->[0x0B,temp1(outside),temp1r(this is the raw remider),
+//	temp2(inside),temp2r(this is the raw remider)].
+// NOTE, the raw remider, for example 0x56=86 will simply
+// be printed as "[temp1],86" 
+
+{ event = 3;     // Basic operation to set temp_goal
+  type = "send"; // NOTE, just 0-127. Zero is 0.
+  data = (0x0C,258);}	(unsigned)
+
+{ event = 4;	 // Basic operation to set mspeed 
+  type = "send"; // 0 is 255, so you cant shut it off by
+  data = (0x0D,259);} // put a zero here... 255 is Max
+			// (0-255)
+
+{ event = 5;	// Basic operation to get speed, temp
+  type = "send";// and mspeed.
+  data = (0x0E,0);} ->[0x0E,speed,temp_goal,mspeed,
+			manual_controll(0000000X)].
+
+NOTE: temp_goal is the "goal" temperature. wich the 
+unit tries to reach. 
+      speed is the current speed.
+      if bit (0000000X)lsb is 1, the unit is under 
+      manual controll. else, the fan speed is adjusted
+      automaticly. (If you want this to be 0(auto), set
+      speed to 0)
+      mspeed is the max speed when in auto mode, the 
+      purpose of this is that when you are a sleep.
+      or when its cooler outside, you only put down
+      this to slow down the fan in auto mode.
+
+	Mayby its seems tricky, but with the sample 
+	gui file, and the src, you have all materials
+        to reach an understandning. // You dearest 
+        Speedster.
+

@@ -1,0 +1,116 @@
+name="Remote On Off";
+source_width=20;
+
+
+// Important! event=0 is simply no event at all, you cant add a event with number 0
+spb =
+{
+  frontend = (  {
+		type  = "label";
+		label = "Main Lamp";
+		row   = 0;
+		},{ 
+		type  = "button";
+		label = "Light On";
+		event = 1;
+		row   = 1; 
+		},{ 
+		type  = "button";
+		label = "Light Off";
+		event = 2;
+		row   = 1;
+		},{ 
+		type  = "button";
+		label = "Dim";
+		event = 3;
+		row   = 2;
+		},{
+		type = "scale";
+		min   = 0;
+		max   = 15;
+		step  = 2;
+		row   = 2;
+		variable = 257; // Variables is 257-267, may be extended in the future
+		},{
+		type  = "label";
+		label = "Wall Lamp";
+		row   = 3;
+		},{ 
+		type  = "button";
+		label = "Light On";
+		event = 4;
+		row   = 4; 
+		},{ 
+		type  = "button";
+		label = "Light Off";
+		event = 5;
+		row   = 4;
+		},{ 
+		type  = "button";
+		label = "Dim";
+		event = 6;
+		row   = 5;
+		},{
+		type = "scale";
+		min   = 0;
+		max   = 15;
+		step  = 2;
+		row   = 5;
+		variable = 258; // Variables is 257-267, may be extended in the future
+		},{
+		type  = "button";
+                label = "Waveman On";
+                event = 7;
+                row   = 6;
+		},{
+		type  = "button";
+                label = "Waveman Off";
+                event = 8;
+                row   = 6;
+		}
+//		,{
+//		type  = "button";
+//                label = "PORTC On";
+//                event = 9;
+//                row   = 7;
+//		},{
+//		type  = "button";
+//                label = "PORTC Off";
+//                event = 10;
+//                row   = 7;
+//*		}
+		);
+
+  events = ( { event = 1;
+               type = "send";
+               data = (0x0A,44,1);},
+             { event = 2;
+               type = "send";
+               data = (0x0A,42,1);},
+             { event = 3;
+               type = "send";
+               data = (0x0A,40,1,257);},
+	     { event = 4;
+               type = "send";
+               data = (0x0A,44,2);},
+             { event = 5;
+               type = "send";
+               data = (0x0A,42,2);},
+             { event = 6;
+               type = "send";
+               data = (0x0A,40,2,258);},
+	     { event = 7;
+               type = "send";
+               data = (0x0A,30,0,0);},
+             { event = 8;
+               type = "send";
+               data = (0x0A,26,0,0);}
+//	     { event = 9;
+//               type = "send";
+//               data = (0x02,0x03,0xFE);},
+//	     { event = 10;
+//               type = "send";
+//               data = (0x02,0x03,0x00);}
+                	
+           );
+};

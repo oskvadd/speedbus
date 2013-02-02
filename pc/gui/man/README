@@ -1,0 +1,64 @@
+Soo, as i was sitting and cewding, i found out that, when the 
+DB is flooded with devices, i need somthing to hold this things
+apart, so, basicly, now. With each device, lets call the device
+:123456
+Wee should first off have a tarball, named 
+[Device type name]_123456_[Email].tar.gz
+With the f-tree
+./
+./devs/123456.spb
+./man/123456.man
+
+Well, thats it, the spb file, you are proboly familiar with the
+functions, if not, the info cant be found here. All tho, the 
+.man files, i will give you a small introduction. 
+
+
+Here is the basic 123456.man file:
+
+                      <-  60 chars with ->
++----------------------------------------------------------+
+|                   Basic on off device                    |
++----------------------------------------------------------+
+| Date: 120810 23:35 | Email: opencline@hotmail.se |______/
++--------------------------------------------------+
+
++----------------------------------------------------------+
+|			   Summary			   |
++----------------------------------------------------------+
+
+Below, it does not matters with ascii-art, but begin with
+some basic info like how the on off are bipolar or unipolar.
+And if there are timer capabillities, and wat voltage and 
+amps the limits are. osv osv. 
+
++----------------------------------------------------------+
+|			Tech data			   |
++----------------------------------------------------------+
+
+This may be a table with recomende voltage, temperature
+components included, and so on.
+
++----------------------------------------------------------+
+|			Protocoll			   |
++----------------------------------------------------------+
+
+This is where the funny part begin, here you write down
+everything you want to know when you readning this file and
+want to know how the device shall be configured. Some 
+important knowlegde is, fore example:
+* What happends if there are a power disruption, does the 
+device need new configurations prefs or does it start up 
+by it self. 
+
+It is probobly good to start with somthing like, 
+"First time usage". And a example configuration always 
+saves time. FAQ and fail search. 
+
+And ofc, there should be a complate summary of the device
+specific functions, at protocoll level. Basicly, 
+everything you have added under "custom_command_handler".
+Also, if the device throws up somting else, like chages
+or basicly everything thats got sended sync och async, 
+temperatures thats got sent out every 30sec och buttons
+that got pushed async...

@@ -1,0 +1,3 @@
+Warning[205] /home/oscar/speedbus/pic/mplabx.proj/speedlib/test.and.sample.X/newAsmTemplate.asm 1 : Found directive in column 1. (List)
+Message[302] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 554 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Warning[205] /home/oscar/speedbus/pic/mplabx.proj/speedlib/test.and.sample.X/newAsmTemplate.asm 235 : Found directive in column 1. (end)

@@ -1,0 +1,3 @@
+Warning[205] /home/oscar/speedbus/pic/mplabx.proj/speedlib/Test.4550.X/Test_4550.asm 1 : Found directive in column 1. (LIST)
+Warning[208] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 798 : Label truncated at 32 characters. (func_is_ocupied_send_response_got_resp)
+Warning[208] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 802 : Label truncated at 32 characters. (func_is_ocupied_send_response_pack)
