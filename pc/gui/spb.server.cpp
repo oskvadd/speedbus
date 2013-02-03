@@ -1,4 +1,3 @@
-// Server nr
 
 #include "ssl.socket.h"
 #include <libconfig.h>
@@ -211,6 +210,7 @@ void *print_ser_backend(void *ptr){
 		if(data[0] != data[1] != 0xFF) // Change the adress so there either 0:0 for unicast, to client, och FF:FF to broadcast to client
 		  data[0] = data[1] = 0;
 		memcpy(prepare+5, data, counter);
+
 		for(int i=0; i<MAX_LISTEN; i++){
 		  if(serial_p->server->session_open[i]){
 		    serial_p->server->send_data(i, prepare, counter+5);    
@@ -331,6 +331,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
   /* Keep komunication */
   //this->sslfree(listnum);
   }else{
+    // Ordinary binary send, just output the data that is sent to it.
     if(strncmp(data, "send", 4) == 0){
       if(!serial_port.IsOpen()){
 	serial_p->server->send_data(listnum, "info Cant send, serial port is down\n", 
@@ -343,11 +344,68 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
       //printf("%02X ",(0xFF&send_data[i]));
       //}
       //printf("\n");
-      send_data[2] = addr1; // Harcdoce in the dev addr, so the send respons wont get hong up, do the send response is done at server side.
+      send_data[2] = addr1; // Hardcode in the dev addr, so the send respons wont get hong up, due to the send response is done at server side.
       send_data[3] = addr2;
 
       send(send_data,len-5);
+      serial_p->server->send_data(listnum, "good\n", 
+				  strlen("good\n"));
     }
+    // Event executions, output things on the bus based on the conf files, like "execute event 123"
+    if(strncmp(data, "evexec", 6) == 0){
+      if(!serial_port.IsOpen()){
+	serial_p->server->send_data(listnum, "info Cant send, serial port is down\n", 
+				    strlen("info Cant send, serial port is down\n"));
+      }
+      //      printf("Received send with %d chars: \n", len-5);  
+      int devid, event;
+      sscanf(data, "evexec %d %d ", &devid, &event);
+      char *varr = strchr(data, '[');
+      if(varr){
+	varr++;
+	int varnr, varval;
+	while(strchr(varr, ',') || strchr(varr, ']')){	 
+	  if(sscanf(varr, "%d=%d,", &varnr, &varval) == 2 || sscanf(varr, "%d=%d]", &varnr, &varval) == 2){
+	    if(varnr > 255 && varnr <= (257 + MAX_VARIABLE) && varval < 256 && varval >= 0)
+	     printf("Setting variable: %d=%d\n", varnr, varval);
+	     backend_set_variable(serial_p->backe, devid, varnr, (char)varval);
+	  }
+	  varr = strchr(varr, ',');
+	  if(!varr){
+	    break;
+	  }
+	  varr++;
+	}
+      }
+
+      if(!backend_exec(serial_p->backe, event, devid, 0)){
+	serial_p->server->send_data(listnum, "info Error when runing event, devid in devlist?\n", 
+				    strlen("info Error when runing event, devid in devlist?\n"));
+      }else{
+	serial_p->server->send_data(listnum, "good\n", 
+				    strlen("good\n"));
+      }
+    
+    }
+
+
+   // Event executions, output things on the bus based on the conf files, like "execute event 123"
+    if(strncmp(data, "evelist", 7) == 0){
+      //      printf("Received send with %d chars: \n", len-5);  
+      int devid, event;
+      sscanf(data, "evexec %d %d ", &devid, &event);
+
+
+      if(!backend_exec(serial_p->backe, event, devid, 0)){
+	serial_p->server->send_data(listnum, "info Error when runing event, devid in devlist?\n", 
+				    strlen("info Error when runing event, devid in devlist?\n"));
+      }else{
+	serial_p->server->send_data(listnum, "good\n", 
+				    strlen("good\n"));
+      }
+    
+    }
+
     // To make the cewd abit more easy read, i just make an is admin if statment here, so, the 
     // cewd below in this function is ONLY executed, IF the user is admin, else, return.
     if(!is_admin[socket_user_id[listnum]])

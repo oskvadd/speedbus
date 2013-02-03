@@ -1,5 +1,0 @@
-server_host="127.0.0.1";
-username="root";
-password="toor";
-auto_login=1;
-//auto_open=1;

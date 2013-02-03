@@ -98,6 +98,7 @@ void backend_check_update_addr(main_backend *backe, int devid){
 }
 
 int backend_exec_ops(main_backend *backe, int array_num, int var_num, int var_val, bool from_gui){
+
   for(int i=0; i<backe->var_opsc; i++){
     if(backe->device_id[array_num] == backe->var_ops[i][2]){ // ceck so the device id is the same
       if(var_num == backe->var_ops[i][1]){ // check so the variable num is the same
