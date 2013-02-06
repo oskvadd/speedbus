@@ -510,7 +510,7 @@ int sslclient::find_known_hosts(char *host_entry){
 
       while(fgets (line, sizeof(line), file) != NULL) /* read a line */
 	{
-	  if(strncmp(line, host_entry,strlen(host_entry)-1) == 0){ // Short down the comparation by one char, beacause there is a \n at the end of the "line"
+	  if(strncmp(line, host_entry,strlen(host_entry)) == 0){
 	    fclose(file); return 1;}
 	  if(strncmp(line, host_entry, s_end) == 0)
 	    mime_flag = 1;
