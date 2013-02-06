@@ -790,7 +790,7 @@ static void load_device(gpointer data, int devid){
   sprintf(tmp,"Sucess devs/%d.spb",devid);
   gtk_label_set_text (GTK_LABEL(rdata->label),tmp);
   gtk_widget_show (rdata->separator1);
-  long source_width = 0;
+  int source_width = 0;
 
   config_lookup_int(&cfg, "source_width", &source_width); // Fetch width
 
@@ -820,7 +820,7 @@ static void load_device(gpointer data, int devid){
 
 	  /* Only output the record if all of the expected fields are present. */
 	  const char *type;
-	  long row;
+	  int row;
 
 	  if(!(config_setting_lookup_string(book, "type", &type)))
 	    continue;
@@ -842,7 +842,7 @@ static void load_device(gpointer data, int devid){
 		    rdata->spb_widgets[rdata->spb_widget_c] = gtk_button_new_with_label(label);
 		  gtk_box_pack_start (GTK_BOX (rdata->spb_widget_row[row]), rdata->spb_widgets[rdata->spb_widget_c], FALSE, FALSE, 0);
 		  // Add event number to widget
-		  long event = 0;
+		  int event = 0;
 		  if(!(config_setting_lookup_int(book, "event", &event)))
 		    rdata->spb_widget_event[rdata->spb_widget_c] = 0;
 		  else
@@ -853,21 +853,21 @@ static void load_device(gpointer data, int devid){
 	     }
 
 	     if(strcmp(type,"scale") == 0){	       
-	       long min; // min max
-	       long max; // min max
-	       long step; // min max
+	       int min; // min max
+	       int max; // min max
+	       int step; // min max
 	       if(!(config_setting_lookup_int(book, "min", &min)) || !(config_setting_lookup_int(book, "max", &max)) || !(config_setting_lookup_int(book, "step", &step)))
 		 rdata->spb_widgets[rdata->spb_widget_c] =  gtk_hscale_new_with_range(0,255,1); // Nothing added, use one byte;
 		  else
 		    rdata->spb_widgets[rdata->spb_widget_c] = gtk_hscale_new_with_range(min,max,step);
 	       gtk_box_pack_start (GTK_BOX (rdata->spb_widget_row[row]), rdata->spb_widgets[rdata->spb_widget_c], TRUE, TRUE, 0);
 		  // Add event number to widget
-		  long event = 0;
+		  int event = 0;
 		  if(!(config_setting_lookup_int(book, "event", &event)))
 		    rdata->spb_widget_event[rdata->spb_widget_c] = 0;
 		  else
 		    rdata->spb_widget_event[rdata->spb_widget_c] = event;
-		  long variable;
+		  int variable;
 		  if((config_setting_lookup_int(book, "variable", &variable))){
 		    int var_id = variable - 257; // 257 = 0, 258 = 1 osv osv
 		    rdata->spb_widget_variable_source[var_id] = rdata->spb_widget_c;
@@ -881,7 +881,7 @@ static void load_device(gpointer data, int devid){
 	       char print[200];
 	       char var[10];
 	       const char *label; // min max
-	       long int tmp;
+	       int tmp;
 	       if(config_setting_lookup_string(book, "label", &label)){
 		 strcpy(rdata->spb_widget_vars_printf[rdata->spb_widget_c],label);
 		 if(!config_setting_lookup_int(book, "var1", &tmp)){
@@ -1326,7 +1326,7 @@ gboolean rdeve_event_save(GtkWidget *buffer,
       for(int i = 0; i < count; ++i)
 	{
 	  config_setting_t *book = config_setting_get_elem(setting, i);
-	  long event;
+	  int event;
 	  const char *type;
 	  if(!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_string(book, "type", &type)))
 	    continue;
@@ -1340,7 +1340,7 @@ gboolean rdeve_event_save(GtkWidget *buffer,
 	      gdata_t = config_setting_get_member(book, "data");
 	      int edcount = config_setting_length(gdata_t);
 	      int edata[edcount];
-	      long ed;
+	      int ed;
 	      for(int i = 0; i < edcount; ++i)
 		{
 		  ed = config_setting_get_int_elem(gdata_t, i);
@@ -1384,7 +1384,7 @@ gboolean rdeve_event_save(GtkWidget *buffer,
 			    {
 			      config_setting_t *opts_e = config_setting_get_elem(opts_t, oi);
 			      const char *oname;
-			      long oat, obits;
+			      int oat, obits;
 			      bool is_set = 1;
 			      if(config_setting_lookup_string(opts_e, "name", &oname) && config_setting_lookup_int(opts_e, "at", &oat) && 
 				 config_setting_lookup_int(opts_e, "bits", &obits)){
@@ -1530,7 +1530,7 @@ gboolean rdeve_event_load(GtkWidget *buffer,
       for(int i = 0; i < count; ++i)
 	{
 	  config_setting_t *book = config_setting_get_elem(setting, i);
-	  long event;
+	  int event;
 	  const char *type;
 	  if(!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_string(book, "type", &type)))
 	    continue;
@@ -1544,7 +1544,7 @@ gboolean rdeve_event_load(GtkWidget *buffer,
 	      gdata_t = config_setting_get_member(book, "data");
 	      int edcount = config_setting_length(gdata_t);
 	      int edata[edcount];
-	      long ed;
+	      int ed;
 	      for(int i = 0; i < edcount; ++i)
 		{
 		  ed = config_setting_get_int_elem(gdata_t, i);
@@ -1570,9 +1570,9 @@ gboolean rdeve_event_load(GtkWidget *buffer,
 			if(bits_c == at_c && at_c == data_c){
 			  for(int i = 0; i < data_c; ++i)
 			    {
-			      long bits = config_setting_get_int_elem(bits_t, i);
-			      long at = config_setting_get_int_elem(at_t, i);
-			      long data = config_setting_get_int_elem(data_t, i);
+			      int bits = config_setting_get_int_elem(bits_t, i);
+			      int at = config_setting_get_int_elem(at_t, i);
+			      int data = config_setting_get_int_elem(data_t, i);
 			      int at_byte = at/8;
 			      int filter = 0;
 			      at -= at_byte*8;
@@ -1596,9 +1596,9 @@ gboolean rdeve_event_load(GtkWidget *buffer,
 			      if((evalue == data && i == (data_c - 1) && !rdata->rdevee_load_type_hardcode) || di+1 == rdata->rdevee_load_type_hardcode){
 				if(rdata->rdevee_load_type_hardcode){
 				  for(int en_i=0; en_i < data_c; en_i++){
-				    long bits = config_setting_get_int_elem(bits_t, en_i);
-				    long at = config_setting_get_int_elem(at_t, en_i);
-				    long data = config_setting_get_int_elem(data_t, en_i);
+				    int bits = config_setting_get_int_elem(bits_t, en_i);
+				    int at = config_setting_get_int_elem(at_t, en_i);
+				    int data = config_setting_get_int_elem(data_t, en_i);
 
 				    int at_byte = at/8;
 				    int indata = edata[at_byte];
@@ -1658,7 +1658,7 @@ gboolean rdeve_event_load(GtkWidget *buffer,
 					  }
 					  config_setting_t *opts_e = config_setting_get_elem(opts_t, oi);
 					  const char *oname;
-					  long oat, obits;
+					  int oat, obits;
 					  if(config_setting_lookup_string(opts_e, "name", &oname) && config_setting_lookup_int(opts_e, "at", &oat) && 
 					     config_setting_lookup_int(opts_e, "bits", &obits)){
 					  rdata->rdevee_elem_box[oi] = gtk_hbox_new(FALSE, 10);
@@ -2389,8 +2389,8 @@ int main( int   argc,
   pdata = (ProgressData*)g_malloc (sizeof (ProgressData));
 
   char tmp[50];
-  long auto_open = 0;
-  long auto_login = 0;
+  int auto_open = 0;
+  int auto_login = 0;
   pdata->share = NULL;
   config_init(&pdata->main_cfg);
   if(!config_read_file(&pdata->main_cfg, "main.cfg"))

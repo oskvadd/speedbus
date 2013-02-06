@@ -240,7 +240,7 @@ bool backend_load_var_ops(main_backend *backe, config_t *cfg, char * cname, int 
 	{
 	  config_setting_t *book = config_setting_get_elem(setting, i);
 	  
-	  lint variable; lint type; lint second_arg; lint devid;
+	  int variable; int type; int second_arg; int devid;
           if(!(config_setting_lookup_int(book, "variable", &variable)) || !(config_setting_lookup_int(book, "type", &type))
 	     || !(config_setting_lookup_int(book, "second_arg", &second_arg))){
 	    printf("You seems to have missed 'variable','device_id','type' or 'second_arg' at event nr %d, in file %s\n", i, cname);
@@ -309,7 +309,7 @@ bool backend_load_events(main_backend *backe){
 	  for(int i = 0; i < count; ++i)
 	    {
 	      config_setting_t *book = config_setting_get_elem(setting, i);
-	      lint event;
+	      int event;
 	      const char *type;
 	      if(!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_string(book, "type", &type)))
 		continue;
@@ -335,7 +335,7 @@ bool backend_load_events(main_backend *backe){
 		    backe->event_data[devids][event][0] = count;
 		    for(int i = 0; i < count; ++i)
 		      {
-			lint data = config_setting_get_int_elem(data_t, i);
+			int data = config_setting_get_int_elem(data_t, i);
 			backe->event_data[devids][event][i+1] = data;
 		      }
 		  }
@@ -352,7 +352,7 @@ bool backend_load_events(main_backend *backe){
 		    backe->event_data[devids][event][0] = count;
 		    for(int i = 0; i < count; ++i)
 		      {
-			lint data = config_setting_get_int_elem(data_t, i);
+			int data = config_setting_get_int_elem(data_t, i);
 			backe->event_data[devids][event][i+1] = data;
 		      }
 		    count = config_setting_length(var_num_t);
@@ -361,8 +361,8 @@ bool backend_load_events(main_backend *backe){
 		    backe->event_data2[devids][event][0] = count;
 		    for(int i = 0; i < count; ++i)
 		      {
-			lint var_num = config_setting_get_int_elem(var_num_t, i);
-			lint at_byte = config_setting_get_int_elem(at_byte_t, i);
+			int var_num = config_setting_get_int_elem(var_num_t, i);
+			int at_byte = config_setting_get_int_elem(at_byte_t, i);
 			backe->event_data1[devids][event][i+1] = var_num;
 			backe->event_data2[devids][event][i+1] = at_byte;
 		      }
@@ -381,7 +381,7 @@ bool backend_load_events(main_backend *backe){
 		    backe->event_data[devids][event][0] = count;
 		    for(int i = 0; i < count; ++i)
 		      {
-			lint data = config_setting_get_int_elem(data_t, i);
+			int data = config_setting_get_int_elem(data_t, i);
 			backe->event_data[devids][event][i+1] = data;
 		      }
 		    count = config_setting_length(var_num_t);
@@ -389,7 +389,7 @@ bool backend_load_events(main_backend *backe){
 		    strncpy((char *)(backe->event_data1[devids][event]+1), ptnpattern, MAX_BUFFER);
 		    for(int i = 0; i < count; ++i)
 		      {
-			lint var_num = config_setting_get_int_elem(var_num_t, i);
+			int var_num = config_setting_get_int_elem(var_num_t, i);
 			backe->event_data2[devids][event][i+1] = var_num;
 		      }
 		  }

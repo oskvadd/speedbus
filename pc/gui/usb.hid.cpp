@@ -201,7 +201,7 @@ int open_usb_hid(main_backend * backe, char * cname)
 	{
 	  config_setting_t *book = config_setting_get_elem(setting, i);
 	  
-	  lint event; lint type; lint affected_byte; lint second_arg; lint devid;
+	  int event; int type; int affected_byte; int second_arg; int devid;
           if(!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_int(book, "type", &type))
 	     || !(config_setting_lookup_int(book, "affected_byte", &affected_byte)) || !(config_setting_lookup_int(book, "second_arg", &second_arg))
 	     || !(config_setting_lookup_int(book, "device_id", &devid))){

@@ -20,7 +20,7 @@ typedef struct _usb_hid {
 struct libusb_device_handle * devh;
 unsigned int vid;
 unsigned int pid;
-lint bwidth;  
+int bwidth;  
 pthread_t event_thread;
 config_t cfg;
   /*

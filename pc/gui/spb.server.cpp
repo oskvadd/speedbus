@@ -15,8 +15,8 @@
 #define MAX_USERS 100
 #define MAX_LOG_SIZE 200 // Maximum numbers of chars to send to log, at once.
 #define SERVER_LOG_FILE "/var/log/spbserver.log"
-#define SERVER_CONFIG_FILE server.cfg
-#define SERVER_CONFIG_DIR /etc/spbserver/
+#define SERVER_CONFIG_FILE "server.cfg"
+#define SERVER_CONFIG_DIR "/etc/spbserver/"
 #define SERVER_CONFIG_URI "/etc/spbserver/server.cfg"
 
 int socket_user_id[MAX_LISTEN];
@@ -528,7 +528,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
       if(devid > 0){
 	FILE * dfile;
 	char openf[50];
-	sprintf(openf, "devs/%d.spb", devid);
+	sprintf(openf, SERVER_CONFIG_DIR "devs/%d.spb", devid);
 	dfile = fopen (openf , "rb" );
 	if (dfile==NULL) {
 	serial_p->server->send_data(listnum, "deveinfo File does not exist\0",
@@ -846,7 +846,7 @@ int main(int argc, char *argv[])
   }
 
 
-  lint port;
+  int port;
   if(1){
     config_t server_cfg;
     config_init(&server_cfg);
@@ -854,7 +854,7 @@ int main(int argc, char *argv[])
     if(!config_read_file(&server_cfg, SERVER_CONFIG_URI))
       {
 	memset(tmp,0x00,50);
-	sprintf(tmp,"ls SERVER_CONFIG_DIR|grep \"SERVER_CONFIG_FILE \"");
+	sprintf(tmp,"ls " SERVER_CONFIG_DIR "|grep \"" SERVER_CONFIG_FILE "\"");
 	FILE * pipe = popen(tmp, "r");
 	if(fgets(tmp, 50, pipe) == NULL){
 	  printf("No File server.cfg\n");

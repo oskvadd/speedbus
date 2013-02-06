@@ -9,8 +9,6 @@
 #define MAX_DEVIDS   50
 #define MAX_OPS      50
 
-typedef int lint;
-
 
 typedef struct _main_backend {
   int       devids; // The number off loaded devices
