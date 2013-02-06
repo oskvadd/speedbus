@@ -1,16 +1,19 @@
-all: usb.hid.o ssl.socket.o main spbserver
+all: build build/usb.hid.o build/ssl.socket.o build/main build/spbserver
 
-spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp usb.hid.o
-	g++ -ggdb -I "/usr/local/ssl/include/" -o spbserver spb.server.cpp ssl.socket.o usb.hid.o /usr/local/lib/libserial.a `pkg-config --cflags --libs libconfig libusb-1.0 libssl libcrypto` -lpthread
-ssl.socket.o: ssl.socket.cpp
-	g++ -ggdb -I "/usr/local/ssl/include/" -c -o ssl.socket.o ssl.socket.cpp
-usb.hid.o: usb.hid.cpp
-	gcc -ggdb -c -o usb.hid.o usb.hid.cpp 
-main: main.cpp usb.hid.o ssl.socket.o
-	gcc -ggdb main.cpp -o main ssl.socket.o usb.hid.o `pkg-config --cflags --libs gtk+-2.0 libconfig libserial libusb-1.0` -lssl -lcrypto
+build: 
+	mkdir build
+
+build/spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp build/usb.hid.o
+	g++ -ggdb -I "/usr/local/ssl/include/" -o build/spbserver spb.server.cpp build/ssl.socket.o build/usb.hid.o /usr/local/lib/libserial.a `pkg-config --cflags --libs libconfig libusb-1.0 libssl libcrypto` -lpthread
+build/ssl.socket.o: ssl.socket.cpp
+	g++ -ggdb -I "/usr/local/ssl/include/" -c -o build/ssl.socket.o ssl.socket.cpp
+build/usb.hid.o: usb.hid.cpp
+	gcc -ggdb -c -o build/usb.hid.o usb.hid.cpp 
+build/main: main.cpp build/usb.hid.o build/ssl.socket.o
+	gcc -ggdb main.cpp -o build/main build/ssl.socket.o build/usb.hid.o `pkg-config --cflags --libs gtk+-2.0 libconfig libserial libusb-1.0` -lssl -lcrypto
 
 install: spbserver
-	cp spbserver /usr/bin/
+	cp build/spbserver /usr/bin/
 	if test ! -d /etc/spbserver/; then \
 	mkdir /etc/spbserver/; \
 	fi
