@@ -2598,20 +2598,19 @@ int main( int   argc,
   gtk_widget_show (pdata->server_adress);
   gtk_widget_show (pdata->server_label);
 
-  auto_run:
   /* and the window */
   if(auto_open){
     if(!open_tty_button(NULL,pdata)){
       gtk_widget_show (pdata->window);
-      goto main_end;
     }
+    goto main_end;
   }
 
   if(auto_login){
     if(!connect_to_server(NULL,pdata)){
       gtk_widget_show (pdata->window);
-      goto main_end;
     }
+      goto main_end;
   }
   
   gtk_widget_show (pdata->window);
