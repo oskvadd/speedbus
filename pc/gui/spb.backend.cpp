@@ -49,7 +49,7 @@ main_backend* init_backend(){
   DIR *dp;
   struct dirent *dirp;
   if((dp  = opendir(BACKEND_DIR "usb/")) == NULL) {
-    printf("Error opening usb/\n");
+    printf("No dir usb/\n"); return backe;
   }
   
   char arg[100];
