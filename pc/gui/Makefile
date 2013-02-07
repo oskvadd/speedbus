@@ -1,8 +1,8 @@
-all: build build/usb.hid.o build/ssl.socket.o build/main build/spbserver
+all: build build/main.cfg build/usb.hid.o build/ssl.socket.o build/main build/spbserver
 
 build: 
 	mkdir build
-build/main.cfg: 
+build/main.cfg: main.cfg
 	cp main.cfg build/main.cfg
 
 build/spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp build/usb.hid.o
