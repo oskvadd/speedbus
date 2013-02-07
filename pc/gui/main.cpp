@@ -425,6 +425,7 @@ void *client_handler(void *ptr){
       	device_add(rdata, addr1, addr2, devid);
       }
 	if(strncmp(data, "udevlist ", 9) == 0){
+	  if(rdata->open)
 	  speedbus_fill_devlist(rdata);
 	}
 	if(strncmp(data, "devec ", 6) == 0){
@@ -2197,6 +2198,12 @@ void rspeed_gui(gpointer *data){
   gtk_widget_show (rdata->scan_button);
   gtk_widget_show (rdata->scan_list);
   gtk_widget_show (rdata->window);
+
+
+  // Fill dev list
+  speedbus_fill_devlist(rdata);
+  //
+
 }
 
 
