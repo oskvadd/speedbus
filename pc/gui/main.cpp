@@ -2148,7 +2148,7 @@ void rspeed_gui(gpointer *data){
   rdata->scan_button = gtk_button_new_with_label ("Scan");
   g_signal_connect (rdata->scan_button, "clicked",
 		    G_CALLBACK (speedbus_unit_scan), rdata); 
-  rdata->label = gtk_label_new("hej");
+  rdata->label = gtk_label_new("Linked to bus!");
   rdata->box1 = gtk_vbox_new (FALSE, 10);
   rdata->box2 = gtk_hbox_new (FALSE, 10);
   rdata->box3 = gtk_vbox_new (FALSE, 10); // Just allocate this temporaryly, because the folowing destroy, wants somthing to destroy... just to make things work
