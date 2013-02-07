@@ -2,6 +2,8 @@ all: build build/usb.hid.o build/ssl.socket.o build/main build/spbserver
 
 build: 
 	mkdir build
+build/main.cfg: 
+	cp main.cfg build/main.cfg
 
 build/spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp build/usb.hid.o
 	g++ -ggdb -I "/usr/local/ssl/include/" -o build/spbserver spb.server.cpp build/ssl.socket.o build/usb.hid.o /usr/local/lib/libserial.a `pkg-config --cflags --libs libconfig libusb-1.0 libssl libcrypto` -lpthread
