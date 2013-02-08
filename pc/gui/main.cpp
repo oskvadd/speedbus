@@ -229,8 +229,11 @@ typedef struct _rspeed_gui_rep {
   GtkTextBuffer *rdeve_text_buffer;
   GtkTextIter rdeve_text_iter;
   GtkWidget *rdeve_status_bar;
+  GtkWidget *rdeve_config_upload;
   GtkWidget *rdeve_config_check;
   GtkWidget *rdeve_event_edit;
+  int rdeve_event_number;
+  
   
   /// rdev_event_editor
   GtkWidget *rdevee_gui;
@@ -1197,8 +1200,12 @@ gboolean rdeve_load_devid(GtkWidget *buffer,
   rspeed_gui_rep *rdata = (rspeed_gui_rep *)data;
   const char *devid = gtk_entry_get_text(GTK_ENTRY(rdata->rdeve_devid_entry));
   char send_str[strlen(devid) + 10];
+  if(atoi(devid) < 0){
+    gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, "Check devid number, error...");    
+  }
   sprintf(send_str,"deveid %s\n", devid);
   rdata->sslc.send_data(send_str, strlen(send_str));
+  rdata->rdeve_event_number = atoi(devid);
 }
 
 gboolean rdeve_update_statusbar(GtkTextBuffer *buffer,
@@ -1270,6 +1277,51 @@ bool rdeve_open_config(gpointer data, config_t *cfg){
     gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, "Config seems OK");
     return 1;  
   }
+}
+
+gboolean rdeve_config_upload(GtkWidget *buffer,
+			    gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *)data;
+  
+  config_t cfg;
+  if(!rdeve_fetch_config(rdata) || !rdeve_open_config(rdata, &cfg))
+    return 0;
+  
+  config_write_file(&cfg, ".tmp.conf");
+  config_destroy(&cfg);
+
+  FILE * dfile;
+  dfile = fopen (".tmp.conf" , "rb" );
+  if (dfile==NULL) {
+    gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, "Cant open .tmp.conf");
+    return 0;
+  }
+    char tbuffer[RECV_MAX];
+    char sbuffer[RECV_MAX];
+    int i = 0;
+    
+    char arg[50];
+    sprintf(arg,"devec %d\n",rdata->rdeve_event_number);
+
+    rdata->sslc.send_data(arg,
+				strlen(arg));
+    usleep(10000);
+    i = fread(tbuffer,1,970,dfile);
+    while(i > 0){
+      tbuffer[i] = '\0';
+      sprintf(sbuffer, "devei %d %s", rdata->rdeve_event_number, tbuffer);
+      rdata->sslc.send_data(sbuffer,
+				  strlen(sbuffer));	
+      usleep(50000);
+      i = fread(tbuffer,1,970,dfile);
+      
+    }
+    fclose (dfile);
+    // Send a config reload
+    rdata->sslc.send_data("devecr \n",
+				strlen("devecr \n"));
+
+
 }
 
 gboolean rdeve_config_check(GtkWidget *buffer,
@@ -1843,10 +1895,14 @@ void rdev_editor(GtkWidget *some,gpointer data){
 		   G_CALLBACK(rdeve_mark_set_callback), rdata);
 
   gtk_widget_grab_focus(rdata->rdeve_text_editor);
+  rdata->rdeve_config_upload = gtk_button_new_with_label("Upload config");
+  gtk_box_pack_start (GTK_BOX (rdata->rdeve_box3), rdata->rdeve_config_upload, FALSE, FALSE, 0);
   rdata->rdeve_config_check = gtk_button_new_with_label("Check config");
   gtk_box_pack_start (GTK_BOX (rdata->rdeve_box3), rdata->rdeve_config_check, FALSE, FALSE, 0);
   rdata->rdeve_event_edit = gtk_button_new_with_label("Edit events");
   gtk_box_pack_start (GTK_BOX (rdata->rdeve_box3), rdata->rdeve_event_edit, FALSE, FALSE, 0);
+  g_signal_connect (rdata->rdeve_config_upload, "clicked", 
+		    G_CALLBACK (rdeve_config_upload), rdata);
   g_signal_connect (rdata->rdeve_config_check, "clicked", 
 		    G_CALLBACK (rdeve_config_check), rdata);
   g_signal_connect (rdata->rdeve_event_edit, "clicked", 

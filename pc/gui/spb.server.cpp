@@ -520,6 +520,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
       }
       
     }
+
     if(strncmp(data, "deveid ", 7) == 0){
       
       
@@ -550,9 +551,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 	  usleep(50000);
 	  i = fread(tbuffer,1,990,dfile);
 	
-	}
-  	  
-	
+	}	
 	fclose (dfile);
       }else{
 	serial_p->server->send_data(listnum, "deveinfo devid is empty\0",
@@ -560,15 +559,45 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 	return 0;
       }
       
+      //printf ("Received %d chars:\n%s\n", len, data);
+      err = serial_p->server->send_data(listnum, "Got msg!\n", 
+					strlen("Got msg!\n"));
+      
+      return 0; 
     }
-    
-    //printf ("Received %d chars:\n%s\n", len, data);
-  err = serial_p->server->send_data(listnum, "Got msg!\n", 
-		  strlen("Got msg!\n"));
+       
+    if(strncmp(data, "devec ", 6) == 0){
+      int devid;
+      sscanf(data, "devec %d\n", &devid);
+      FILE * clear_file;
+      char cfile[200];
+      sprintf(cfile,SERVER_CONFIG_DIR "devs/%d.spb", devid);
+      clear_file = fopen( cfile , "w");
+      fwrite ("" , 0 , 0 , clear_file);
+      fclose (clear_file);
+    }
+  
+    if(strncmp(data, "devei ", 6) == 0){
+      int devid;
+      sscanf(data, "devei %d ", &devid);
+      FILE * a_file;
+      char afile[200];
+      char nr[20];
+      sprintf(afile,SERVER_CONFIG_DIR "devs/%d.spb", devid);
+      a_file = fopen ( afile , "a+");
+      sprintf(nr, "%d", devid);
+      int devid_len = strlen(nr);
+      fwrite (data+7+devid_len, (len-8)-devid_len, 1, a_file);
+      fclose (a_file);
+    }
 
-  return 0; 
+    if(strncmp(data, "devecr ", 7) == 0){
+      serial_p->backe->devids = 0; // Make the server reload the config files on the next exec
     }
-  }
+   
+  }  
+
+}
 
 void runselect(print_seri *serial_p){
   if(FD_ISSET(serial_p->server->listen_sock,&serial_p->server->socks)){

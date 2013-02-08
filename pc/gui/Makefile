@@ -14,7 +14,7 @@ build/usb.hid.o: usb.hid.cpp
 build/main: main.cpp build/usb.hid.o build/ssl.socket.o spb.backend.cpp
 	gcc -ggdb main.cpp -o build/main build/ssl.socket.o build/usb.hid.o `pkg-config --cflags --libs gtk+-2.0 libconfig libserial libusb-1.0` -lssl -lcrypto
 
-install: spbserver
+install: build/spbserver
 	cp build/spbserver /usr/bin/
 	if test ! -d /etc/spbserver/; then \
 	mkdir /etc/spbserver/; \
