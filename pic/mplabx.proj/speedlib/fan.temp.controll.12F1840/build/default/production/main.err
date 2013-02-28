@@ -1,0 +1,79 @@
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 389 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 403 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 425 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 433 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 446 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 450 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Warning[208] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 812 : Label truncated at 32 characters. (func_is_ocupied_send_response_got_resp)
+Warning[208] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 816 : Label truncated at 32 characters. (func_is_ocupied_send_response_pack)
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 1087 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 1122 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 1123 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 1153 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 1169 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm 1294 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Warning[205] /root/MPLABXProjects/test.12F1840.X/main.asm 24 : Found directive in column 1. (cblock)
+Warning[205] /root/MPLABXProjects/test.12F1840.X/main.asm 50 : Found directive in column 1. (ENDC)
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 59 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 62 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 64 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 65 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 74 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 82 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 86 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 89 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 90 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 107 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 108 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 110 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 114 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 116 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 118 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 119 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 123 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 126 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 141 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 414 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 419 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 423 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 431 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 432 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 435 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 437 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 440 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 446 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 460 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 466 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 472 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 473 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 477 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 483 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 489 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 717 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 718 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 719 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 720 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 721 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 722 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 738 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 741 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 743 : Using default destination of 1 (file).
+Message[305] /root/MPLABXProjects/test.12F1840.X/main.asm 747 : Using default destination of 1 (file).
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 753 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 754 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 757 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 758 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 759 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 761 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 766 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 767 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 771 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 772 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 773 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 774 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 775 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 777 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 779 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 780 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 781 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /root/MPLABXProjects/test.12F1840.X/main.asm 783 : Register in operand not in bank 0.  Ensure that bank bits are correct.

@@ -1,0 +1,131 @@
+name="Grow house";
+source_width=20;
+
+
+// Important! event=0 is simply no event at all, you cant add a event with number 0
+spb =
+{
+  frontend = (  {		
+		type  = "label";
+		label = "Fan Control";
+		row   = 0;
+		},{ 
+		type  = "button";
+		label = "Fan ON";
+		event = 1;
+		row   = 2;
+		},{ 
+		type  = "button";
+		label = "Fan OFF";
+		event = 2;
+		row   = 2;
+		},{
+		type  = "label";
+		label = "LED 1: %d | LED 2: %d";
+		var1  = 257;
+		var2  = 258;
+		row   = 4;
+		},{
+		type = "button";
+		label = "Get status";
+		event =	5;
+		row   = 5;
+		},{
+		type  = "label";
+		label = "Grow house temp: %d.%d°C";
+		var1  = 260;
+		var2  = 261;
+		row   = 6;
+		},{
+		type  = "label";
+		label = "Heat sink temp: %d.%d°C";
+		var1  = 262;
+		var2  =	263;
+		row   = 7;
+		},{
+		type = "button";
+		label = "Get Temp";
+		event =	4;
+		row   = 8;
+		}
+
+//		,{
+//		type  = "button";
+//                label = "PORTC On";
+//                event = 9;
+//                row   = 7;
+//		},{
+//		type  = "button";
+//                label = "PORTC Off";
+//                event = 10;
+//                row   = 7;
+//*		}
+		);
+
+  events = (   { event = 1;
+               type = "send";
+               data = (0x0C,1);},
+	       { event = 2;
+               type = "send";
+               data = (0x0C,0);},
+	       { event = 4;   
+               type = "send";	
+               data = (0x0B,0);},
+	       { event = 5;   
+               type = "send";	
+               data = (0x0A,0);},
+	       { event = 6;   
+               type = "getvars";	
+               data = (0x0B);
+               var_num = (260,261,262,263);
+               at_byte = (2,3,5,6);},
+	       { event = 7;   
+               type = "getvars";	
+               data = (0x0A);
+               var_num = (257,258,259);
+               at_byte = (1,2,3);}
+
+//	     { event = 9;
+//               type = "send";
+//               data = (0x02,0x03,0xFE);},
+//	     { event = 10;
+//               type = "send";
+//               data = (0x02,0x03,0x00);}
+                	
+           );
+
+};
+
+	/* event types:
+	   0 = shift down, with second_arg
+	   1 = invert variable, second arg not used
+	   2 = subtract with second arg
+	   3 = add with second arg
+	   4 = shift up with second arg
+	   5 = And
+	   6 = Or
+	   7 = add, second arg is variable
+	   8 = sub, second arg is variable
+	*/
+
+  operations = (
+
+  	      // { event = 0;
+  	      //   device_id = 123456;
+              //   type = 1;
+	      //   affected_byte = 5;
+	      //   second_arg = 6;}
+              // Variables
+
+            { variable = 260;
+              type = 2;
+              second_arg = 128;},
+	      
+            { variable = 262;
+              type = 2;
+              second_arg = 128;},
+
+            { variable = 264;
+              type = 5;
+              second_arg = 1;}
+);

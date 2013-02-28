@@ -1,0 +1,3412 @@
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00001     LIST P=12F1840
+                      00002 
+                      00003 #define ARC_16F         1
+                      00004 #define DEV_ID1 64
+                      00005 #define DEV_ID2 45
+                      00006 #define REC_CUSTOM_JUMP     custom_command_handler
+                      00007 #define OUTREG PORTA
+                      00008 #define OUTNUM 2
+                      00009 #define WRITE_EEPROM        write_eeprom
+                      00010 #define READ_EEPROM         read_eeprom
+                      00011 #include "p12f1840.inc"
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC12F1840 processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2012 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00993         LIST
+                      00012 #include "/home/oscar/speedbus/pic/mplabx.proj/speedlib/SpeedBus.PIC.Lib.X/speedlib_main.asm"
+                      00001 ;#include "/usr/share/gputils/header/p16f690.inc"
+                      00002 ;            errorlevel -302
+                      00003 
+                      00004 ;
+                      00005 ;   #define     REC_CUSTOM_JUMP         custom_command_handler ; This is the name of the command to use,
+                             if it is a custom command. like, "jump to this statment if it is a custom command"
+                      00006 ;   #define     CUSTOM_INTERRUPT        c_intserv              ; NOTE: When use this define, remember th
+                            at the jumpback, to the ordinary interupthandler, need to be "ci_restore", if the interupt does 
+                      00007 ;
+                      00008 ;
+                      00009 ; Using two device id:s, maybe not predefined, so...
+                      00010 ; The definition of thease bytes should not be done in the lib file, but in the main asm file, so difren
+                            t deviceid:s on difrent sources can be used.
+                      00011 
+                      00012 ; REMEMBER: Well, byte 0-9 is reserved for speedbus in eeprom
+                      00013 
+                      00014 ; The I/O where the txen for the 485buss should be output
+                      00015 #ifndef OUTREG
+                      00016 #define OUTREG PORTB
+                      00017 #endif
+                      00018 #ifndef OUTNUM
+                      00019 #define OUTNUM 4
+                      00020 #endif
+                      00021 
+                      00022 
+                      00023 #ifndef DEV_ID1
+                      00024 #define DEV_ID1 0
+                      00025 #endif
+                      00026 #ifndef DEV_ID2
+                      00027 #define DEV_ID2 0
+                      00028 #endif
+                      00029 
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00030 #ifndef FSR
+                      00031 #define FSR FSR1L
+                      00032 #endif
+                      00033 
+                      00034 #ifndef INDF
+                      00035 #define INDF INDF1
+                      00036 #endif
+                      00037 
+                      00038 #ifndef EEDAT
+                      00039 #define EEDAT EEDATA
+                      00040 #endif
+                      00041 
+                      00042 #define SPEEDLIB_RESPONSE_DELAY 9
+                      00043 
+                      00044         radix dec
+                      00045 ; IMPORTANT, do NOT change any of the varables down here, to a new bank, because
+                      00046 ; the banksel instructions are configured, as all the varables bellow are in the
+                      00047 ; same bank. As they should be.
+                      00048 #define     USER_VARIABLE_SPACE         0x68    ; 0x66 but added two, just in case
+                      00049         cblock  0x20
+  00000020            00050              d1                 ; Define three file registers for the
+  00000021            00051              d2                 ; delay loop
+  00000022            00052              d3
+  00000023            00053              d4
+  00000024            00054              tmp_W
+  00000025            00055              tmp_STATUS
+  00000026            00056              tmp_PCLATH
+  00000027            00057              d1_tmp
+  00000028            00058              d2_tmp
+  00000029            00059              d3_tmp
+  0000002A            00060              rand
+  0000002B            00061              loop1              ; Loop mem 1
+  0000002C            00062              loop2              ; Loop mem 2
+  0000002D            00063              rc_listen          ; |X-------|b7 = NoNE
+                      00064                                 ; |-X------|b6 = NoNE
+                      00065                                 ; |--X-----|b5 = NoNE
+                      00066                                 ; |---X----|b4 = This bit specifies, that when reciving an 0x01, destion
+                            ated for ME, do not send a "is ocupied package". This is good if you want to "search for units"
+                      00067                                 ; |----X---|b3 = This bit got set if the device recive a usual response 
+                            package (0x00)
+                      00068                                 ; |-----X--|b2 = This is an internal function for the recsave rutine, so
+                             the cewd know that following byte is escaped.
+                      00069                                 ; |------X-|b1 = If you set this bit to 1 the cewd will handle the byte 
+                            as loopback, and if it dosent match the byte in rc_nocoll
+                      00070                                 ; |-------X|b0 = This bit got set if the device recive an answer to a "c
+                            heck_addr" package, to confirm that the adress is ocupied
+  0000002E            00071              rc_counter         ; RC framelen
+  0000002F            00072              rc_gotflag         ; Set to 1 if it "got a flag"
+  00000030            00073              rc_nocoll          ; Use this to confim that no collission has ocurred
+  00000031            00074              rc_add_byte        ; recsave_add temporary argument
+  00000032            00075              rsp_adress1        ; The response adress at the bus
+  00000033            00076              rsp_adress2        ; The response adress at the bus
+  00000034            00077              adress1            ; The adress at the bus
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+  00000035            00078              adress2            ; The adress at the bus
+  00000036            00079              speedlib_config    ; |X-------|b7 = NoNE
+                      00080                                 ; |-X------|b6 = NoNE
+                      00081                                 ; |--X-----|b5 = NoNE
+                      00082                                 ; |---X----|b4 = NoNE
+                      00083                                 ; |----X---|b3 = NoNe
+                      00084                                 ; |-----X--|b2 = NoNe
+                      00085                                 ; |------X-|b1 = Set this bit 1 if adress is stamped.
+                      00086                                 ; |-------X|b0 = On, Off this bit, if you want to make the device check 
+                            the adress on startup.
+  00000037            00087              speedlib_main      ; |X-------|b7 = NoNE
+                      00088                                 ; |-X------|b6 = NoNE
+                      00089                                 ; |--X-----|b5 = NoNE
+                      00090                                 ; |---X----|b4 = NoNE
+                      00091                                 ; |----X---|b3 = NoNe
+                      00092                                 ; |-----X--|b2 = If this bit got set, the cewd will send a response pack
+                            age when returning to restore
+                      00093                                 ; |------X-|b1 = This bit should be set, if the device has sent an packa
+                            ge, that should be responde to
+                      00094                                 ; |-------X|b0 = This bit, is SET when an interupt has occured. If you s
+                            et this to zero before youre rutine, and check the bit after, you will se if an interupt has ocu
+  00000038            00095              crc0
+  00000039            00096              crc1
+  0000003A            00097              crcloop
+  0000003B            00098              crctmp
+  0000003C            00099              framelen           ; TX framelen
+  0000003D            00100              txtmp              ; temporary before sending
+  0000003E            00101              txreturn           ; Hardcoded return, if nessesary(in interupts)
+  0000003F            00102              txframe, tx1, tx2, tx3, tx4, tx5, tx6, tx7, tx8, tx9, tx10 ; Current package limit, 20B
+  0000004A            00103              tx11, tx12, tx13, tx14, tx15, tx16, tx17, tx18, tx19, tx20
+  00000054            00104              rcframe, rc1, rc2, rc3, rc4, rc5, rc6, rc7, rc8, rc9, rc10 ; Current package limit, 20B
+  0000005F            00105              rc11, rc12, rc13, rc14, rc15, rc16, rc17, rc18, rc19, rc20
+                      00106         endc
+                      00107         ;; EEPROM
+                      00108         ;; 0x00 ; addr1
+                      00109         ;; 0x01 ; addr2
+                      00110         ;; 0x02 ; Speedbus configuration register
+                      00111 
+                      00112 .code_page0_ CODE
+                      00113 
+0000                  00114 init_speedlib:
+                      00115 #ifndef FSR
+                      00116     clrf    FSR1H
+                      00117 #endif
+                      00118 
+                      00119 
+                      00120     ;; Preset some values
+0000   0020           00121     banksel speedlib_main
+0001   1137           00122     bcf     speedlib_main,2
+0002   10B7           00123     bcf     speedlib_main,1
+0003   0020           00124     banksel OUTREG
+0004   110C           00125     bcf     OUTREG,OUTNUM
+0005   0020           00126     banksel rc_listen
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0006   10AD           00127     bcf     rc_listen,1
+0007   122D           00128     bcf     rc_listen,4
+0008   10BE           00129     bcf     txreturn, 1
+                      00130 
+                      00131 #ifdef  READ_EEPROM
+                      00132     ;; Take adress from eeprom, if it is set.
+0009   3000           00133     movlw   0
+000A   2???           00134     call    READ_EEPROM
+000B   0020           00135     banksel adress1
+000C   00B4           00136     movwf   adress1
+000D   3001           00137     movlw   1
+000E   2???           00138     call    READ_EEPROM
+000F   0020           00139     banksel adress2
+0010   00B5           00140     movwf   adress2
+0011   3002           00141     movlw   2
+0012   2???           00142     call    READ_EEPROM
+0013   0020           00143     banksel speedlib_config
+0014   00B6           00144     movwf   speedlib_config
+                      00145 #endif
+0015   1836           00146     btfsc   speedlib_config,0
+0016   2???           00147     call    init_checkaddr
+                      00148 
+                      00149     ; If adress is 0xFFFF, force init_checkaddr
+0017   30FF           00150     movlw       0xFF
+0018   0020           00151     banksel     adress1
+0019   0234           00152     subwf       adress1,W
+001A   1D03           00153     btfss       STATUS,Z
+001B   2???           00154     goto        init_speedlib_e
+001C   30FF           00155     movlw       0xFF
+001D   0020           00156     banksel     adress2
+001E   0235           00157     subwf       adress2,W
+001F   1D03           00158     btfss       STATUS,Z
+0020   2???           00159     goto        init_speedlib_e
+0021   0020           00160     banksel     adress1
+0022   01B4           00161     clrf        adress1
+0023   01B5           00162     clrf        adress2
+0024   2???           00163     call        init_checkaddr
+                      00164 
+0025                  00165 init_speedlib_e:
+                      00166 
+0025   0008           00167     return
+                      00168 
+0026                  00169 init_checkaddr:
+0026   10AD           00170     bcf     rc_listen,1
+0027   3003           00171         movlw   3
+0028   0020           00172     banksel loop1
+0029   00AB           00173         movwf   loop1
+                      00174 
+002A                  00175 init_checkaddr_l:
+002A   0020           00176     banksel framelen
+                      00177 
+                      00178         ;; Send porta over TX
+002B   3009           00179         movlw   9
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+002C   00BC           00180         movwf   framelen
+                      00181         ;; * adress
+002D   0834           00182         movf    adress1,W
+002E   00BF           00183         movwf   txframe 
+                      00184         ;; * adress
+002F   0835           00185         movf    adress2,W
+0030   00C0           00186         movwf   txframe+1
+                      00187         ;; 0xff broadcast adress
+0031   30FF           00188         movlw   0xff
+0032   00C1           00189         movwf   txframe+2
+                      00190         ;; 0xff broadcast adress
+0033   30FF           00191         movlw   0xff
+0034   00C2           00192         movwf   txframe+3
+                      00193         ;; 0x03 control bit
+0035   3003           00194         movlw   0x03
+0036   00C3           00195         movwf   txframe+4
+                      00196         ;; 0x01 protocoll
+0037   3000           00197     movlw   0x00
+0038   00C4           00198         movwf   txframe+5
+                      00199         ;; Data
+0039   3001           00200     movlw       0x01
+003A   00C5           00201         movwf   txframe+6
+                      00202         ;; Padding bit
+003B   3000           00203         movlw   0x00
+003C   00C6           00204     movwf   txframe+7
+                      00205 
+                      00206 
+003D   2???           00207         call    txdo
+                      00208 
+                      00209 
+003E   0020           00210     banksel rc_listen
+003F   142D           00211         bsf     rc_listen,0
+0040   300A           00212         movlw   10
+0041   2???           00213         call    Delay
+0042   0020           00214     banksel rc_listen
+0043   182D           00215         btfsc   rc_listen,0
+0044   2???           00216         goto    init_checkaddr_not_ocupied
+0045   2???           00217         goto    init_checkaddr_ocupied
+                      00218 
+0046                  00219 init_checkaddr_not_ocupied:
+0046   0020           00220     banksel loop1
+0047   0BAB           00221         decfsz  loop1, f
+0048   2???           00222         goto    init_checkaddr_l
+0049   102D           00223         bcf     rc_listen,0
+004A   0008           00224         return
+                      00225 
+                      00226         
+004B                  00227 init_checkaddr_ocupied:
+004B   2???           00228         call    setaddr
+004C   0008           00229         return
+                      00230 
+004D                  00231 setaddr:
+004D   0020           00232         banksel adress1
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+004E   3000           00233         movlw   0x00
+004F   00B4           00234         movwf   adress1
+0050   3000           00235         movlw   0x00
+0051   00B5           00236         movwf   adress2
+                      00237 
+0052                  00238 setaddr1:       
+0052   0020           00239         banksel adress2
+                      00240 
+0053   0FB5           00241         incfsz  adress2, f
+0054   2???           00242         goto    setaddr2
+                      00243 
+0055   3000           00244         movlw   0x00
+0056   00AC           00245         movwf   loop2
+                      00246 
+0057   0FB4           00247         incfsz  adress1, f
+0058   2???           00248         goto    setaddr2
+0059   0008           00249         return                  ; ALERT!!! Change this to a rutin that show an error that no adress is a
+                            vailible (all ~65535 is taken)
+                      00250 
+005A                  00251 setaddr2:
+                      00252         ;; Send porta over TX
+005A   3009           00253         movlw   9
+005B   00BC           00254         movwf   framelen
+                      00255         ;; * adress
+005C   0834           00256         movf    adress1,W
+005D   00BF           00257         movwf   txframe 
+                      00258         ;; * adress
+005E   0835           00259         movf    adress2,W
+005F   00C0           00260         movwf   txframe+1
+                      00261         ;; 0xff broadcast adress
+0060   30FF           00262         movlw   0xff
+0061   00C1           00263         movwf   txframe+2
+                      00264         ;; 0xff broadcast adress
+0062   30FF           00265         movlw   0xff
+0063   00C2           00266         movwf   txframe+3
+                      00267         ;; 0x03 control bit
+0064   3003           00268         movlw   0x03
+0065   00C3           00269         movwf   txframe+4
+                      00270         ;; 0x01 protocoll
+0066   3000           00271         movlw   0x00
+0067   00C4           00272         movwf   txframe+5
+                      00273         ;; Data
+0068   3001           00274         movlw   0x01
+0069   00C5           00275         movwf   txframe+6
+                      00276         ;; Padding bit
+006A   3000           00277         movlw   0x00
+006B   00C6           00278         movwf   txframe+7
+                      00279 
+                      00280 
+006C   2???           00281         call    txdo
+                      00282 
+006D   0020           00283         banksel rc_listen
+006E   142D           00284         bsf     rc_listen,0
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+006F   3001           00285         movlw   1
+0070   2???           00286         call    Delay
+0071   0020           00287         banksel rc_listen
+0072   182D           00288         btfsc   rc_listen,0
+0073   2???           00289         goto    setaddr_testloop
+0074   2???           00290         goto    setaddr1
+                      00291 
+                      00292         
+0075                  00293 setaddr_testloop:               ; Send this rutine another 2 times, to make sure that the previus packet
+                             not was droped
+0075   0020           00294         banksel loop1
+0076   3002           00295         movlw   2
+0077   00AB           00296         movwf   loop1
+0078                  00297 setaddr_testloop_l:     
+                      00298 
+0078   2???           00299         call    txdo
+                      00300 
+0079   0020           00301         banksel rc_listen
+007A   142D           00302         bsf     rc_listen,0
+007B   3001           00303         movlw   1
+007C   2???           00304         call    Delay
+007D   0020           00305         banksel rc_listen
+007E   1C2D           00306         btfss   rc_listen,0
+007F   2???           00307         goto    setaddr1
+0080   0BAB           00308         decfsz  loop1,  f
+0081   2???           00309         goto    setaddr_testloop_l
+0082   0008           00310         return                  ; The adress sems nice! Returning, and keep the composed adress!
+                      00311         
+                      00312         
+                      00313         
+0083                  00314 intserv:
+                      00315 
+0083   0020           00316         banksel speedlib_main
+0084   1437           00317         bsf     speedlib_main,0 ;       Set this bit to one, when an interupt ocurres
+                      00318 
+                      00319 
+0085   1CB7           00320         btfss   speedlib_main,1         ;; Waiting for response STATE? Jump direct to recend_no_broadcas
+                            t
+0086   2???           00321         goto    intserv_norm
+0087   0020           00322         banksel PIR1
+0088   1A91           00323         btfsc   PIR1,RCIF       ;       Check if the recived data bit is set
+0089   2???           00324             goto        rec             ;       Jump to recive data rutine if the PIR1 bit is 1
+008A   2???           00325         goto    restore
+                      00326 
+008B                  00327 intserv_norm:
+008B   0020           00328         banksel tmp_W
+008C   00A4           00329         movwf   tmp_W           ;       Register BKP before the interup code exec
+008D   0803           00330         movf    STATUS,W
+008E   0183           00331         clrf    STATUS
+008F   00A5           00332         movwf   tmp_STATUS
+0090   080A           00333         movf    PCLATH,W
+0091   00A6           00334         movwf   tmp_PCLATH
+0092   0820           00335         movf    d1,W
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0093   00A7           00336         movwf   d1_tmp
+0094   0821           00337         movf    d2,W
+0095   00A8           00338         movwf   d2_tmp
+0096   0822           00339         movf    d3,W
+0097   00A9           00340         movwf   d3_tmp
+                      00341         #ifdef  CUSTOM_INTERRUPT
+                      00342         goto    CUSTOM_INTERRUPT
+                      00343 ci_restore:
+                      00344         #endif
+                      00345 
+0098   0020           00346         banksel PIR1
+0099   1A91           00347         btfsc   PIR1,RCIF       ;       Check if the recived data bit is set
+009A   2???           00348         goto    rec             ;       Jump to recive data rutine if the PIR1 bit is 1
+                      00349 
+                      00350 
+009B                  00351 restore:
+009B   0020           00352         banksel speedlib_main   ;       Restore the regisers
+009C   18B7           00353         btfsc   speedlib_main,1         ;; Waiting for response STATE? Dont
+009D   0009           00354         retfie                          ;; restore saved, nothing is saved
+                      00355 
+                      00356         ;; If:  Send back a response package, to confirm that the package has been recived
+                      00357 ;        btfss   speedlib_main,2
+                      00358 ;        goto    restore_norm
+                      00359 ;        bcf     speedlib_main,2
+                      00360 ;        call    func_send_response
+                      00361         ;;
+                      00362 
+009E                  00363 restore_norm:
+                      00364 
+                      00365     
+009E   0827           00366         movf    d1_tmp,W
+009F   00A0           00367         movwf   d1
+00A0   0828           00368         movf    d2_tmp,W
+00A1   00A1           00369         movwf   d2
+00A2   0829           00370         movf    d3_tmp,W
+00A3   00A2           00371         movwf   d3      
+00A4   0826           00372         movf    tmp_PCLATH,W
+00A5   008A           00373         movwf   PCLATH
+00A6   0825           00374         movf    tmp_STATUS,W
+00A7   0083           00375         movwf   STATUS
+00A8   0EA4           00376         swapf   tmp_W,F
+00A9   0E24           00377         swapf   tmp_W,W
+00AA   0009           00378         retfie
+                      00379         
+                      00380 
+00AB                  00381 rec:
+00AB   0020           00382         banksel rc_listen
+00AC   1CAD           00383         btfss   rc_listen,1             ; If rc_listen is set to NOT drop the loopback package, jump dir
+                            ectly to the rec_start
+00AD   2???           00384         goto    rec_start               
+                      00385 
+00AE   10AD           00386         bcf     rc_listen,1             ;; Start this rutine with checking that the recived bit NOT was 
+                            send from this own device
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00AF   0830           00387         movf    rc_nocoll,W
+00B0   0023           00388         banksel RCREG
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00B1   0219           00389         subwf   RCREG,W
+00B2   1D03           00390         btfss   STATUS,Z
+00B3   2???           00391         goto    rec_oops_coll           ; Anyway, if the rc_listen,1  is 1, and it do not match RCREG, w
+                            e may be detected an collission
+00B4   2???           00392         goto    restore
+00B5                  00393 rec_oops_coll:
+                      00394 ;       banksel PORTC
+                      00395 ;       bsf     PORTC,0
+00B5   0020           00396         banksel txreturn
+00B6   14BE           00397         bsf     txreturn,1
+00B7   2???           00398         goto    restore
+                      00399         
+00B8                  00400 rec_start:
+00B8   0023           00401         banksel RCREG
+00B9   307E           00402         movlw   0x7e
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00BA   0219           00403         subwf   RCREG,W
+00BB   1903           00404         btfsc   STATUS,Z
+00BC   2???           00405         goto    recx            ; Jump if this is a flag bit
+00BD   0020           00406         banksel rc_gotflag
+00BE   182F           00407         btfsc   rc_gotflag,0
+00BF   2???           00408         goto    recsave         ; Jump if the flag bit is set
+00C0   2???           00409         goto    recr
+00C1                  00410 recx:
+00C1   0020           00411         banksel rc_gotflag
+00C2   182F           00412         btfsc   rc_gotflag,0
+00C3   2???           00413         goto    recend          ; If this may be end flag, check the package, finalize, check crc
+00C4   142F           00414         bsf     rc_gotflag,0    ; Else set the gotflag, and start recording package!
+00C5   01AE           00415         clrf    rc_counter      ; Clear the counter :)
+00C6   2???           00416         goto    restore
+00C7                  00417 recr:   
+                      00418         ;       movf    RCREG,W
+                      00419         ;       movwf   TXREG           
+00C7   2???           00420         goto    restore
+                      00421 
+00C8                  00422 recsave:
+00C8   0023           00423         banksel RCREG
+00C9   307D           00424         movlw   0x7d
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00CA   0219           00425         subwf   RCREG,W
+00CB   1903           00426         btfsc   STATUS,Z
+00CC   2???           00427         goto    recsave_set     ; Set bit in the rc_listen to aktivate escape routines when the next byt
+                            e is recived
+00CD   0020           00428         banksel rc_listen
+00CE   192D           00429         btfsc   rc_listen,2
+00CF   2???           00430         goto    recsave_unescape
+                      00431 
+00D0   0023           00432         banksel RCREG
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00D1   0819           00433         movf    RCREG,W
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00D2   2???           00434         goto    recsave_add
+                      00435 
+00D3                  00436 recsave_set:
+00D3   0020           00437         banksel rc_listen
+00D4   152D           00438         bsf     rc_listen,2
+00D5   2???           00439         goto    restore
+                      00440 
+00D6                  00441 recsave_unescape:
+00D6   0020           00442         banksel rc_listen
+00D7   112D           00443         bcf     rc_listen,2
+00D8   305E           00444         movlw   0x5e
+00D9   0023           00445         banksel RCREG
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00DA   0219           00446         subwf   RCREG,W
+00DB   1903           00447         btfsc   STATUS,Z
+00DC   2???           00448         goto    recsave_unescape_1
+00DD   305D           00449         movlw   0x5d
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00DE   0219           00450         subwf   RCREG,W
+00DF   1903           00451         btfsc   STATUS,Z
+00E0   2???           00452         goto    recsave_unescape_2
+00E1   2???           00453         goto    restore         ; Maybe you can change this, but a fail package that is the result, will
+                             also be CRC checked
+                      00454         
+00E2                  00455 recsave_unescape_1:
+00E2   307E           00456         movlw   0x7e
+00E3   2???           00457         goto    recsave_add
+00E4                  00458 recsave_unescape_2:
+00E4   307D           00459         movlw   0x7d
+00E5   2???           00460         goto    recsave_add
+                      00461         
+00E6                  00462 recsave_add:
+00E6   0020           00463         banksel rc_add_byte
+00E7   00B1           00464         movwf   rc_add_byte
+00E8   3054           00465         movlw   rcframe         ; Place where to put the receiving byte
+00E9   072E           00466         addwf   rc_counter,W    ; Add the number in rc_flow, to the pointer, like rcframe[rc_flow] 
+00EA   0020           00467         banksel FSR
+00EB   0086           00468         movwf   FSR
+00EC   0020           00469         banksel rc_add_byte
+00ED   0831           00470         movf    rc_add_byte,W
+00EE   0020           00471         banksel INDF
+00EF   0081           00472         movwf   INDF
+00F0   0020           00473         banksel rc_counter
+00F1   0AAE           00474         incf    rc_counter,F
+00F2   2???           00475         goto    restore
+                      00476         
+00F3                  00477 recend:
+00F3   3005           00478     movlw   5
+00F4   022E           00479     subwf   rc_counter,W
+00F5   1C03           00480     btfss   STATUS,C
+00F6   2???           00481     goto    reccrcfail
+00F7   0020           00482     banksel rc_counter
+00F8   032E           00483         decf    rc_counter,W
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 11
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00F9   00AE           00484         movwf   rc_counter
+00FA   00BA           00485         movwf   crcloop
+00FB   3054           00486         movlw   rcframe
+00FC   0020           00487     banksel FSR
+00FD   0086           00488         movwf   FSR
+00FE   0020           00489     banksel crc0
+00FF   01B8           00490         clrf    crc0
+0100   01B9           00491         clrf    crc1
+0101   2???           00492         call    crcloopr        ; Call CRC function
+                      00493 
+0102   0020           00494         banksel rcframe
+0103   3054           00495         movlw   rcframe
+0104   072E           00496         addwf   rc_counter,W
+0105   0020           00497         banksel FSR
+0106   0086           00498         movwf   FSR
+                      00499 
+0107   0020           00500         banksel INDF
+0108   0801           00501         movf    INDF,W
+                      00502 
+0109   0020           00503         banksel crc1
+010A   0239           00504         subwf   crc1,W
+010B   1D03           00505         btfss   STATUS,Z
+010C   2???           00506         goto    reccrcfail
+010D   0020           00507         banksel FSR
+010E   0306           00508         decf    FSR,W
+010F   0086           00509         movwf   FSR
+                      00510 
+0110   0020           00511         banksel INDF
+0111   0801           00512         movf    INDF,W
+                      00513 
+0112   0020           00514         banksel crc0
+0113   0238           00515         subwf   crc0,W
+0114   1D03           00516         btfss   STATUS,Z
+0115   2???           00517         goto    reccrcfail
+                      00518 
+                      00519         
+                      00520         ;; fix so that the cheksum is check:ed and do things ;)
+                      00521 
+                      00522         ;; REMEMBER, if checksum is right, clear rc_gotflag, else, untuched
+0116   0020           00523         banksel rc_gotflag
+0117   102F           00524         bcf     rc_gotflag,0
+                      00525 
+0118   305A           00526         movlw   rcframe+6       ; Move recived byte to W
+0119   0020           00527         banksel FSR
+011A   0086           00528         movwf   FSR
+                      00529 
+011B                  00530 recend_tmp:
+                      00531 
+011B   0020           00532         banksel speedlib_main
+011C   18B7           00533         btfsc   speedlib_main,1 ; No CUSTOM command when in Whait for RESP STATE
+011D   2???           00534         goto    recend_no_broadcast
+                      00535 
+                      00536 
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 12
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+011E   2???           00537         goto    func_bc
+                      00538 
+011F                  00539 recend_no_broadcast:
+                      00540 
+011F   0020           00541         banksel rcframe
+0120   3054           00542         movlw   rcframe
+0121   0020           00543         banksel FSR
+0122   0086           00544         movwf   FSR
+0123   0020           00545         banksel INDF
+0124   0801           00546         movf    INDF,W          ; Check so that the adress is destinated for me
+0125   0020           00547         banksel adress1
+0126   0234           00548         subwf   adress1,W
+0127   1D03           00549         btfss   STATUS,Z
+0128   2???           00550         goto    restore
+0129   0020           00551         banksel FSR
+012A   0A06           00552         incf    FSR,W
+012B   0086           00553         movwf   FSR
+012C   0020           00554         banksel INDF
+012D   0801           00555         movf    INDF,W
+012E   0020           00556         banksel adress2
+012F   0235           00557         subwf   adress2,W
+0130   1D03           00558         btfss   STATUS,Z
+0131   2???           00559         goto    restore
+                      00560 
+0132   305A           00561         movlw   rcframe+6       ; Move recived byte to W
+0133   0020           00562         banksel FSR
+0134   0086           00563         movwf   FSR
+                      00564 
+0135   3000           00565         movlw   0x00            ; Got response
+0136   0020           00566         banksel INDF
+0137   0201           00567         subwf   INDF,W
+0138   1903           00568         btfsc   STATUS,Z
+0139   2???           00569         goto    func_check_response
+                      00570 
+013A   0020           00571         banksel speedlib_main
+013B   18B7           00572         btfsc   speedlib_main,1 ; No CUSTOM command when in Whait for RESP STATE
+013C   2???           00573         goto    restore
+                      00574 
+013D   0859           00575         movf    rcframe+5,W
+013E   3C01           00576         sublw   0x01
+013F   1903           00577         btfsc   STATUS,Z
+0140   2???           00578         call    func_send_response
+                      00579 ;        bsf     speedlib_main,2 ; Set this bit, so the cewd knows that WHEN
+                      00580 ;        btfss  STATUS,Z        ; returning to restore, send a response package
+                      00581 ;        bcf     speedlib_main,2
+                      00582 
+                      00583 
+                      00584         ;; Make sure that the FSR pointer is pointed right
+0141   305A           00585         movlw   rcframe+6       ; Move recived byte to W
+0142   0020           00586         banksel FSR
+0143   0086           00587         movwf   FSR
+                      00588 
+0144   3001           00589         movlw   0x01            ; Send respons for, 0x01 message, destionated for me
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 13
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0145   0020           00590         banksel INDF
+0146   0201           00591         subwf   INDF,W
+0147   1903           00592         btfsc   STATUS,Z
+0148   2???           00593         goto    func_is_ocupied_send_response
+                      00594         
+0149   3002           00595         movlw   0x02
+014A   0201           00596         subwf   INDF,W
+014B   1903           00597         btfsc   STATUS,Z
+014C   2???           00598         goto    func_setport
+                      00599 
+014D   3003           00600         movlw   0x03
+014E   0201           00601         subwf   INDF,W
+014F   1903           00602         btfsc   STATUS,Z
+0150   2???           00603         goto    func_speedlib_config
+                      00604 
+                      00605 #ifdef  REC_CUSTOM_JUMP
+0151   2???           00606         goto    REC_CUSTOM_JUMP
+                      00607 #endif
+0152   2???           00608         goto    restore
+                      00609 
+0153                  00610 func_speedlib_config:
+0153   3009           00611         movlw   9
+0154   0020           00612         banksel rc_counter
+0155   022E           00613         subwf   rc_counter,W
+0156   1903           00614         btfsc   STATUS,Z
+0157   2???           00615         goto    func_speedlib_config_basics
+                      00616 
+0158   1803           00617         btfsc   STATUS,C
+0159   2???           00618         goto    func_speedlib_config_extended
+015A   2???           00619         goto    restore
+                      00620 
+015B                  00621 func_speedlib_config_extended:
+015B   305B           00622         movlw   rcframe+7       ; Move recived byte to W
+015C   0020           00623         banksel FSR
+015D   0086           00624         movwf   FSR
+015E   3000           00625         movlw   0x00
+015F   0020           00626         banksel INDF
+0160   0201           00627         subwf   INDF,W
+0161   1903           00628         btfsc   STATUS,Z
+0162   2???           00629         goto    func_speedlib_config_basics
+0163   3001           00630         movlw   0x01
+0164   0201           00631         subwf   INDF,W
+0165   1903           00632         btfsc   STATUS,Z
+0166   2???           00633         goto    func_speedlib_config_caddr
+0167   2???           00634         goto    restore
+                      00635 
+                      00636 
+0168                  00637 func_speedlib_config_caddr:
+0168   300C           00638         movlw   12
+0169   0020           00639         banksel rc_counter
+016A   022E           00640         subwf   rc_counter,W
+016B   1C03           00641         btfss   STATUS,C    ;; If rc_counter NOT is more och equal to twelve, jump back
+016C   2???           00642         goto    restore
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 14
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00643 
+016D   2???           00644         call    func_send_response
+                      00645         
+016E   305C           00646         movlw   rcframe+8       ; Move recived byte to W
+016F   0020           00647         banksel FSR
+0170   0086           00648         movwf   FSR
+0171   30FF           00649         movlw   0xFF
+0172   0020           00650         banksel INDF
+0173   0201           00651         subwf   INDF,W
+0174   1D03           00652         btfss   STATUS,Z
+0175   2???           00653         goto    func_speedlib_config_caddr_f
+0176   0020           00654         banksel FSR
+0177   0A86           00655         incf    FSR,F
+0178   30FF           00656         movlw   0xFF
+0179   0020           00657         banksel INDF
+017A   0201           00658         subwf   INDF,W
+017B   1D03           00659         btfss   STATUS,Z
+017C   2???           00660         goto    func_speedlib_config_caddr_f
+017D   2???           00661         goto    restore
+                      00662 
+017E                  00663 func_speedlib_config_caddr_f:
+                      00664 
+017E   305C           00665         movlw   rcframe+8       ; Move recived byte to W
+017F   0020           00666         banksel FSR
+0180   0086           00667         movwf   FSR
+0181   0020           00668         banksel INDF
+0182   0801           00669         movf    INDF,W
+0183   0020           00670         banksel adress1
+0184   00B4           00671         movwf   adress1
+0185   0020           00672         banksel FSR
+0186   0A86           00673         incf    FSR,f
+0187   0020           00674         banksel INDF
+0188   0801           00675         movf    INDF,W
+0189   0020           00676         banksel adress2
+018A   00B5           00677         movwf   adress2
+                      00678 
+018B   14B6           00679         bsf     speedlib_config,1
+                      00680 #ifdef  WRITE_EEPROM
+                      00681         ;; Here you probobly want some cewd that writes tha adress to eeprom
+018C   3000           00682         movlw   0
+018D   00B0           00683         movwf   rc_nocoll
+018E   0834           00684         movf    adress1,W
+018F   2???           00685         call    WRITE_EEPROM
+0190   0020           00686         banksel rc_nocoll
+0191   3001           00687         movlw   1
+0192   00B0           00688         movwf   rc_nocoll
+0193   0835           00689         movf    adress2,W
+0194   2???           00690         call    WRITE_EEPROM
+0195   0020           00691         banksel rc_nocoll
+0196   3002           00692         movlw   2
+0197   00B0           00693         movwf   rc_nocoll
+0198   0836           00694         movf    speedlib_config,W
+0199   2???           00695         call    WRITE_EEPROM
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 15
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00696 #endif
+019A   2???           00697         goto    restore
+                      00698 
+019B                  00699 func_speedlib_config_basics:
+019B   300C           00700         movlw   12
+019C   2???           00701         call    Delay
+019D   300B           00702         movlw   11
+019E   0020           00703         banksel framelen
+019F   00BC           00704         movwf   framelen
+                      00705         ;; 0xff broadcast dst adress
+01A0   3056           00706         movlw   rcframe+2         ;       dst addr
+01A1   0020           00707         banksel FSR
+01A2   0086           00708         movwf   FSR
+01A3   0020           00709         banksel INDF
+01A4   0801           00710         movf    INDF,W
+01A5   0020           00711         banksel txframe
+01A6   00BF           00712         movwf   txframe
+                      00713         ;; 0xff broadcast dst adress
+01A7   3057           00714         movlw   rcframe+3         ;       dst addr
+01A8   0020           00715         banksel FSR
+01A9   0086           00716         movwf   FSR
+01AA   0020           00717         banksel INDF
+01AB   0801           00718         movf    INDF,W
+01AC   0020           00719         banksel txframe
+01AD   00C0           00720         movwf   txframe+1
+                      00721         ;; * my own src adress
+01AE   0834           00722         movf    adress1, W
+01AF   00C1           00723         movwf   txframe+2
+                      00724         ;; * my own src adress
+01B0   0835           00725         movf    adress2, W
+01B1   00C2           00726         movwf   txframe+3
+                      00727         ;; 0x03 control bit
+01B2   3003           00728         movlw   0x03
+01B3   00C3           00729         movwf   txframe+4
+                      00730         ;; 0x01 protocoll
+01B4   3000           00731         movlw   0x00
+01B5   00C4           00732         movwf   txframe+5
+                      00733         ;; Data
+01B6   3003           00734         movlw   0x03
+01B7   00C5           00735         movwf   txframe+6
+                      00736         ;; 0x00 Basic config response
+01B8   3000           00737         movlw   0x00
+01B9   00C6           00738         movwf   txframe+7
+                      00739         ;; Send back speedlib_config
+01BA   3036           00740         movlw   speedlib_config
+01BB   00C7           00741         movwf   txframe+8
+                      00742         ;; Padding bit
+01BC   3000           00743         movlw   0x00
+01BD   00C8           00744         movwf   txframe+9
+                      00745 
+01BE   2???           00746         call    txdo
+01BF   2???           00747         goto    restore
+                      00748 
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 16
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+01C0                  00749 func_send_response:
+01C0   3009           00750         movlw   SPEEDLIB_RESPONSE_DELAY
+01C1   2???           00751         call    Delay
+01C2   0020           00752         banksel framelen
+01C3   3009           00753         movlw   9
+01C4   00BC           00754         movwf   framelen
+                      00755         ;; 0xff broadcast dst adress
+01C5   3056           00756         movlw   rcframe+2         ;       dst addr
+01C6   0020           00757         banksel FSR
+01C7   0086           00758         movwf   FSR
+01C8   0020           00759         banksel INDF
+01C9   0801           00760         movf    INDF,W
+01CA   0020           00761         banksel txframe
+01CB   00BF           00762         movwf   txframe
+                      00763         ;; 0xff broadcast dst adress
+01CC   3057           00764         movlw   rcframe+3         ;       dst addr
+01CD   0020           00765         banksel FSR
+01CE   0086           00766         movwf   FSR
+01CF   0020           00767         banksel INDF
+01D0   0801           00768         movf    INDF,W
+01D1   0020           00769         banksel txframe
+01D2   00C0           00770         movwf   txframe+1
+                      00771         ;; * my own src adress
+01D3   0834           00772         movf    adress1, W
+01D4   00C1           00773         movwf   txframe+2
+                      00774         ;; * my own src adress
+01D5   0835           00775         movf    adress2, W
+01D6   00C2           00776         movwf   txframe+3
+                      00777         ;; 0x03 control bit
+01D7   3003           00778         movlw   0x03
+01D8   00C3           00779         movwf   txframe+4
+                      00780         ;; 0x01 protocoll
+01D9   3001           00781         movlw   0x01
+01DA   00C4           00782         movwf   txframe+5
+                      00783         ;; Data
+01DB   3000           00784         movlw   0x00
+01DC   00C5           00785         movwf   txframe+6
+                      00786         ;; Padding bit
+01DD   3000           00787         movlw   0x00
+01DE   00C6           00788         movwf   txframe+7
+                      00789 
+                      00790         ;; This is a broadcast package with adress on it
+                      00791 
+01DF   2???           00792         call    txdo
+01E0   0008           00793         return
+                      00794 
+01E1                  00795 func_check_response:
+                      00796 ; May be more advanced in the future, but for now, i dont se any reason why
+                      00797 ; we should make this functione more advanced, how many response packages are
+                      00798 ; realy exchange in a cuple of ms? -.- //  Speedster
+01E1   0020           00799         banksel rc_listen
+01E2   15AD           00800         bsf     rc_listen,3
+01E3   2???           00801         goto    restore
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 17
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00802 
+                      00803 
+01E4                  00804 func_is_ocupied_send_response:
+01E4   300C           00805         movlw   12              ; Pretty strange, but you need this, so no colission or somthing will be
+                             made betwen PC and ansoring device
+01E5   2???           00806         call    Delay
+01E6   0020           00807         banksel rc_listen
+                      00808         ;; Send Package:
+01E7   182D           00809         btfsc   rc_listen,0
+01E8   2???           00810         goto    func_is_ocupied_send_response_got_resp
+01E9   2???           00811         goto    func_is_ocupied_send_response_pack
+Warning[208]: Label truncated at 32 characters. (func_is_ocupied_send_response_got_resp)
+01EA                  00812 func_is_ocupied_send_response_got_resp:
+01EA   102D           00813         bcf     rc_listen,0
+01EB   2???           00814         goto    restore
+                      00815 
+Warning[208]: Label truncated at 32 characters. (func_is_ocupied_send_response_pack)
+01EC                  00816 func_is_ocupied_send_response_pack:
+01EC   1A2D           00817         btfsc   rc_listen,4
+01ED   2???           00818         goto    restore
+01EE   3009           00819         movlw   9
+01EF   0020           00820         banksel framelen
+01F0   00BC           00821         movwf   framelen
+                      00822         ;; 0xff broadcast dst adress
+01F1   3056           00823         movlw   rcframe+2         ;       dst addr
+01F2   0020           00824         banksel FSR
+01F3   0086           00825         movwf   FSR
+01F4   0020           00826         banksel INDF
+01F5   0801           00827         movf    INDF,W
+01F6   0020           00828         banksel txframe
+01F7   00BF           00829         movwf   txframe
+                      00830         ;; 0xff broadcast dst adress
+01F8   3057           00831         movlw   rcframe+3         ;       dst addr
+01F9   0020           00832         banksel FSR
+01FA   0086           00833         movwf   FSR
+01FB   0020           00834         banksel INDF
+01FC   0801           00835         movf    INDF,W
+01FD   0020           00836         banksel txframe
+01FE   00C0           00837         movwf   txframe+1
+                      00838         ;; * my own src adress
+01FF   0834           00839         movf    adress1, W
+0200   00C1           00840         movwf   txframe+2
+                      00841         ;; * my own src adress
+0201   0835           00842         movf    adress2, W
+0202   00C2           00843         movwf   txframe+3
+                      00844         ;; 0x03 control bit
+0203   3003           00845         movlw   0x03
+0204   00C3           00846         movwf   txframe+4
+                      00847         ;; 0x01 protocoll
+0205   3000           00848         movlw   0x00
+0206   00C4           00849         movwf   txframe+5
+                      00850         ;; Data
+0207   3001           00851         movlw   0x01
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 18
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0208   00C5           00852         movwf   txframe+6
+                      00853         ;; Padding bit
+0209   3000           00854         movlw   0x00
+020A   00C6           00855         movwf   txframe+7
+                      00856         
+                      00857         ;; This is a broadcast package with adress on it
+                      00858 
+020B   2???           00859         call    txdo    
+                      00860 
+020C   2???           00861         goto    restore
+                      00862 
+                      00863         
+020D                  00864 func_bc:
+                      00865 ; 120623 A new era has become speedbus, all package that are need to, shall for
+                      00866 ; now be sent with an respons, and, for that reason, i no more use command 0x00
+                      00867 ; for is_occupied commands. When an 0x01 NOT is broadcast(it got a real adress)
+                      00868 ; It is ment to bee like an old 0x00, if it is not an bc, send is_occupied.
+                      00869 ; For now on, 0x00 is used to respond packages that need a response! Over'n out
+                      00870 ; // Speedster
+                      00871 
+020D   0020           00872         banksel rcframe
+020E   3054           00873         movlw   rcframe         ;       dst addr
+020F   0020           00874         banksel FSR
+0210   0086           00875         movwf   FSR
+                      00876         
+0211   30FF           00877         movlw   0xFF            ;       check dst adress1
+0212   0020           00878         banksel INDF
+0213   0201           00879         subwf   INDF,W
+0214   1D03           00880         btfss   STATUS,Z
+0215   2???           00881         goto    recend_no_broadcast
+                      00882 
+0216   0020           00883         banksel FSR
+0217   0A06           00884         incf    FSR,W           ;       Increase the address    
+0218   0086           00885         movwf   FSR
+                      00886 
+0219   30FF           00887         movlw   0xFF            ;       check dst adress2
+021A   0020           00888         banksel INDF
+021B   0201           00889         subwf   INDF,W
+021C   1D03           00890         btfss   STATUS,Z
+021D   2???           00891         goto    recend_no_broadcast
+                      00892         
+021E   305A           00893         movlw   rcframe+6        
+021F   0020           00894         banksel FSR
+0220   0086           00895         movwf   FSR
+0221   3001           00896         movlw   0x01
+0222   0020           00897         banksel INDF
+0223   0201           00898         subwf   INDF,W
+0224   1903           00899         btfsc   STATUS,Z
+0225   2???           00900         goto    func_bc_01
+                      00901 
+                      00902 #ifdef  on_got_IAH
+                      00903         movlw   0x03
+                      00904         banksel INDF
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 19
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00905         subwf   INDF,W
+                      00906         btfss   STATUS,Z
+                      00907         goto    restore
+                      00908         banksel INDF
+                      00909         incf    FSR, F
+                      00910         movlw   0x01
+                      00911         banksel INDF
+                      00912         subwf   INDF,W
+                      00913         btfss   STATUS,Z
+                      00914         goto    restore
+                      00915         goto    on_got_IAH
+                      00916 #endif
+0226   2???           00917         goto    restore
+                      00918 
+0227                  00919 func_bc_01:
+0227   3059           00920         movlw   rcframe+5
+0228   0020           00921         banksel FSR
+0229   0086           00922         movwf   FSR
+022A   3001           00923         movlw   0x01
+022B   0020           00924         banksel INDF
+022C   0201           00925         subwf   INDF,W
+022D   1903           00926         btfsc   STATUS,Z
+022E   2???           00927         goto    func_bc_sendaddr
+022F   3000           00928         movlw   0x00
+0230   0201           00929         subwf   INDF,W
+0231   1903           00930         btfsc   STATUS,Z
+0232   2???           00931         call    func_send_response
+0233   2???           00932         goto    restore
+                      00933 
+                      00934 
+0234                  00935 func_bc_sendaddr:       
+0234   2???           00936         call    trd      ; Three random delay:s before ansor broadcast
+                      00937 
+0235   2???           00938         call    func_set_rsp_addr ;; Set rsp_adress to the src adress of the last recived package
+                      00939 
+                      00940         ;; Send Package:
+0236   0020           00941         banksel framelen
+0237   300B           00942         movlw   11
+0238   00BC           00943         movwf   framelen
+                      00944         ;; dst adress
+0239   0832           00945         movf    rsp_adress1,W
+023A   00BF           00946         movwf   txframe
+                      00947         ;; dst adress
+023B   0833           00948         movf    rsp_adress2,W
+023C   00C0           00949         movwf   txframe+1
+                      00950         ;; * my own src adress
+023D   0834           00951         movf    adress1, W
+023E   00C1           00952         movwf   txframe+2
+                      00953         ;; * my own src adress
+023F   0835           00954         movf    adress2, W
+0240   00C2           00955         movwf   txframe+3
+                      00956         ;; 0x03 control bit
+0241   3003           00957         movlw   0x03
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 20
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0242   00C3           00958         movwf   txframe+4
+                      00959         ;; 0x01 protocoll
+0243   3001           00960         movlw   0x01
+0244   00C4           00961         movwf   txframe+5
+                      00962         ;; Data
+0245   3001           00963         movlw   0x01
+0246   00C5           00964         movwf   txframe+6
+                      00965         ;; Data - DeviceID
+0247   3040           00966         movlw   DEV_ID1
+0248   00C6           00967         movwf   txframe+7
+                      00968         ;; Data - DeviceID
+0249   302D           00969         movlw   DEV_ID2
+024A   00C7           00970         movwf   txframe+8
+                      00971         ;; Padding bit
+024B   3000           00972         movlw   0x00
+024C   00C8           00973         movwf   txframe+9
+                      00974         
+                      00975         ;; This is a broadcast package with adress on it
+                      00976 ;
+024D   3001           00977         movlw   0x01
+024E   0259           00978         subwf   rcframe+5,W
+024F   1903           00979         btfsc   STATUS,Z
+0250   2???           00980         goto    handle_response
+0251   2???           00981         call    txdo
+                      00982 ;
+0252   2???           00983         goto    restore
+                      00984 
+0253                  00985 func_send_iam_here: ; IMPORTANT, this function "return", use "call func_send_iam_here"
+0253   300C           00986         movlw   12
+0254   0020           00987     banksel framelen
+0255   00BC           00988         movwf   framelen
+                      00989 
+0256   30FF           00990         movlw   0xFF
+0257   00BF           00991         movwf   txframe
+                      00992 
+0258   30FF           00993         movlw   0xFF
+0259   00C0           00994         movwf   txframe+1
+                      00995         ;; * my own src adress
+025A   0834           00996         movf    adress1, W
+025B   00C1           00997         movwf   txframe+2
+                      00998         ;; * my own src adress
+025C   0835           00999         movf    adress2, W
+025D   00C2           01000         movwf   txframe+3
+                      01001         ;; 0x03 control bit
+025E   3003           01002         movlw   0x03
+025F   00C3           01003         movwf   txframe+4
+                      01004         ;; 0x01 protocoll
+0260   3000           01005         movlw   0x00
+0261   00C4           01006         movwf   txframe+5
+                      01007         ;; Data
+0262   3003           01008         movlw   0x03
+0263   00C5           01009         movwf   txframe+6
+                      01010         ;; 0x00 Basic config response
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 21
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0264   3001           01011         movlw   0x01
+0265   00C6           01012         movwf   txframe+7
+                      01013         ;; Data - DeviceID
+0266   3040           01014         movlw   DEV_ID1
+0267   00C7           01015         movwf   txframe+8
+                      01016         ;; Data - DeviceID
+0268   302D           01017         movlw   DEV_ID2
+0269   00C8           01018         movwf   txframe+9
+                      01019         ;; Padding bit
+026A   3000           01020         movlw   0x00
+026B   00C9           01021         movwf   txframe+10
+                      01022 
+026C   2???           01023         call    txdo
+026D   0008           01024         return  
+                      01025 
+026E                  01026 func_rand_addr:
+026E   0020           01027         banksel rand
+026F   082A           01028         movf    rand,W
+0270   00B4           01029         movwf   adress1
+0271   2???           01030         call    lfsr_func
+0272   0020           01031         banksel rand
+0273   082A           01032         movf    rand,W
+0274   00B5           01033         movwf   adress2
+0275   0008           01034         return
+                      01035 
+0276                  01036 func_setport:
+0276   3002           01037         movlw   2
+0277   0020           01038         banksel FSR
+0278   0786           01039         addwf   FSR,F
+0279   0020           01040         banksel INDF
+027A   0801           01041         movf    INDF,W
+                      01042     #ifdef PORTC
+                      01043         banksel PORTC
+                      01044         movwf   PORTC
+                      01045     #endif
+027B   2???           01046         goto    restore
+                      01047 
+027C                  01048 func_set_rsp_addr:
+                      01049         ;; Add last rec package src addr to rsp_adress1 rsp_adress2
+027C   3056           01050         movlw   rcframe+2         ;       dst addr
+027D   0020           01051         banksel FSR
+027E   0086           01052         movwf   FSR
+027F   0020           01053         banksel INDF
+0280   0801           01054         movf    INDF,W
+0281   0020           01055         banksel rsp_adress1
+0282   00B2           01056         movwf   rsp_adress1
+0283   3057           01057         movlw   rcframe+3         ;       dst addr
+0284   0020           01058         banksel FSR
+0285   0086           01059         movwf   FSR
+0286   0020           01060         banksel INDF
+0287   0801           01061         movf    INDF,W
+0288   0020           01062         banksel rsp_adress2
+0289   00B3           01063         movwf   rsp_adress2
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 22
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+028A   0008           01064         return
+                      01065 
+028B                  01066 handle_response:
+028B   0020           01067         banksel rc_listen
+028C   11AD           01068         bcf     rc_listen,3
+028D   14B7           01069         bsf     speedlib_main,1
+028E   10AD           01070         bcf     rc_listen,1
+                      01071 
+                      01072 
+                      01073     ; Important, this should be run in "main space", not interupt space, soo,
+                      01074     ; well, now it is runed somewheare in the middle, wait for response STATE
+028F   0020           01075         banksel INTCON
+0290   178B           01076         bsf     INTCON,GIE
+0291   300A           01077         movlw   10
+0292   0020           01078         banksel loop1
+0293   00AB           01079         movwf   loop1
+0294                  01080 handle_response_loop:
+0294   2???           01081         call    txdo
+0295   30FA           01082         movlw   250
+0296   2???           01083         call    Delay
+                      01084 
+                      01085         ;; If error
+0297   0023           01086         banksel RCSTA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0298   189D           01087         btfsc   RCSTA,OERR
+0299   2???           01088         call    recerror
+                      01089         ;;
+029A   0020           01090         banksel rc_listen
+029B   19AD           01091         btfsc   rc_listen,3
+029C   2???           01092         goto    handle_response_ret
+029D   0BAB           01093         decfsz  loop1,f
+029E   2???           01094         goto    handle_response_loop
+                      01095 
+029F                  01096 handle_response_ret:
+029F   11AD           01097         bcf     rc_listen,3
+02A0   10B7           01098         bcf     speedlib_main,1
+02A1   2???           01099         goto    restore
+                      01100 
+02A2                  01101 reccrcfail:
+                      01102         ;; Because that this happend directrly after a crc-fail, here we need to clear the counter, so t
+                            he newxt comming package will start allover
+02A2   0020           01103     banksel rc_counter
+02A3   3005           01104     movlw   5
+02A4   022E           01105     subwf   rc_counter,W
+02A5   1C03           01106     btfss   STATUS,C
+02A6   2???           01107     goto    reccrcfail_end
+                      01108         ;; Do somthing
+                      01109 ;       movlw    B'00000100'    ;toggle bit3
+                      01110 ;    banksel  PORTA
+                      01111 ;       xorwf    PORTA,F
+02A7   30FA           01112     movlw    250
+02A8   2???           01113     call    Delay
+02A9                  01114 reccrcfail_end:
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 23
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+02A9   0020           01115     banksel rc_counter
+02AA   01AE           01116     clrf        rc_counter
+02AB   2???           01117         goto    restore
+                      01118         
+02AC                  01119 recerror:
+                      01120         ;; Do somthing
+02AC   0023           01121     banksel RCSTA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02AD   121D           01122         bcf     RCSTA,CREN
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02AE   161D           01123         bsf     RCSTA,CREN
+02AF   0008           01124         return
+02B0                  01125 txoops:                         ; Colisson has ocurred
+02B0   0020           01126         banksel txreturn
+02B1   10BE           01127         bcf     txreturn,1
+02B2   2???           01128         call    lfsr_func
+02B3   0020           01129         banksel rand
+02B4   082A           01130         movf    rand,W
+02B5   2???           01131         call    Delay
+02B6   2???           01132         goto    txdo2
+                      01133 
+02B7                  01134 tx_send:
+02B7   0020           01135         banksel txtmp
+02B8   00BD           01136         movwf   txtmp
+02B9   307E           01137         movlw   0x7e            
+02BA   023D           01138         subwf   txtmp,W         
+02BB   1903           01139         btfsc   STATUS,Z
+02BC   2???           01140         goto    tx_send_escape_1
+                      01141 
+02BD   307D           01142         movlw   0x7d
+02BE   023D           01143         subwf   txtmp,W
+02BF   1903           01144         btfsc   STATUS,Z
+02C0   2???           01145         goto    tx_send_escape_2
+02C1   083D           01146         movf    txtmp,W
+                      01147         
+02C2                  01148 tx_send_noescape:
+02C2   0020           01149         banksel txtmp
+02C3   00BD           01150         movwf   txtmp
+02C4   0023           01151         banksel TXSTA
+02C5                  01152 tx_send_noescape_l:
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02C5   1C9E           01153         btfss   TXSTA,TRMT
+02C6   2???           01154         goto    tx_send_noescape_l
+                      01155 ;        banksel d1
+                      01156 ;        movlw   0x02
+                      01157 ;        movwf   d1
+                      01158 ;tx_send_noescape_d1:
+                      01159 ;        movlw   0xFF
+                      01160 ;        decfsz  W,f
+                      01161 ;        goto    tx_send_noescape_d1
+                      01162 ;        decfsz  d1,f
+                      01163 ;        goto    tx_send_noescape_d1
+02C7   0020           01164         banksel txtmp
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 24
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+02C8   083D           01165         movf    txtmp,W
+02C9   14AD           01166         bsf         rc_listen, 1
+02CA   00B0           01167         movwf   rc_nocoll
+02CB   0023           01168         banksel TXREG
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02CC   009A           01169         movwf   TXREG
+                      01170 
+                      01171 ;        banksel d1
+                      01172 ;        movlw   0x02
+                      01173 ;        movwf   d1
+                      01174 ;tx_send_noescape_d2:
+                      01175 ;        movlw   0xFF
+                      01176 ;        decfsz  W,f
+                      01177 ;        goto    tx_send_noescape_d2
+                      01178 ;        decfsz  d1,f
+                      01179 ;        goto    tx_send_noescape_d2
+02CD   0008           01180         return
+                      01181 
+02CE                  01182 tx_send_escape_1:
+02CE   307D           01183         movlw   0x7d
+02CF   2???           01184         call    tx_send_noescape
+02D0   305E           01185         movlw   0x5e
+02D1   2???           01186         call    tx_send_noescape
+02D2   0008           01187         return
+                      01188 
+02D3                  01189 tx_send_escape_2:
+02D3   307D           01190         movlw   0x7d
+02D4   2???           01191         call    tx_send_noescape
+02D5   305D           01192         movlw   0x5d
+02D6   2???           01193         call    tx_send_noescape
+02D7   0008           01194         return
+                      01195         
+                      01196 
+02D8                  01197 txdo:                           ; This is like the funktion argumnents, they need to be set at every pre
+                            sense of crcloopr
+                      01198 
+02D8   0020           01199         banksel framelen
+02D9   083C           01200         movf    framelen,W
+02DA   00BA           01201         movwf   crcloop
+02DB   303F           01202         movlw   txframe
+02DC   0020           01203         banksel FSR
+02DD   0086           01204         movwf   FSR
+02DE   0020           01205         banksel crc0
+02DF   01B8           01206         clrf    crc0
+02E0   01B9           01207         clrf    crc1
+02E1   2???           01208         call    crcloopr
+02E2   2???           01209         goto    txdo2
+02E3                  01210 crcloopr:
+02E3   0020           01211         banksel crcloop
+02E4   0BBA           01212         decfsz  crcloop, f
+02E5   2???           01213         goto    crccalc
+02E6   0008           01214         return
+                      01215 
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 25
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+02E7                  01216 crccalc:
+02E7   0020           01217         banksel INDF
+02E8   0801           01218         movf  INDF,W            ;;load w with next databyte
+02E9   0020           01219         banksel crc1
+02EA   0639           01220         xorwf crc1,W            ;;(a^x):(b^y)
+02EB   00BB           01221         movwf crctmp            ;;
+02EC   39F0           01222         andlw 0xf0              ;; W = (a^x):0
+02ED   0EBB           01223         swapf crctmp,F          ;; Index = (b^y):(a^x)
+02EE   06BB           01224         xorwf crctmp,F          ;; Index = (a^b^x^y):(a^x) = i2:i1
+                      01225 
+                      01226                                 ;; High byte
+02EF   083B           01227         movf  crctmp,W
+02F0   39F0           01228         andlw 0xf0
+02F1   0638           01229         xorwf crc0,W
+02F2   00B9           01230         movwf crc1
+                      01231 #ifdef  ARC_18F
+                      01232         rlcf crctmp,W
+                      01233         rlcf crctmp,W
+                      01234 #endif
+                      01235 #ifdef  ARC_16F
+02F3   0D3B           01236         rlf  crctmp,W           ;; use rlf for PIC16
+02F4   0D3B           01237         rlf  crctmp,W           ;; use rlf for PIC16
+                      01238 #endif
+02F5   06B9           01239         xorwf crc1,F
+02F6   39E0           01240         andlw 0xe0
+02F7   06B9           01241         xorwf crc1,F
+                      01242 
+02F8   0EBB           01243         swapf crctmp,F
+02F9   063B           01244         xorwf crctmp,W
+02FA   00B8           01245         movwf crc0
+02FB   0020           01246         banksel FSR
+02FC   0A06           01247         incf    FSR,W
+02FD   0086           01248         movwf   FSR
+02FE   2???           01249         goto crcloopr
+                      01250 
+02FF                  01251 txdo2:
+                      01252     ;; Set TX enable
+02FF   0020           01253     banksel OUTREG
+0300   150C           01254         bsf     OUTREG,OUTNUM
+                      01255         ;;
+0301   307E           01256         movlw   0x7e
+0302   2???           01257         call    tx_send_noescape
+0303   0020           01258         banksel txframe
+0304   303F           01259     movlw       txframe
+0305   0020           01260     banksel FSR
+0306   0086           01261         movwf   FSR
+0307   0020           01262     banksel framelen
+0308   083C           01263         movf    framelen,W
+0309   00BA           01264         movwf   crcloop
+030A                  01265 send:
+030A   0020           01266     banksel crcloop
+030B   0BBA           01267         decfsz  crcloop,f
+030C   2???           01268         goto    lopp
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 26
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+030D   2???           01269         goto    crcsend
+030E                  01270 lopp:
+030E   0020           01271     banksel INDF
+030F   0801           01272         movf    INDF,W
+0310   2???           01273         call    tx_send
+0311   0020           01274     banksel FSR
+0312   0A86           01275         incf    FSR,F
+0313   2???           01276         goto    send
+                      01277 
+0314                  01278 crcsend:
+0314   0020           01279         banksel crc0
+0315   0838           01280         movf    crc0,W
+0316   2???           01281         call    tx_send
+0317   0020           01282         banksel crc1
+0318   0839           01283         movf    crc1,W
+0319   2???           01284         call    tx_send
+031A   2???           01285         goto    endflag
+                      01286 
+031B                  01287 endflag:
+031B   307E           01288         movlw   0x7e
+031C   2???           01289         call    tx_send_noescape
+031D   18BE           01290     btfsc       txreturn,1
+031E   2???           01291         goto    txoops
+031F   0023           01292     banksel TXSTA
+0320                  01293 endflag_l:
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0320   1C9E           01294         btfss   TXSTA,TRMT
+0321   2???           01295         goto    endflag_l
+                      01296     ;; Disable TX enable
+0322   0020           01297     banksel OUTREG
+0323   110C           01298         bcf     OUTREG,OUTNUM
+                      01299 
+0324   0008           01300         return
+                      01301 
+0325                  01302 trd:    
+0325   2???           01303         call    lfsr_func               ; Three random delays before sending broadcast
+0326   0020           01304         banksel rand
+0327   082A           01305         movf    rand,W
+0328   2???           01306         call    Delay
+0329   2???           01307         call    lfsr_func
+032A   0020           01308         banksel rand
+032B   082A           01309         movf    rand,W
+032C   2???           01310         call    Delay
+032D   2???           01311         call    lfsr_func
+032E   0020           01312         banksel rand
+032F   082A           01313         movf    rand,W
+0330   2???           01314         call    Delay
+0331   0008           01315         return
+                      01316         
+0332                  01317 lfsr_func:
+0332   0020           01318         banksel rand
+                      01319 #ifdef  ARC_18F
+                      01320         rlcf     rand,W
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 27
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      01321         rlcf     rand,W
+                      01322 #endif
+                      01323 #ifdef  ARC_16F
+0333   0D2A           01324         rlf     rand,W
+0334   0D2A           01325         rlf     rand,W
+                      01326 #endif
+0335   1A2A           01327         btfsc   rand,4
+0336   3A01           01328         xorlw   1
+0337   1AAA           01329         btfsc   rand,5
+0338   3A01           01330         xorlw   1
+0339   19AA           01331         btfsc   rand,3
+033A   3A01           01332         xorlw   1
+033B   00AA           01333         movwf   rand
+033C   3400           01334         retlw   0
+                      01335         
+033D                  01336 Delay:
+033D   0020           01337         banksel d1
+                      01338         ;; 499994 cycles
+033E   00A2           01339         movwf   d3
+033F   30FF           01340         movlw   0xFF
+0340   00A1           01341         movwf   d2
+0341   3032           01342         movlw   50
+0342   00A0           01343         movwf   d1
+0343                  01344 Delay_0:
+0343   0BA0           01345         decfsz  d1, f
+0344   2???           01346         goto    Delay_0
+0345   3014           01347         movlw   20              ; Need this for tuning
+0346   00A0           01348         movwf   d1
+0347   0BA1           01349         decfsz  d2, f
+0348   2???           01350         goto    Delay_0
+0349   3064           01351         movlw   100
+034A   00A1           01352         movwf   d2
+034B   0BA2           01353         decfsz  d3, f
+034C   2???           01354         goto    Delay_0
+034D   0008           01355         return
+                      01356 
+                      01357 ;read_eeprom:
+                      01358 ;        banksel EEADR
+                      01359 ;        ;; Take the preset W number, and take the byte from the addr
+                      01360 ;        movwf   EEADR
+                      01361 ;        banksel EECON1
+                      01362 ;        bcf     EECON1, EEPGD
+                      01363 ;        bsf     EECON1, RD
+                      01364 ;
+                      01365 ;        btfsc   EECON1, RD
+                      01366 ;        goto    $-1
+                      01367 ;
+                      01368 ;        ;; Put the result in W
+                      01369 ;        banksel EEDAT
+                      01370 ;        movf    EEDAT, W
+                      01371 ;        return
+                      01372 ;
+                      01373 ;write_eeprom:
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 28
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      01374 ;        banksel EEDAT
+                      01375 ;        movwf   EEDAT ; write the value already in W to EEDAT, the data
+                      01376 ;        banksel rc_nocoll
+                      01377 ;        movf    rc_nocoll,W
+                      01378 ;        banksel EEADR
+                      01379 ;        movwf   EEADR
+                      01380 ;        banksel EECON1
+                      01381 ;        bcf     EECON1, EEPGD
+                      01382 ;        bsf     EECON1, WREN
+                      01383 ;
+                      01384 ;        banksel EECON2
+                      01385 ;        ; bcf   INTCON, GIE ; Well, GIE should be zero when it gets here
+                      01386 ;        movlw   0x55
+                      01387 ;        movwf   EECON2
+                      01388 ;        movlw   0xAA
+                      01389 ;        movwf   EECON2
+                      01390 ;        banksel EECON1
+                      01391 ;        bsf     EECON1, WR
+                      01392 ;        ; bsf     INTCON, GIE
+                      01393 
+                      01394 
+                      01395 ;        btfsc   EECON1, WR
+                      01396 ;        goto    $-1
+                      01397 
+                      01398 
+                      01399  ;       bcf     EECON1, WREN
+                      01400  ;       return
+                      00013 ; CONFIG1
+                      00014 ; __CONFIG _CONFIG1, 0xFFA4
+8007   C9A4           00015  __CONFIG _CONFIG1, _FOSC_INTOSC & _WDTE_OFF & _PWRTE_OFF & _MCLRE_OFF & _CP_OFF & _CPD_OFF & _BOREN_OFF
+                             & _CLKOUTEN_OFF & _IESO_OFF & _FCMEN_OFF
+                      00016 ; CONFIG2
+                      00017 ; __CONFIG _CONFIG2, 0xFFFF
+8008   DCFF           00018  __CONFIG _CONFIG2, _WRT_OFF & _PLLEN_OFF & _STVREN_OFF & _BORV_LO & _LVP_OFF
+                      00019 
+  00000008            00020 clock   equ     8       ; 8 MHz
+  00004B00            00021 baud    equ     19200  ; 19200, 57600, or 115200
+  00000004            00022 brgdiv  equ     4       ; divider value for BRG16 = 1
+  00000067            00023 brgval  equ     (clock*10000000/baud/brgdiv+5)/10-1
+Warning[205]: Found directive in column 1. (cblock)
+                      00024 cblock  USER_VARIABLE_SPACE
+  00000068            00025         speed
+  00000069            00026     res_h
+  0000006A            00027     res_l
+                      00028 
+  0000006B            00029         divisL
+  0000006C            00030         divisH
+  0000006D            00031         remdrL    ; and then into partial remainder
+  0000006E            00032         remdrH
+  0000006F            00033         bitcnt
+  00000070            00034         res1
+  00000071            00035         res2
+  00000072            00036         res3
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 29
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+  00000073            00037         res4
+  00000074            00038         a1
+  00000075            00039         a2
+  00000076            00040         b1
+  00000077            00041         b2
+  00000078            00042         temp1
+  00000079            00043         temp1r ; Inside house reminder
+  0000007A            00044         temp2
+  0000007B            00045         temp2r ; Outside house reminder
+  0000007C            00046         timer1
+  0000007D            00047         temp_goal
+  0000007E            00048         mspeed
+  0000007F            00049         f_controll
+Warning[205]: Found directive in column 1. (ENDC)
+                      00050 endc
+                      00051         org     0x0000
+0000   2???           00052         goto    start
+                      00053         org     0x0004
+0004   2???           00054         goto    intserv
+                      00055 
+0005                  00056 start:
+0005   3067           00057                   movlw   low(brgval) ;                                 |B1
+0006   0023           00058               banksel SPBRG
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0007   009B           00059                   movwf   SPBRG       ;                                 |B1
+0008   3000           00060                   movlw   high(brgval) ;                                 |B1
+0009   0023           00061               banksel SPBRGH
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000A   009C           00062               movwf   SPBRGH
+000B   0023           00063               banksel BAUDCON
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000C   019F           00064               clrf    BAUDCON
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000D   159F           00065               bsf     BAUDCON,BRG16     ; select 16 bit BRG               |B1
+000E   3024           00066                   movlw   b'00100100'   ; '0-------' CSRC, n/a (async)    |B1
+                      00067         ;;  '-0------' TX9 off, 8 bits      |B1
+                      00068         ;;  '--1-----' TXEN, tx enabled     |B1
+                      00069         ;;  '---0----' SYNC, async mode     |B1
+                      00070         ;;  '----0---' SENDB, send brk      |B1
+                      00071         ;;  '-----1--' BRGH, high speed     |B1
+                      00072         ;;  '------00' TRMT, TX9D           |B1
+000F   0023           00073               banksel TXSTA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0010   009E           00074                   movwf   TXSTA ;                                 |B1
+0011   0023           00075               banksel RCSTA
+0012   3090           00076                   movlw   b'10010000' ; '1-------' SPEN, port enabled   |B0
+                      00077         ;;  '-0------' RX9 off, 8 bits      |B0
+                      00078         ;;  '--0-----' SREN, n/a (async)    |B0
+                      00079         ;;  '---1----' CREN, rx enabled     |B0
+                      00080         ;;  '----0---' ADDEN off            |B0
+                      00081         ;;  '-----000' FERR, OERR, RX9D     |B0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0013   009D           00082                   movwf   RCSTA ;                                 |B0
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 30
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00083 
+0014   0021           00084         banksel OSCCON
+0015   3073           00085         movlw   b'01110011'
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0016   0099           00086         movwf   OSCCON
+                      00087 
+0017   0021           00088         banksel PIE1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0018   0191           00089         clrf    PIE1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0019   1691           00090         bsf     PIE1, RCIE
+001A   0020           00091         banksel INTCON
+001B   178B           00092                 bsf     INTCON, GIE
+001C   170B           00093                 bsf     INTCON, PEIE
+001D   0020           00094         banksel T1GCON
+001E   1399           00095         bcf     T1GCON,TMR1GE
+001F   0020           00096         banksel TMR1L
+0020   0196           00097         clrf    TMR1L
+0021   0020           00098         banksel TMR1H
+0022   0197           00099         clrf    TMR1H
+0023   0020           00100         banksel T1CON
+0024   3035           00101         movlw   b'00110101'
+0025   0098           00102         movwf   T1CON
+0026   0020           00103         banksel timer1
+0027   3005           00104         movlw   5
+0028   00FC           00105         movwf   timer1
+0029   0022           00106         banksel APFCON
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+002A   179D           00107         bsf     APFCON,7
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+002B   151D           00108         bsf     APFCON,2
+002C   0021           00109         banksel ADCON0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+002D   141D           00110         bsf     ADCON0,ADON
+                      00111 
+002E   0021           00112         banksel ADCON1
+002F   30E0           00113         movlw   B'11100000' ;Right justify, Frc
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0030   009E           00114         movwf   ADCON1
+0031   0024           00115         banksel WPUA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0032   018C           00116         clrf    WPUA
+0033   0023           00117         banksel ANSELA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0034   018C           00118         clrf    ANSELA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0035   148C           00119         bsf     ANSELA,1
+0036   0020           00120         banksel PORTA
+0037   018C           00121         clrf    PORTA
+0038   0022           00122         banksel LATA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0039   018C           00123         clrf    LATA
+003A   0021           00124         banksel TRISA
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 31
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+003B   3032           00125         movlw   b'00110010'
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+003C   008C           00126         movwf   TRISA
+003D   0020           00127         banksel PORTA
+003E   018C           00128         clrf    PORTA
+                      00129 
+003F   140C           00130         bsf     PORTA,0
+                      00131 
+0040   2???           00132         call    load_eeprom
+0041   2???           00133         call    init_speedlib
+                      00134 ;        movlw   200
+                      00135 ;        movwf   speed
+0042                  00136 main:
+0042   0020           00137         banksel PIR1
+0043   1811           00138         btfsc   PIR1,TMR1IF
+0044   2???           00139         call    custom_ihandler
+0045   0023           00140         banksel RCSTA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0046   189D           00141         btfsc   RCSTA,OERR
+0047   2???           00142         call    recerror
+0048   0020           00143         banksel speed
+0049   3000           00144         movlw   0
+004A   0268           00145         subwf   speed,W
+004B   1903           00146         btfsc   STATUS,Z
+004C   2???           00147         goto    main2
+004D   0020           00148         banksel PORTA
+004E   140C           00149         bsf     PORTA,0
+004F   0020           00150         banksel speed
+0050   0868           00151         movf    speed,W
+0051   2???           00152         call    Dla
+0052   30FF           00153         movlw   255
+0053   0268           00154         subwf   speed,W
+0054   1903           00155         btfsc   STATUS,Z
+0055   2???           00156         goto    main
+0056                  00157 main2:
+0056   0020           00158         banksel PORTA
+0057   100C           00159         bcf     PORTA,0
+0058   3019           00160         movlw   25
+0059   2???           00161         call    Dla
+005A   2???           00162         goto    main
+                      00163 
+005B                  00164 load_eeprom:
+005B   300A           00165         movlw   10
+005C   2???           00166         call    read_eeprom
+005D   0020           00167         banksel speed
+005E   00E8           00168         movwf   speed
+005F   300B           00169         movlw   11
+0060   2???           00170         call    read_eeprom
+0061   0020           00171         banksel temp_goal
+0062   00FD           00172         movwf   temp_goal
+0063   300C           00173         movlw   12
+0064   2???           00174         call    read_eeprom
+0065   0020           00175         banksel mspeed
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 32
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0066   00FE           00176         movwf   mspeed
+0067   300D           00177         movlw   13
+0068   2???           00178         call    read_eeprom
+0069   0020           00179         banksel f_controll
+006A   00FF           00180         movwf   f_controll
+006B   0008           00181         return
+                      00182 
+006C                  00183 custom_ihandler:
+006C   0020           00184         banksel PIR1
+006D   1011           00185         bcf     PIR1,TMR1IF
+006E   0020           00186         banksel timer1
+006F   0BFC           00187         decfsz  timer1, f
+0070   0008           00188         return
+                      00189 ;        banksel PORTA
+                      00190 ;        bsf     PORTA,2
+                      00191 ;        movlw   200
+                      00192 ;        call    Delay
+                      00193 ;        banksel PORTA
+                      00194 ;        bcf     PORTA,2
+0071   3078           00195         movlw   120
+0072   0020           00196         banksel timer1
+0073   00FC           00197         movwf   timer1
+0074   2???           00198         call    fan_termos
+0075   0008           00199         return
+                      00200 
+0076                  00201 fan_termos:
+0076   2???           00202         call    set_temp
+0077   0020           00203         banksel temp1
+0078   0878           00204         movf    temp1,W
+0079   027D           00205         subwf   temp_goal,W
+007A   1C03           00206         btfss   STATUS,C
+007B   2???           00207         goto    fan_termos_more
+007C   2???           00208         goto    fan_termos_less ; Goal is less or the same as the outside temp
+                      00209 
+                      00210 
+007D                  00211 fan_termos_less:
+007D   0020           00212         banksel temp2
+007E   087A           00213         movf    temp2,W
+007F   027D           00214         subwf   temp_goal,W
+0080   1C03           00215         btfss   STATUS,C
+0081   2???           00216         goto    fan_on_l
+0082   2???           00217         goto    fan_off
+0083   0008           00218         return
+                      00219 
+0084                  00220 fan_termos_more:
+0084   0020           00221         banksel temp2
+0085   087A           00222         movf    temp2,W
+0086   027D           00223         subwf   temp_goal,W
+0087   1803           00224         btfsc   STATUS,C
+0088   2???           00225         goto    fan_on_m
+0089   2???           00226         goto    fan_off
+008A   0008           00227         return
+                      00228 
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 33
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+008B                  00229 fan_on_l:
+008B   0020           00230         banksel f_controll
+008C   187F           00231         btfsc   f_controll,0
+008D   0008           00232         return
+008E   3080           00233         movlw   128
+008F   027D           00234         subwf   temp_goal,W
+0090   1903           00235         btfsc   STATUS,Z
+0091   0008           00236         return
+0092   3000           00237         movlw   0
+0093   027E           00238         subwf   mspeed,W
+0094   1903           00239         btfsc   STATUS,Z
+0095   2???           00240         goto    fan_on_max
+0096   087E           00241         movf    mspeed,W
+0097   00E8           00242         movwf   speed
+0098   0008           00243         return
+                      00244 
+0099                  00245 fan_on_m:
+0099   0020           00246         banksel f_controll
+009A   187F           00247         btfsc   f_controll,0
+009B   0008           00248         return
+009C   3080           00249         movlw   128
+009D   027D           00250         subwf   temp_goal,W
+009E   1903           00251         btfsc   STATUS,Z
+009F   0008           00252         return
+00A0   3000           00253         movlw   0
+00A1   027E           00254         subwf   mspeed,W
+00A2   1903           00255         btfsc   STATUS,Z
+00A3   2???           00256         goto    fan_on_max
+00A4   087E           00257         movf    mspeed,W
+00A5   00E8           00258         movwf   speed
+00A6   0008           00259         return
+                      00260 
+00A7                  00261 fan_on_max:
+00A7   0020           00262         banksel f_controll
+00A8   187F           00263         btfsc   f_controll,0
+00A9   0008           00264         return
+00AA   3080           00265         movlw   128
+00AB   027D           00266         subwf   temp_goal,W
+00AC   1903           00267         btfsc   STATUS,Z
+00AD   0008           00268         return
+00AE   0020           00269         banksel speed
+00AF   30FF           00270         movlw   255
+00B0   00E8           00271         movwf   speed
+00B1   0008           00272         return
+                      00273 
+00B2                  00274 fan_off:
+00B2   187F           00275         btfsc   f_controll,0
+00B3   0008           00276         return
+00B4   3000           00277         movlw   0
+00B5   0020           00278         banksel speed
+00B6   00E8           00279         movwf   speed
+00B7   0008           00280         return
+                      00281 
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 34
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00B8                  00282 get_temp:
+00B8   2???           00283         call    set_temp
+                      00284 
+                      00285         ;Store in GPR space
+00B9   300F           00286         movlw   15
+00BA   0020           00287         banksel framelen
+00BB   00BC           00288         movwf   framelen
+                      00289         ;; 0xff broadcast dst adress
+00BC   3056           00290         movlw   rcframe+2         ;       dst addr
+00BD   0020           00291         banksel FSR
+00BE   0086           00292         movwf   FSR
+00BF   0020           00293         banksel INDF
+00C0   0801           00294         movf    INDF,W
+00C1   0020           00295         banksel txframe
+00C2   00BF           00296         movwf   txframe
+                      00297         ;; 0xff broadcast dst adress
+00C3   3057           00298         movlw   rcframe+3         ;       dst addr
+00C4   0020           00299         banksel FSR
+00C5   0086           00300         movwf   FSR
+00C6   0020           00301         banksel INDF
+00C7   0801           00302         movf    INDF,W
+00C8   0020           00303         banksel txframe
+00C9   00C0           00304         movwf   txframe+1
+                      00305         ;; * my own src adress
+00CA   0834           00306         movf    adress1, W
+00CB   00C1           00307         movwf   txframe+2
+                      00308         ;; * my own src adress
+00CC   0835           00309         movf    adress2, W
+00CD   00C2           00310         movwf   txframe+3
+                      00311         ;; 0x03 control bit
+00CE   3003           00312         movlw   0x03
+00CF   00C3           00313         movwf   txframe+4
+                      00314         ;; 0x01 protocoll
+00D0   3000           00315         movlw   0x00
+00D1   00C4           00316         movwf   txframe+5
+                      00317         ;; Data
+00D2   300B           00318         movlw   0x0B
+00D3   00C5           00319         movwf   txframe+6
+                      00320         ;; Data
+00D4   3000           00321         movlw   0
+00D5   00C6           00322         movwf   txframe+7
+                      00323         ;; Data
+00D6   0878           00324         movf    temp1,W
+00D7   00C7           00325         movwf   txframe+8
+                      00326         ;; Data
+00D8   0879           00327         movf    temp1r,W
+00D9   00C8           00328         movwf   txframe+9
+                      00329         ;; Data
+00DA   3001           00330         movlw   1
+00DB   00C9           00331         movwf   txframe+10
+                      00332         ;; Data
+00DC   087A           00333         movf    temp2,W
+00DD   00CA           00334         movwf   txframe+11
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 35
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00335         ;; Data
+00DE   087B           00336         movf    temp2r,W
+00DF   00CB           00337         movwf   txframe+12
+                      00338         ;; Padding bit
+00E0   3000           00339         movlw   0x00
+00E1   00CC           00340         movwf   txframe+13
+                      00341 
+                      00342         ;; This is a broadcast package with adress on it
+                      00343 
+00E2   2???           00344         call    txdo
+                      00345 
+                      00346 
+00E3   2???           00347         goto    restore
+                      00348 
+00E4                  00349 get_vars:
+                      00350 
+                      00351         ;Store in GPR space
+00E4   300D           00352         movlw   13
+00E5   0020           00353         banksel framelen
+00E6   00BC           00354         movwf   framelen
+                      00355         ;; 0xff broadcast dst adress
+00E7   3056           00356         movlw   rcframe+2         ;       dst addr
+00E8   0020           00357         banksel FSR
+00E9   0086           00358         movwf   FSR
+00EA   0020           00359         banksel INDF
+00EB   0801           00360         movf    INDF,W
+00EC   0020           00361         banksel txframe
+00ED   00BF           00362         movwf   txframe
+                      00363         ;; 0xff broadcast dst adress
+00EE   3057           00364         movlw   rcframe+3         ;       dst addr
+00EF   0020           00365         banksel FSR
+00F0   0086           00366         movwf   FSR
+00F1   0020           00367         banksel INDF
+00F2   0801           00368         movf    INDF,W
+00F3   0020           00369         banksel txframe
+00F4   00C0           00370         movwf   txframe+1
+                      00371         ;; * my own src adress
+00F5   0834           00372         movf    adress1, W
+00F6   00C1           00373         movwf   txframe+2
+                      00374         ;; * my own src adress
+00F7   0835           00375         movf    adress2, W
+00F8   00C2           00376         movwf   txframe+3
+                      00377         ;; 0x03 control bit
+00F9   3003           00378         movlw   0x03
+00FA   00C3           00379         movwf   txframe+4
+                      00380         ;; 0x01 protocoll
+00FB   3000           00381         movlw   0x00
+00FC   00C4           00382         movwf   txframe+5
+                      00383         ;; Data
+00FD   300E           00384         movlw   0x0E
+00FE   00C5           00385         movwf   txframe+6
+                      00386         ;; Data
+00FF   0868           00387         movf    speed,W
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 36
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0100   00C6           00388         movwf   txframe+7
+                      00389         ;; Data
+0101   087D           00390         movf    temp_goal,W
+0102   00C7           00391         movwf   txframe+8
+                      00392         ;; Data
+0103   087E           00393         movf    mspeed,W
+0104   00C8           00394         movwf   txframe+9
+                      00395         ;; Data
+0105   087F           00396         movf    f_controll,W
+0106   00C9           00397         movwf   txframe+10
+                      00398         ;; Padding bit
+0107   3000           00399         movlw   0x00
+0108   00CA           00400         movwf   txframe+11
+                      00401 
+                      00402         ;; This is a broadcast package with adress on it
+                      00403 
+0109   2???           00404         call    txdo
+                      00405 
+                      00406 
+010A   2???           00407         goto    restore
+                      00408 
+010B                  00409 set_temp:
+                      00410 
+                      00411 
+                      00412 
+010B   0021           00413         banksel TRISA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+010C   150C           00414         bsf     TRISA, 2
+                      00415 ;        movlw   40
+                      00416 ;        call    Delay ; Need some delay to make the ANSELA load up,
+                      00417                       ; after switching TRISA to input
+010D   0023           00418         banksel ANSELA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+010E   150C           00419         bsf     ANSELA,2
+010F   0021           00420         banksel ADCON0
+                      00421         ;
+0110   3009           00422         movlw   b'00001001' ;Select channel AN0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0111   009D           00423         movwf   ADCON0
+0112   3001           00424         movlw   1
+0113   2???           00425         call    Delay 
+                      00426 
+                      00427         ;Turn ADC On
+                      00428 ;        call    SampleTime
+                      00429         ;Acquisiton delay
+0114   0021           00430         banksel ADCON0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0115   149D           00431         bsf     ADCON0,ADGO ;Start conversion
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0116   189D           00432         btfsc   ADCON0,ADGO ;Is conversion done?
+0117   2???           00433         goto    $-1
+0118   0023           00434         banksel ANSELA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 37
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0119   110C           00435         bcf     ANSELA,2
+011A   0021           00436         banksel TRISA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+011B   110C           00437         bcf     TRISA, 2
+                      00438         ;No, test again
+011C   0021           00439         banksel ADRESH
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+011D   081C           00440         movf    ADRESH,W
+                      00441         ;Read upper 2 bits
+011E   0020           00442         banksel a2
+011F   00F5           00443         movwf   a2
+                      00444         ;store in GPR space
+0120   0021           00445         banksel ADRESL
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0121   081B           00446         movf    ADRESL,W
+                      00447         ;Read lower 8 bits
+0122   0020           00448         banksel a1
+0123   00F4           00449         movwf   a1
+                      00450 
+                      00451         ; ARG temp as a2:a1
+0124   2???           00452         call    temp_calc
+0125   00F8           00453         movwf   temp1
+0126   3004           00454         movlw   4
+0127   02F8           00455         subwf   temp1,F ; Compensate -4 degrees
+0128   2???           00456         call    temp_rem_calc
+0129   00F9           00457         movwf   temp1r
+                      00458 
+012A   0021           00459         banksel ADCON0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+012B   019D           00460         clrf    ADCON0
+                      00461 
+                      00462 
+012C   0021           00463         banksel ADCON0
+                      00464         ;
+012D   3005           00465         movlw   b'00000101' ;Select channel AN0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+012E   009D           00466         movwf   ADCON0
+                      00467 
+012F   3001           00468         movlw   1
+0130   2???           00469         call    Delay 
+                      00470 
+0131   0021           00471         banksel ADCON0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0132   149D           00472         bsf     ADCON0,ADGO ;Start conversion
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0133   189D           00473         btfsc   ADCON0,ADGO ;Is conversion done?
+0134   2???           00474         goto    $-1
+                      00475         ;No, test again
+0135   0021           00476         banksel ADRESH
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0136   081C           00477         movf    ADRESH,W
+                      00478         ;Read upper 2 bits
+0137   0020           00479         banksel a2
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 38
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0138   00F5           00480         movwf   a2
+                      00481         ;store in GPR space
+0139   0021           00482         banksel ADRESL
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+013A   081B           00483         movf    ADRESL,W
+                      00484         ;Read lower 8 bits
+013B   0020           00485         banksel a1
+013C   00F4           00486         movwf   a1
+                      00487 
+013D   0021           00488         banksel ADCON0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+013E   019D           00489         clrf    ADCON0
+                      00490 
+013F   0020           00491         banksel temp2
+                      00492 
+                      00493         ; ARG temp as a2:a1
+0140   2???           00494         call    temp_calc
+0141   00FA           00495         movwf   temp2
+0142   2???           00496         call    temp_rem_calc
+0143   00FB           00497         movwf   temp2r
+0144   0008           00498         return
+                      00499 
+                      00500 
+0145                  00501 custom_command_handler:
+0145   300A           00502         movlw   0x0A
+0146   0201           00503         subwf   INDF,W
+0147   1903           00504         btfsc   STATUS,Z
+0148   2???           00505         goto    set_fan
+                      00506 
+0149   300B           00507         movlw   0x0B
+014A   0201           00508         subwf   INDF,W
+014B   1903           00509         btfsc   STATUS,Z
+014C   2???           00510         goto    get_temp
+                      00511 
+014D   300C           00512         movlw   0x0C
+014E   0201           00513         subwf   INDF,W
+014F   1903           00514         btfsc   STATUS,Z
+0150   2???           00515         goto    set_temp_c
+                      00516 
+0151   300D           00517         movlw   0x0D
+0152   0201           00518         subwf   INDF,W
+0153   1903           00519         btfsc   STATUS,Z
+0154   2???           00520         goto    set_mspeed
+                      00521 
+0155   300E           00522         movlw   0x0E
+0156   0201           00523         subwf   INDF,W
+0157   1903           00524         btfsc   STATUS,Z
+0158   2???           00525         goto    get_vars
+                      00526 
+0159   2???           00527         goto    restore
+                      00528 
+015A                  00529 set_fan:
+015A   0020           00530     banksel rcframe
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 39
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+015B   305B           00531         movlw   rcframe+7
+015C   0020           00532     banksel FSR
+015D   0086           00533     movwf   FSR
+015E   0020           00534     banksel INDF
+015F   0801           00535     movf    INDF,W
+0160   0020           00536     banksel speed
+0161   00E8           00537     movwf   speed
+0162   300A           00538     movlw   10
+0163   00B0           00539     movwf   rc_nocoll
+0164   0868           00540     movf    speed,W
+0165   2???           00541     call    write_eeprom
+0166   0020           00542     banksel f_controll
+0167   147F           00543     bsf     f_controll,0
+0168   3000           00544     movlw   0
+0169   0268           00545     subwf   speed,W
+016A   1903           00546     btfsc   STATUS,Z
+016B   107F           00547     bcf     f_controll,0
+016C   1903           00548     btfsc   STATUS,Z
+016D   2???           00549     call    fan_termos
+016E   0020           00550     banksel rc_nocoll
+016F   300D           00551     movlw   13
+0170   00B0           00552     movwf   rc_nocoll
+0171   087F           00553     movf    f_controll,W
+0172   2???           00554     call    write_eeprom
+0173   2???           00555     goto    restore
+                      00556 
+0174                  00557 set_temp_c:
+0174   0020           00558     banksel rcframe
+0175   305B           00559         movlw   rcframe+7
+0176   0020           00560     banksel FSR
+0177   0086           00561     movwf   FSR
+0178   0020           00562     banksel INDF
+0179   0801           00563     movf    INDF,W
+017A   0020           00564     banksel temp_goal
+017B   00FD           00565     movwf   temp_goal
+017C   3080           00566     movlw   128
+017D   07FD           00567     addwf   temp_goal,F
+017E   300B           00568     movlw   11
+017F   00B0           00569     movwf   rc_nocoll
+0180   087D           00570     movf    temp_goal,W
+0181   2???           00571     call    write_eeprom
+                      00572 
+0182   187F           00573     btfsc   f_controll,0
+0183   2???           00574     goto    restore
+                      00575 
+0184   0020           00576     banksel temp_goal
+0185   3080           00577     movlw   128
+0186   027D           00578     subwf   temp_goal,W
+0187   1903           00579     btfsc   STATUS,Z
+0188   01E8           00580     clrf    speed
+0189   1903           00581     btfsc   STATUS,Z
+018A   2???           00582     goto    restore
+018B   2???           00583     call    fan_termos
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 40
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+018C   2???           00584     goto    restore
+                      00585 
+018D                  00586 set_mspeed:
+018D   0020           00587     banksel rcframe
+018E   305B           00588         movlw   rcframe+7
+018F   0020           00589     banksel FSR
+0190   0086           00590     movwf   FSR
+0191   0020           00591     banksel INDF
+0192   0801           00592     movf    INDF,W
+0193   0020           00593     banksel mspeed
+0194   00FE           00594     movwf   mspeed
+0195   300C           00595     movlw   12
+0196   00B0           00596     movwf   rc_nocoll
+0197   087E           00597     movf    mspeed,W
+0198   2???           00598     call    write_eeprom
+0199   0020           00599     banksel f_controll
+019A   187F           00600     btfsc   f_controll,0
+019B   2???           00601     goto    restore
+019C   3000           00602     movlw   0
+019D   0268           00603     subwf   speed,W
+019E   1903           00604     btfsc   STATUS,Z
+019F   2???           00605     goto    restore
+01A0   3000           00606     movlw   0
+01A1   027E           00607     subwf   mspeed,W
+01A2   1903           00608     btfsc   STATUS,Z
+01A3   2???           00609     goto    set_mspeed_max
+01A4   2???           00610     goto    set_mspeed_set
+01A5                  00611 set_mspeed_max:
+01A5   30FF           00612     movlw   255
+01A6   00E8           00613     movwf   speed
+01A7   2???           00614     goto    restore
+01A8                  00615 set_mspeed_set:
+01A8   087E           00616     movf    mspeed,W
+01A9   00E8           00617     movwf   speed
+01AA   2???           00618     goto    restore
+                      00619 
+01AB                  00620 Dla:
+01AB   0020           00621     banksel d1
+                      00622                         ;999997 cycles
+01AC   00A0           00623         movwf   d1
+01AD   00A1           00624         movwf   d2
+01AE                  00625 Dla_0:
+01AE   0BA0           00626         decfsz  d1, f
+01AF   2???           00627         goto    $+2
+01B0   0BA1           00628         decfsz  d2, f
+01B1   2???           00629         goto    Dla_0
+                      00630 
+                      00631                         ;3 cycles
+01B2   2???           00632         goto    $+1
+01B3   0000           00633         nop
+01B4   0008           00634     return
+                      00635 
+                      00636 
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 41
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+01B5                  00637 temp_calc:
+01B5   3001           00638         movlw   b'00000001' ; ADRES * 488
+01B6   00F7           00639         movwf   b2
+01B7   30E8           00640         movlw   b'11101000'
+01B8   00F6           00641         movwf   b1
+01B9   2???           00642         call    multi
+                      00643 
+                      00644 
+01BA   3003           00645         movlw   b'00000011' ; res / 1000
+01BB   00EC           00646         movwf   divisH
+01BC   30E8           00647         movlw   b'11101000'
+01BD   00EB           00648         movwf   divisL
+                      00649 
+01BE   2???           00650         call    divide
+01BF   304E           00651         movlw   78      ; Stored as signed, so, because the 0C is 50, add 78, so zero is 128
+01C0   0770           00652         addwf   res1,W
+                      00653         ; REMEMBER -> The reminder is stored in the remdrH:remdrL
+01C1   0008           00654         return
+                      00655 
+01C2                  00656 temp_rem_calc:
+01C2   0020           00657         banksel res4
+01C3   01F3           00658         clrf    res4
+01C4   01F2           00659         clrf    res3
+01C5   086E           00660         movf    remdrH,W
+01C6   00F1           00661         movwf   res2
+01C7   086D           00662         movf    remdrL,W
+01C8   00F0           00663         movwf   res1
+01C9                  00664 temp_rem_calc_l:
+01C9   0020           00665         banksel divisL
+01CA   01EC           00666         clrf    divisH
+01CB   300A           00667         movlw   10
+01CC   00EB           00668         movwf   divisL
+01CD   3000           00669         movlw   0
+01CE   0271           00670         subwf   res2,W
+01CF   1903           00671         btfsc   STATUS,Z
+01D0   2???           00672         goto    temp_rem_calc_iret
+01D1   2???           00673         call    divide
+01D2   2???           00674         goto    temp_rem_calc_l
+                      00675 
+01D3                  00676 temp_rem_calc_iret:
+01D3   0020           00677         banksel res1
+01D4   0870           00678         movf    res1,W
+01D5   0008           00679         return
+                      00680 
+01D6                  00681 multi:
+01D6   01F3           00682         clrf    res4
+01D7   01F2           00683         clrf    res3
+01D8   01F1           00684         clrf    res2
+01D9   01F0           00685         clrf    res1
+01DA   17F1           00686     bsf     res2, 7
+01DB                  00687 m1:
+01DB   0CF5           00688         rrf     a2, f
+01DC   0CF4           00689         rrf     a1, f
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 42
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+01DD   1C03           00690         btfss   STATUS, C
+01DE   2???           00691         goto    m2
+01DF   0876           00692         movf    b1, w
+01E0   07F2           00693         addwf   res3, f
+01E1   0877           00694         movf    b2, w
+01E2   1803           00695         btfsc   STATUS, C
+01E3   0F77           00696         incfsz  b2, w
+01E4   07F3           00697         addwf   res4, f
+01E5                  00698 m2:
+01E5   0CF3           00699         rrf     res4, f
+01E6   0CF2           00700         rrf     res3, f
+01E7   0CF1           00701         rrf     res2, f
+01E8   0CF0           00702         rrf     res1, f
+01E9   1C03           00703         btfss   STATUS, C
+01EA   2???           00704         goto    m1
+01EB   0008           00705     return
+                      00706 
+01EC                  00707 divide:
+01EC   3020           00708        movlw 32      ; 32-bit divide by 16-bit
+01ED   00EF           00709        movwf bitcnt
+01EE   01EE           00710        clrf remdrH   ; Clear remainder
+01EF   01ED           00711        clrf remdrL
+                      00712 
+01F0                  00713 dvloop:
+                      00714 
+01F0   1003           00715        bcf  STATUS,C ; Set quotient bit to 0
+                      00716                      ; Shift left dividend and quotient
+Message[305]: Using default destination of 1 (file).
+01F1   0DF0           00717        rlf res1    ; lsb
+Message[305]: Using default destination of 1 (file).
+01F2   0DF1           00718        rlf res2
+Message[305]: Using default destination of 1 (file).
+01F3   0DF2           00719        rlf res3
+Message[305]: Using default destination of 1 (file).
+01F4   0DF3           00720        rlf res4    ; lsb into carry
+Message[305]: Using default destination of 1 (file).
+01F5   0DED           00721        rlf remdrL    ; and then into partial remainder
+Message[305]: Using default destination of 1 (file).
+01F6   0DEE           00722        rlf remdrH
+                      00723 
+01F7   1803           00724        btfsc    STATUS,C ; Check for overflow
+01F8   2???           00725        goto     subd
+01F9   086C           00726        movfw    divisH  ; Compare partial remainder and divisor
+01FA   026E           00727        subwf    remdrH,w
+01FB   1D03           00728        btfss    STATUS,Z
+01FC   2???           00729        goto     testgt   ; Not equal so test if remdrH is greater
+01FD   086B           00730        movfw    divisL  ; High bytes are equal, compare low bytes
+01FE   026D           00731        subwf    remdrL,w
+01FF                  00732 testgt:
+01FF   1C03           00733        btfss    STATUS,C          ; Carry set if remdr >= divis
+0200   2???           00734        goto     remrlt
+                      00735 
+0201                  00736 subd:
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 43
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0201   086B           00737        movfw    divisL  ; Subtract divisor from partial remainder
+Message[305]: Using default destination of 1 (file).
+0202   02ED           00738        subwf    remdrL
+0203   1C03           00739        btfss    STATUS,C
+                      00740 
+Message[305]: Using default destination of 1 (file).
+0204   03EE           00741        decf     remdrH   ; Subtract borrow
+0205   086C           00742        movfw    divisH
+Message[305]: Using default destination of 1 (file).
+0206   02EE           00743        subwf    remdrH
+0207   1470           00744        bsf      res1,0  ; Set quotient bit to 1
+                      00745                           ; Quotient replaces dividend which is lost
+0208                  00746 remrlt:
+Message[305]: Using default destination of 1 (file).
+0208   0BEF           00747        decfsz   bitcnt
+0209   2???           00748        goto     dvloop
+020A   0008           00749        return
+                      00750 
+020B                  00751 read_eeprom:
+020B   0023           00752         banksel EEADRH
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+020C   0192           00753         clrf    EEADRH
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+020D   0091           00754         movwf   EEADRL
+                      00755         ;Data Memory
+                      00756         ;Address to read
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+020E   1315           00757         bcf     EECON1, CFGS ;Deselect Config space
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+020F   1395           00758         bcf     EECON1, EEPGD;Point to DATA memory
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0210   1415           00759         bsf     EECON1, RD
+                      00760         ;EE Read
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0211   0813           00761         movf    EEDATL, W
+0212   0008           00762         return
+                      00763 
+0213                  00764 write_eeprom:
+0213   0023           00765         banksel EEDATL
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0214   0093           00766         movwf   EEDATL ;Data Memory Value to write
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0215   0194           00767         clrf    EEDATH
+0216   0020           00768         banksel rc_nocoll
+0217   0830           00769         movf    rc_nocoll,W
+0218   0023           00770         banksel EEADRL
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0219   0192           00771         clrf    EEADRH
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+021A   0091           00772         movwf   EEADRL ;Data Memory Address to write
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+021B   1315           00773         bcf     EECON1, CFGS ;Deselect Configuration space
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 44
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+021C   1395           00774         bcf     EECON1, EEPGD ;Point to DATA memory
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+021D   1515           00775         bsf     EECON1, WREN ;Enable writes
+021E   3055           00776         movlw   55h ;
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+021F   0096           00777         movwf   EECON2 ;Write 55h
+0220   30AA           00778         movlw   0AAh ;
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0221   0096           00779         movwf   EECON2 ;Write AAh
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0222   1495           00780         bsf     EECON1,WR ;Set WR bit to begin write
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0223   1895           00781         btfsc   EECON1,WR ;Wait for write to complete
+0224   2???           00782         goto $-1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0225   1115           00783         bcf     EECON1,WREN ;Disable writes
+0226   0008           00784         return
+C9A4 DCFF             00785         end
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 45
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ABDEN                             00000000
+ABDOVF                            00000007
+ACKDT                             00000005
+ACKEN                             00000004
+ACKSTAT                           00000006
+ACKTIM                            00000007
+ADCON0                            0000009D
+ADCON1                            0000009E
+ADCS0                             00000004
+ADCS1                             00000005
+ADCS2                             00000006
+ADDEN                             00000003
+ADFM                              00000007
+ADFVR0                            00000000
+ADFVR1                            00000001
+ADGO                              00000001
+ADIE                              00000006
+ADIF                              00000006
+ADON                              00000000
+ADPREF0                           00000000
+ADPREF1                           00000001
+ADRES                             0000009B
+ADRESH                            0000009C
+ADRESL                            0000009B
+AHEN                              00000001
+ANSA0                             00000000
+ANSA1                             00000001
+ANSA2                             00000002
+ANSA4                             00000004
+ANSELA                            0000018C
+APFCON                            0000011D
+APFCON0                           0000011D
+ARC_16F                           1
+BAUDCON                           0000019F
+BCL1IE                            00000003
+BCL1IF                            00000003
+BF                                00000000
+BOEN                              00000004
+BORCON                            00000116
+BORRDY                            00000000
+BRG16                             00000003
+BRGH                              00000002
+BSR                               00000008
+BSR0                              00000000
+BSR1                              00000001
+BSR2                              00000002
+BSR3                              00000003
+BSR4                              00000004
+BSR_SHAD                          00000FE6
+C                                 00000000
+C1HYS                             00000001
+C1IE                              00000005
+C1IF                              00000005
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 46
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C1INTN                            00000006
+C1INTP                            00000007
+C1NCH                             00000000
+C1NCH0                            00000000
+C1OE                              00000005
+C1ON                              00000007
+C1OUT                             00000006
+C1PCH0                            00000004
+C1PCH1                            00000005
+C1POL                             00000004
+C1SP                              00000002
+C1SYNC                            00000000
+CCP1AS                            00000295
+CCP1AS0                           00000004
+CCP1AS1                           00000005
+CCP1AS2                           00000006
+CCP1ASE                           00000007
+CCP1CON                           00000293
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1SEL                           00000000
+CCPR1H                            00000292
+CCPR1L                            00000291
+CDAFVR0                           00000002
+CDAFVR1                           00000003
+CFGS                              00000006
+CHS0                              00000002
+CHS1                              00000003
+CHS2                              00000004
+CHS3                              00000005
+CHS4                              00000006
+CKE                               00000006
+CKP                               00000004
+CLKRCON                           0000039A
+CLKRDC0                           00000003
+CLKRDC1                           00000004
+CLKRDIV0                          00000000
+CLKRDIV1                          00000001
+CLKRDIV2                          00000002
+CLKREN                            00000007
+CLKROE                            00000006
+CLKRSLR                           00000005
+CM1CON0                           00000111
+CM1CON1                           00000112
+CMOUT                             00000115
+CPSCH0                            00000000
+CPSCH1                            00000001
+CPSCON0                           0000001E
+CPSCON1                           0000001F
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 47
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+CPSON                             00000007
+CPSOUT                            00000001
+CPSRM                             00000006
+CPSRNG0                           00000002
+CPSRNG1                           00000003
+CREN                              00000004
+CSRC                              00000007
+C_SHAD                            00000000
+DACCON0                           00000118
+DACCON1                           00000119
+DACEN                             00000007
+DACLPS                            00000006
+DACOE                             00000005
+DACPSS0                           00000002
+DACPSS1                           00000003
+DACR0                             00000000
+DACR1                             00000001
+DACR2                             00000002
+DACR3                             00000003
+DACR4                             00000004
+DC                                00000001
+DC1B0                             00000004
+DC1B1                             00000005
+DC_SHAD                           00000001
+DEV_ID1                           64
+DEV_ID2                           45
+DHEN                              00000000
+D_NOT_A                           00000005
+Delay                             0000033D
+Delay_0                           00000343
+Dla                               000001AB
+Dla_0                             000001AE
+ECCP1AS                           00000295
+EEADR                             00000191
+EEADRH                            00000192
+EEADRL                            00000191
+EECON1                            00000195
+EECON2                            00000196
+EEDAT                             00000193
+EEDATH                            00000194
+EEDATL                            00000193
+EEIE                              00000004
+EEIF                              00000004
+EEPGD                             00000007
+F                                 00000001
+FERR                              00000002
+FREE                              00000004
+FSR                               FSR1L
+FSR0                              00000004
+FSR0H                             00000005
+FSR0H_SHAD                        00000FE9
+FSR0L                             00000004
+FSR0L_SHAD                        00000FE8
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 48
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+FSR1                              00000006
+FSR1H                             00000007
+FSR1H_SHAD                        00000FEB
+FSR1L                             00000006
+FSR1L_SHAD                        00000FEA
+FVRCON                            00000117
+FVREN                             00000007
+FVRRDY                            00000006
+GCEN                              00000007
+GIE                               00000007
+GO                                00000001
+GO_NOT_DONE                       00000001
+HFIOFL                            00000003
+HFIOFR                            00000004
+HFIOFS                            00000000
+INDF                              INDF1
+INDF0                             00000000
+INDF1                             00000001
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IOCAF                             00000393
+IOCAF0                            00000000
+IOCAF1                            00000001
+IOCAF2                            00000002
+IOCAF3                            00000003
+IOCAF4                            00000004
+IOCAF5                            00000005
+IOCAN                             00000392
+IOCAN0                            00000000
+IOCAN1                            00000001
+IOCAN2                            00000002
+IOCAN3                            00000003
+IOCAN4                            00000004
+IOCAN5                            00000005
+IOCAP                             00000391
+IOCAP0                            00000000
+IOCAP1                            00000001
+IOCAP2                            00000002
+IOCAP3                            00000003
+IOCAP4                            00000004
+IOCAP5                            00000005
+IOCIE                             00000003
+IOCIF                             00000000
+IRCF0                             00000003
+IRCF1                             00000004
+IRCF2                             00000005
+IRCF3                             00000006
+LATA                              0000010C
+LATA0                             00000000
+LATA1                             00000001
+LATA2                             00000002
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 49
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+LATA4                             00000004
+LATA5                             00000005
+LFIOFR                            00000001
+LWLO                              00000005
+MC1OUT                            00000000
+MDBIT                             00000000
+MDCARH                            0000039F
+MDCARL                            0000039E
+MDCH0                             00000000
+MDCH1                             00000001
+MDCH2                             00000002
+MDCH3                             00000003
+MDCHODIS                          00000007
+MDCHPOL                           00000006
+MDCHSYNC                          00000005
+MDCL0                             00000000
+MDCL1                             00000001
+MDCL2                             00000002
+MDCL3                             00000003
+MDCLODIS                          00000007
+MDCLPOL                           00000006
+MDCLSYNC                          00000005
+MDCON                             0000039C
+MDEN                              00000007
+MDMS0                             00000000
+MDMS1                             00000001
+MDMS2                             00000002
+MDMS3                             00000003
+MDMSODIS                          00000007
+MDOE                              00000006
+MDOPOL                            00000004
+MDOUT                             00000003
+MDSLR                             00000005
+MDSRC                             0000039D
+MFIOFR                            00000002
+NOT_BOR                           00000000
+NOT_PD                            00000003
+NOT_POR                           00000001
+NOT_RI                            00000002
+NOT_RMCLR                         00000003
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+NOT_WPUEN                         00000007
+OERR                              00000001
+OPTION_REG                        00000095
+OSCCON                            00000099
+OSCSTAT                           0000009A
+OSCTUNE                           00000098
+OSFIE                             00000007
+OSFIF                             00000007
+OSTS                              00000005
+OUTNUM                            2
+OUTREG                            PORTA
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 50
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+P                                 00000004
+P1BSEL                            00000001
+P1DC0                             00000000
+P1DC1                             00000001
+P1DC2                             00000002
+P1DC3                             00000003
+P1DC4                             00000004
+P1DC5                             00000005
+P1DC6                             00000006
+P1M0                              00000006
+P1M1                              00000007
+P1RSEN                            00000007
+PCIE                              00000006
+PCL                               00000002
+PCLATH                            0000000A
+PCLATH_SHAD                       00000FE7
+PCON                              00000096
+PEIE                              00000006
+PEN                               00000002
+PIE1                              00000091
+PIE2                              00000092
+PIR1                              00000011
+PIR2                              00000012
+PLLR                              00000006
+PORTA                             0000000C
+PR2                               0000001B
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+PSS1AC0                           00000002
+PSS1AC1                           00000003
+PSS1BD0                           00000000
+PSS1BD1                           00000001
+PSTR1CON                          00000296
+PWM1CON                           00000294
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RCEN                              00000003
+RCIDL                             00000006
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             00000199
+RCSTA                             0000019D
+RD                                00000000
+READ_EEPROM                       read_eeprom
+REC_CUSTOM_JUMP                   custom_command_handler
+RSEN                              00000001
+RX9                               00000006
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 51
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+RX9D                              00000000
+RXDTSEL                           00000007
+R_NOT_W                           00000002
+S                                 00000003
+SBCDE                             00000002
+SBOREN                            00000007
+SCIE                              00000005
+SCKP                              00000004
+SCS0                              00000000
+SCS1                              00000001
+SDAHT                             00000003
+SDO1SEL                           00000006
+SDOSEL                            00000006
+SEN                               00000000
+SENDB                             00000003
+SMP                               00000007
+SPBRG                             0000019B
+SPBRGH                            0000019C
+SPBRGL                            0000019B
+SPEEDLIB_RESPONSE_DELAY           9
+SPEN                              00000007
+SPLLEN                            00000007
+SRCLK0                            00000004
+SRCLK1                            00000005
+SRCLK2                            00000006
+SRCON0                            0000011A
+SRCON1                            0000011B
+SREN                              00000005
+SRLEN                             00000007
+SRNQEN                            00000002
+SRPR                              00000000
+SRPS                              00000001
+SRQEN                             00000003
+SRRC1E                            00000000
+SRRCKE                            00000002
+SRRPE                             00000003
+SRSC1E                            00000004
+SRSCKE                            00000006
+SRSPE                             00000007
+SS1SEL                            00000005
+SSP1ADD                           00000212
+SSP1BUF                           00000211
+SSP1CON1                          00000215
+SSP1CON2                          00000216
+SSP1CON3                          00000217
+SSP1IE                            00000003
+SSP1IF                            00000003
+SSP1MSK                           00000213
+SSP1STAT                          00000214
+SSPADD                            00000212
+SSPBUF                            00000211
+SSPCON                            00000215
+SSPCON1                           00000215
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 52
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+SSPCON2                           00000216
+SSPCON3                           00000217
+SSPEN                             00000005
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPMSK                            00000213
+SSPOV                             00000006
+SSPSTAT                           00000214
+SSSEL                             00000005
+STATUS                            00000003
+STATUS_SHAD                       00000FE4
+STKOVF                            00000007
+STKPTR                            00000FED
+STKUNF                            00000006
+STR1A                             00000000
+STR1B                             00000001
+STR1SYNC                          00000004
+SWDTEN                            00000000
+SYNC                              00000004
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T0XCS                             00000000
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000018
+T1GCON                            00000019
+T1GGO                             00000003
+T1GGO_NOT_DONE                    00000003
+T1GPOL                            00000006
+T1GSEL                            00000003
+T1GSPM                            00000004
+T1GSS0                            00000000
+T1GSS1                            00000001
+T1GTM                             00000005
+T1GVAL                            00000002
+T1OSCEN                           00000003
+T1OSCR                            00000007
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             0000001C
+T2OUTPS0                          00000003
+T2OUTPS1                          00000004
+T2OUTPS2                          00000005
+T2OUTPS3                          00000006
+TMR0                              00000015
+TMR0CS                            00000005
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR0SE                            00000004
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 53
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR1                              00000016
+TMR1CS0                           00000006
+TMR1CS1                           00000007
+TMR1GE                            00000007
+TMR1GIE                           00000007
+TMR1GIF                           00000007
+TMR1H                             00000017
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             00000016
+TMR1ON                            00000000
+TMR2                              0000001A
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOSH                              00000FEF
+TOSL                              00000FEE
+TRISA                             0000008C
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRMT                              00000001
+TSEN                              00000005
+TSRNG                             00000004
+TUN0                              00000000
+TUN1                              00000001
+TUN2                              00000002
+TUN3                              00000003
+TUN4                              00000004
+TUN5                              00000005
+TX9                               00000006
+TX9D                              00000000
+TXCKSEL                           00000002
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             0000019A
+TXSTA                             0000019E
+UA                                00000001
+USER_VARIABLE_SPACE               0x68
+VREGCON                           00000197
+VREGPM0                           00000000
+VREGPM1                           00000001
+W                                 00000000
+WCOL                              00000007
+WDTCON                            00000097
+WDTPS0                            00000001
+WDTPS1                            00000002
+WDTPS2                            00000003
+WDTPS3                            00000004
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 54
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+WDTPS4                            00000005
+WPUA                              0000020C
+WPUA0                             00000000
+WPUA1                             00000001
+WPUA2                             00000002
+WPUA3                             00000003
+WPUA4                             00000004
+WPUA5                             00000005
+WR                                00000001
+WREG                              00000009
+WREG_SHAD                         00000FE5
+WREN                              00000002
+WRERR                             00000003
+WRITE_EEPROM                      write_eeprom
+WUE                               00000001
+Z                                 00000002
+Z_SHAD                            00000002
+_.org_1_0117                      00000117
+_.org_1_0134                      00000134
+_.org_1_01AF                      000001AF
+_.org_1_01B2                      000001B2
+_.org_1_0224                      00000224
+_BOREN_NSLEEP                     0000FDFF
+_BOREN_OFF                        0000F9FF
+_BOREN_ON                         0000FFFF
+_BOREN_SBODEN                     0000FBFF
+_BORV_19                          0000FFFF
+_BORV_HI                          0000FBFF
+_BORV_LO                          0000FFFF
+_CLKOUTEN_OFF                     0000FFFF
+_CLKOUTEN_ON                      0000F7FF
+_CONFIG1                          00008007
+_CONFIG2                          00008008
+_CPD_OFF                          0000FFFF
+_CPD_ON                           0000FEFF
+_CP_OFF                           0000FFFF
+_CP_ON                            0000FF7F
+_DEVID1                           00008006
+_FCMEN_OFF                        0000DFFF
+_FCMEN_ON                         0000FFFF
+_FOSC_ECH                         0000FFFF
+_FOSC_ECL                         0000FFFD
+_FOSC_ECM                         0000FFFE
+_FOSC_EXTRC                       0000FFFB
+_FOSC_HS                          0000FFFA
+_FOSC_INTOSC                      0000FFFC
+_FOSC_LP                          0000FFF8
+_FOSC_XT                          0000FFF9
+_IDLOC0                           00008000
+_IDLOC1                           00008001
+_IDLOC2                           00008002
+_IDLOC3                           00008003
+_IESO_OFF                         0000EFFF
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 55
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_IESO_ON                          0000FFFF
+_LVP_OFF                          0000DFFF
+_LVP_ON                           0000FFFF
+_MCLRE_OFF                        0000FFBF
+_MCLRE_ON                         0000FFFF
+_PLLEN_OFF                        0000FEFF
+_PLLEN_ON                         0000FFFF
+_PWRTE_OFF                        0000FFFF
+_PWRTE_ON                         0000FFDF
+_STVREN_OFF                       0000FDFF
+_STVREN_ON                        0000FFFF
+_WDTE_NSLEEP                      0000FFF7
+_WDTE_OFF                         0000FFE7
+_WDTE_ON                          0000FFFF
+_WDTE_SWDTEN                      0000FFEF
+_WRT_ALL                          0000FFFC
+_WRT_BOOT                         0000FFFE
+_WRT_HALF                         0000FFFD
+_WRT_OFF                          0000FFFF
+__12F1840                         00000001
+a1                                00000074
+a2                                00000075
+adress1                           00000034
+adress2                           00000035
+b1                                00000076
+b2                                00000077
+baud                              00004B00
+bitcnt                            0000006F
+brgdiv                            00000004
+brgval                            00000067
+clock                             00000008
+crc0                              00000038
+crc1                              00000039
+crccalc                           000002E7
+crcloop                           0000003A
+crcloopr                          000002E3
+crcsend                           00000314
+crctmp                            0000003B
+custom_command_handler            00000145
+custom_ihandler                   0000006C
+d1                                00000020
+d1_tmp                            00000027
+d2                                00000021
+d2_tmp                            00000028
+d3                                00000022
+d3_tmp                            00000029
+d4                                00000023
+divide                            000001EC
+divisH                            0000006C
+divisL                            0000006B
+dvloop                            000001F0
+endflag                           0000031B
+endflag_l                         00000320
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 56
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+f_controll                        0000007F
+fan_off                           000000B2
+fan_on_l                          0000008B
+fan_on_m                          00000099
+fan_on_max                        000000A7
+fan_termos                        00000076
+fan_termos_less                   0000007D
+fan_termos_more                   00000084
+framelen                          0000003C
+func_bc                           0000020D
+func_bc_01                        00000227
+func_bc_sendaddr                  00000234
+func_check_response               000001E1
+func_is_ocupied_send_response     000001E4
+func_is_ocupied_send_response_go  000001EA
+func_is_ocupied_send_response_pa  000001EC
+func_rand_addr                    0000026E
+func_send_iam_here                00000253
+func_send_response                000001C0
+func_set_rsp_addr                 0000027C
+func_setport                      00000276
+func_speedlib_config              00000153
+func_speedlib_config_basics       0000019B
+func_speedlib_config_caddr        00000168
+func_speedlib_config_caddr_f      0000017E
+func_speedlib_config_extended     0000015B
+get_temp                          000000B8
+get_vars                          000000E4
+handle_response                   0000028B
+handle_response_loop              00000294
+handle_response_ret               0000029F
+init_checkaddr                    00000026
+init_checkaddr_l                  0000002A
+init_checkaddr_not_ocupied        00000046
+init_checkaddr_ocupied            0000004B
+init_speedlib                     00000000
+init_speedlib_e                   00000025
+intserv                           00000083
+intserv_norm                      0000008B
+lfsr_func                         00000332
+load_eeprom                       0000005B
+loop1                             0000002B
+loop2                             0000002C
+lopp                              0000030E
+m1                                000001DB
+m2                                000001E5
+main                              00000042
+main2                             00000056
+mspeed                            0000007E
+multi                             000001D6
+rand                              0000002A
+rc1                               00000055
+rc10                              0000005E
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 57
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+rc11                              0000005F
+rc12                              00000060
+rc13                              00000061
+rc14                              00000062
+rc15                              00000063
+rc16                              00000064
+rc17                              00000065
+rc18                              00000066
+rc19                              00000067
+rc2                               00000056
+rc20                              00000068
+rc3                               00000057
+rc4                               00000058
+rc5                               00000059
+rc6                               0000005A
+rc7                               0000005B
+rc8                               0000005C
+rc9                               0000005D
+rc_add_byte                       00000031
+rc_counter                        0000002E
+rc_gotflag                        0000002F
+rc_listen                         0000002D
+rc_nocoll                         00000030
+rcframe                           00000054
+read_eeprom                       0000020B
+rec                               000000AB
+rec_oops_coll                     000000B5
+rec_start                         000000B8
+reccrcfail                        000002A2
+reccrcfail_end                    000002A9
+recend                            000000F3
+recend_no_broadcast               0000011F
+recend_tmp                        0000011B
+recerror                          000002AC
+recr                              000000C7
+recsave                           000000C8
+recsave_add                       000000E6
+recsave_set                       000000D3
+recsave_unescape                  000000D6
+recsave_unescape_1                000000E2
+recsave_unescape_2                000000E4
+recx                              000000C1
+remdrH                            0000006E
+remdrL                            0000006D
+remrlt                            00000208
+res1                              00000070
+res2                              00000071
+res3                              00000072
+res4                              00000073
+res_h                             00000069
+res_l                             0000006A
+restore                           0000009B
+restore_norm                      0000009E
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 58
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+rsp_adress1                       00000032
+rsp_adress2                       00000033
+send                              0000030A
+set_fan                           0000015A
+set_mspeed                        0000018D
+set_mspeed_max                    000001A5
+set_mspeed_set                    000001A8
+set_temp                          0000010B
+set_temp_c                        00000174
+setaddr                           0000004D
+setaddr1                          00000052
+setaddr2                          0000005A
+setaddr_testloop                  00000075
+setaddr_testloop_l                00000078
+speed                             00000068
+speedlib_config                   00000036
+speedlib_main                     00000037
+start                             00000005
+subd                              00000201
+temp1                             00000078
+temp1r                            00000079
+temp2                             0000007A
+temp2r                            0000007B
+temp_calc                         000001B5
+temp_goal                         0000007D
+temp_rem_calc                     000001C2
+temp_rem_calc_iret                000001D3
+temp_rem_calc_l                   000001C9
+testgt                            000001FF
+timer1                            0000007C
+tmp_PCLATH                        00000026
+tmp_STATUS                        00000025
+tmp_W                             00000024
+trd                               00000325
+tx1                               00000040
+tx10                              00000049
+tx11                              0000004A
+tx12                              0000004B
+tx13                              0000004C
+tx14                              0000004D
+tx15                              0000004E
+tx16                              0000004F
+tx17                              00000050
+tx18                              00000051
+tx19                              00000052
+tx2                               00000041
+tx20                              00000053
+tx3                               00000042
+tx4                               00000043
+tx5                               00000044
+tx6                               00000045
+tx7                               00000046
+tx8                               00000047
+MPASM  5.46  /ROOT/MPLABXPROJECTS/TEST.12F184   8-12-2012  0:38:25         PAGE 59
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+tx9                               00000048
+tx_send                           000002B7
+tx_send_escape_1                  000002CE
+tx_send_escape_2                  000002D3
+tx_send_noescape                  000002C2
+tx_send_noescape_l                000002C5
+txdo                              000002D8
+txdo2                             000002FF
+txframe                           0000003F
+txoops                            000002B0
+txreturn                          0000003E
+txtmp                             0000003D
+write_eeprom                      00000213
+
+Errors   :     0
+Warnings :     4 reported,     0 suppressed
+Messages :    75 reported,     0 suppressed
+
+
