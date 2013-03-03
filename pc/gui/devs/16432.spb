@@ -117,10 +117,10 @@ spb =
              { event = 12;
                type = "send";
                data = (0x0A,40,2,257);},
-             { event = 13;
+             { event = 13; descr = "Ljus slinga PÅ";
                type = "send";
                data = (0x0A,12,128);},
-             { event = 14;
+             { event = 14; descr = "Ljus slinga AV";
                type = "send";
                data = (0x0A,10,128);}
 

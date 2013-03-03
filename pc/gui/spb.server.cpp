@@ -311,9 +311,55 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
       usleep(10000); // This is a delay, to make sure that the gui is ready
       if(serial_p->device_num>0){
       for(int i=0; i<serial_p->device_num; i++){
-	char tmp[50];
-	sprintf(tmp, "devlistadd %s %d\n", serial_p->device_addr[i], serial_p->device_id[i]);
-	serial_p->server->send_data(listnum, tmp, strlen(tmp));
+	char tmp[100];
+	char titlex[50];
+	const char *title;
+	config_t cfg;
+	config_setting_t *cfg_e;
+	sprintf(tmp,BACKEND_DIR "devs/%d.spb", serial_p->device_id[i]);
+	if(config_read_file(&cfg, tmp))
+	  {
+	    config_lookup_string(&cfg, "name", &title);
+	    strncpy(titlex,title,50);
+	    sprintf(tmp, "devlistadd %s %d %s\n", serial_p->device_addr[i], serial_p->device_id[i], titlex);
+	    //printf("devlistadd %s %d %s\n", serial_p->device_addr[i], serial_p->device_id[i], titlex);
+	    serial_p->server->send_data(listnum, tmp, strlen(tmp));
+	   
+
+	    char tmpeve[200];
+	    cfg_e = config_lookup(&cfg, "spb.events");
+	    if(cfg_e != NULL)
+	      {
+		int count = config_setting_length(cfg_e);	  
+		for(int i2 = 0; i2 < count; ++i2)
+		  {
+		    int evenr;
+		    const char *descr;
+		    const char *type;
+
+		    config_setting_t *cfg_ee = config_setting_get_elem(cfg_e, i2);
+		    if(!(config_setting_lookup_string(cfg_ee, "type", &type)) || !(config_setting_lookup_int(cfg_ee, "event", &evenr)))
+		      continue;
+		    if(strcmp(type, "send") != 0)
+		      continue;
+		    if(config_setting_lookup_string(cfg_ee, "descr", &descr)){
+		      char tmpstr[150];
+		      if(strlen(descr) >= 150)
+			strncpy(tmpstr, descr, 150);
+		      else
+			strcpy(tmpstr, descr);
+
+		      sprintf(tmpeve, "eveadd %d %d %s\n", serial_p->device_id[i], evenr, tmpstr);
+		      //printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, descr);
+		      serial_p->server->send_data(listnum, tmpeve, strlen(tmpeve));
+		    }else{
+		      sprintf(tmpeve, "eveadd %d %d\n", serial_p->device_id[i], evenr);
+		      //printf("eveadd %d %d\n", serial_p->device_id[i], evenr);
+		      serial_p->server->send_data(listnum, tmpeve, strlen(tmpeve));
+		    }
+		  }
+	      }
+	  }
       }
       serial_p->server->send_data(listnum, "udevlist \n", strlen("udevlist \n"));
       }
