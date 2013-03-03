@@ -307,16 +307,16 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
       err = serial_p->server->send_data(listnum, "user\n", 
 			     strlen("user\n"));
     }
-
       usleep(10000); // This is a delay, to make sure that the gui is ready
       if(serial_p->device_num>0){
       for(int i=0; i<serial_p->device_num; i++){
-	char tmp[100];
+	char tmp[200];
 	char titlex[50];
 	const char *title;
 	config_t cfg;
+	config_init(&cfg);
 	config_setting_t *cfg_e;
-	sprintf(tmp,BACKEND_DIR "devs/%d.spb", serial_p->device_id[i]);
+	sprintf(tmp, BACKEND_DIR "devs/%d.spb", serial_p->device_id[i]);
 	if(config_read_file(&cfg, tmp))
 	  {
 	    config_lookup_string(&cfg, "name", &title);
@@ -325,7 +325,6 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 	    //printf("devlistadd %s %d %s\n", serial_p->device_addr[i], serial_p->device_id[i], titlex);
 	    serial_p->server->send_data(listnum, tmp, strlen(tmp));
 	   
-
 	    char tmpeve[200];
 	    cfg_e = config_lookup(&cfg, "spb.events");
 	    if(cfg_e != NULL)
@@ -361,8 +360,9 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 	      }
 	  }
       }
-      serial_p->server->send_data(listnum, "udevlist \n", strlen("udevlist \n"));
+
       }
+      serial_p->server->send_data(listnum, "udevlist \n", strlen("udevlist \n"));
 
       serial_p->server->session_open[listnum] = 1;
       wtime();
