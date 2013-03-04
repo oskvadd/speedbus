@@ -436,7 +436,7 @@ void *client_handler(void *ptr){
 	}
        	if(strncmp(data, "devei ", 6) == 0){
 	  gtk_text_buffer_get_end_iter(rdata->rdeve_text_buffer,&rdata->rdeve_text_iter);
-	  gtk_text_buffer_insert(rdata->rdeve_text_buffer, &rdata->rdeve_text_iter, data+6, strlen(data)-7);
+	  gtk_text_buffer_insert(rdata->rdeve_text_buffer, &rdata->rdeve_text_iter, data+6, strlen(data)-6);
 	}
 	if(strncmp(data, "deveinfo ", 9) == 0){
 	gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, data+9);
