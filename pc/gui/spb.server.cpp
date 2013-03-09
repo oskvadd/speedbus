@@ -14,10 +14,13 @@
 
 #define MAX_USERS 100
 #define MAX_LOG_SIZE 200 // Maximum numbers of chars to send to log, at once.
+#define MAX_NOTIFY_STACK 10
+#define MAX_NOTIFY_SIZE 200 // Maximum size of the notify message
 #define SERVER_LOG_FILE "/var/log/spbserver.log"
 #define SERVER_CONFIG_FILE "server.cfg"
 #define SERVER_CONFIG_DIR "/etc/spbserver/"
 #define SERVER_CONFIG_URI "/etc/spbserver/server.cfg"
+#define SERVER_NOTIFY_FILE "server.notify"
 
 int socket_user_id[MAX_LISTEN];
 char users[MAX_USERS][2][MAX_LOGIN_TEXT];
@@ -28,10 +31,14 @@ typedef struct _print_seri {
   sslserver *server;
   config_t *server_cfg;
   char ctty[200];
-  // Device Scan list. Declare this global, so that the backend can reach the devices
+  /// Device Scan list. Declare this global, so that the backend can reach the devices
   short device_num;
   int device_id[30];
   char device_addr[30][8];
+  //
+  /// Device notification messages
+  int notify_nr;
+  char notify[MAX_NOTIFY_STACK][MAX_NOTIFY_SIZE+50];
   //
   main_backend *backe;
 } print_seri;
@@ -263,6 +270,65 @@ void md5sum(char *input){ // Important to preallocate the variable with >32 char
     }
 }
 
+bool spb_inalize_notify(print_seri *serial_p){
+  char tmp_notify[MAX_NOTIFY_STACK][MAX_NOTIFY_SIZE+50];
+  short read_counter = 0;
+  FILE *file; 
+  file = fopen(SERVER_CONFIG_DIR SERVER_NOTIFY_FILE,"r");
+  if(file){
+  char line [MAX_NOTIFY_SIZE+50]; /* or other suitable maximum line size */
+  while (fgets(line, sizeof(line), file) != NULL) /* read a line */
+    {
+      read_counter++;
+    }
+  read_counter -= 2;
+  serial_p->notify_nr = read_counter - 1;  
+  int start;
+  if(read_counter > 10)
+    start = read_counter - 10;
+  else
+    start = read_counter;
+  fclose (file);
+  file = fopen(SERVER_CONFIG_DIR SERVER_NOTIFY_FILE,"r");
+  int linec = 0;
+  int line_c = 0;
+  while (fgets(line, sizeof(line), file) != NULL) /* read a line */
+    {
+      if(linec >= start && line_c < 10){
+	strncpy(tmp_notify[line_c], line, MAX_NOTIFY_SIZE+50);
+      line_c++;
+      }
+      linec++;
+    }
+  printf("Tot: %d\n", line_c);
+  fclose (file);
+  line_c--;
+  int write_c = 0;
+  while (write_c <= read_counter && write_c < 10){
+    printf("Show(%d): %s\n",line_c , tmp_notify[write_c]);
+    strncpy(serial_p->notify[line_c], tmp_notify[write_c], MAX_NOTIFY_SIZE+50);
+    write_c++; line_c--;
+  }
+  }else{
+    serial_p->notify_nr = 0;
+  }
+}
+
+
+bool spb_write_notify(print_seri *serial_p, const char *w_log, int prio){
+  serial_p->notify_nr += 1;
+  for(int i = MAX_NOTIFY_STACK-1; i > 0; i--){
+    strncpy(serial_p->notify[i+1], serial_p->notify[i], MAX_NOTIFY_SIZE+50);
+  }
+  sprintf(serial_p->notify[0], "%d %d %d %s", (int)time(0), serial_p->notify_nr, prio, w_log);
+  FILE *file; 
+  file = fopen(SERVER_CONFIG_DIR SERVER_NOTIFY_FILE ,"a+");
+  fprintf(file,"%d %d %d %s\n", (int)time(0), serial_p->notify_nr, prio, w_log);
+  fclose(file);
+
+
+}
+
 bool spb_write_log(const char *w_log){
   
   time_t rawtime;
@@ -434,22 +500,38 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
     
     }
 
+    if(strncmp(data, "ping ", 5) == 0){
+      char reply[250], tmp_ping[200];
+      if(len > 205)
+	strncpy(tmp_ping, data+5, 199);
+      else
+	strncpy(tmp_ping, data+5, len-4);
 
-   // Event executions, output things on the bus based on the conf files, like "execute event 123"
-    if(strncmp(data, "evelist", 7) == 0){
-      //      printf("Received send with %d chars: \n", len-5);  
-      int devid, event;
-      sscanf(data, "evexec %d %d ", &devid, &event);
+      sprintf(reply, "ping %s", tmp_ping);
+      serial_p->server->send_data(listnum, reply, 
+				  strlen(reply));
+    }
 
-
-      if(!backend_exec(serial_p->backe, event, devid, 0)){
-	serial_p->server->send_data(listnum, "info Error when runing event, devid in devlist?\n", 
-				    strlen("info Error when runing event, devid in devlist?\n"));
-      }else{
-	serial_p->server->send_data(listnum, "good\n", 
-				    strlen("good\n"));
+    if(strncmp(data, "notifyc", 7) == 0){
+      char reply[50];
+      sprintf(reply, "notifyc %d\n", serial_p->notify_nr);
+      serial_p->server->send_data(listnum, reply, 
+				  strlen(reply));
+    }
+    if(strncmp(data, "get-notify", 10) == 0){
+      char reply[MAX_NOTIFY_SIZE+51];
+      int dst;
+      if(serial_p->notify_nr < MAX_NOTIFY_STACK)
+	dst = serial_p->notify_nr + 1;
+      else
+	dst = MAX_NOTIFY_STACK;
+      printf("%d\n", dst);
+      for(int i=0; i < dst; i++){
+	printf("notifya %s\n", serial_p->notify[i]);
+	sprintf(reply, "notifya %s\n", serial_p->notify[i]);
+	serial_p->server->send_data(listnum, reply, 
+				    strlen(reply));
       }
-    
     }
 
     // To make the cewd abit more easy read, i just make an is admin if statment here, so, the 
@@ -1032,7 +1114,12 @@ int main(int argc, char *argv[])
 
     wtime();
     printf("Starting SPB server with %d users\n", userc);
-    
+    spb_inalize_notify(&serial_p);    
+    wtime();
+    printf("Notify loaded");
+
+
+    spb_write_notify(&serial_p, "Server Started!", 3);    
     //device_add(&serial_p,0,0,16432);
     
     run(&serial_p);
