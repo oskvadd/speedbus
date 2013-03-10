@@ -466,16 +466,15 @@ void *client_handler(void *ptr){
 	  char msg[200], time[50];
 	  if(len < 210){
 	  // Take care of the notify message number
-	  sscanf(data, "notifya %d %d %d", &date, &id, &priorty);
-	  sprintf(msg, "notifya %d %d %d", date, id, priorty);
+	  sscanf(data, "notifya %d %d %d ", &date, &id, &priorty);
+	  sprintf(msg, "notifya %d %d %d ", date, id, priorty);
 	  int tmp_len = strlen(msg);
 	  memset(msg, 0, 200);
-	  if(tmp_len < 15);
+	  if(tmp_len < 15)
 	  return 0;
 	  strncpy(msg, data+tmp_len, len - tmp_len);
 	  char * tmp = strchr(msg,'\n');
-	  tmp = '\0';
-	  printf("hej\n");
+	  *tmp = '\0';
 	  struct tm * timeinfo = localtime((const time_t*)&date);
 	  strftime (time,50,"%y-%m-%d %H:%M:%S",timeinfo);
 	  gtk_list_store_append(rdata->rnotify_list_list, &rdata->rnotify_list_iter);

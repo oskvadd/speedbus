@@ -281,13 +281,12 @@ bool spb_inalize_notify(print_seri *serial_p){
     {
       read_counter++;
     }
-  read_counter -= 2;
-  serial_p->notify_nr = read_counter - 1;  
+  serial_p->notify_nr = read_counter;  
   int start;
   if(read_counter > 10)
     start = read_counter - 10;
   else
-    start = read_counter;
+    start = 0;
   fclose (file);
   file = fopen(SERVER_CONFIG_DIR SERVER_NOTIFY_FILE,"r");
   int linec = 0;
@@ -295,17 +294,17 @@ bool spb_inalize_notify(print_seri *serial_p){
   while (fgets(line, sizeof(line), file) != NULL) /* read a line */
     {
       if(linec >= start && line_c < 10){
+	char *line_end = strchr(line, '\n');
+	*line_end = '\0';
 	strncpy(tmp_notify[line_c], line, MAX_NOTIFY_SIZE+50);
       line_c++;
       }
       linec++;
     }
-  printf("Tot: %d\n", line_c);
   fclose (file);
   line_c--;
   int write_c = 0;
   while (write_c <= read_counter && write_c < 10){
-    printf("Show(%d): %s\n",line_c , tmp_notify[write_c]);
     strncpy(serial_p->notify[line_c], tmp_notify[write_c], MAX_NOTIFY_SIZE+50);
     write_c++; line_c--;
   }
@@ -317,7 +316,7 @@ bool spb_inalize_notify(print_seri *serial_p){
 
 bool spb_write_notify(print_seri *serial_p, const char *w_log, int prio){
   serial_p->notify_nr += 1;
-  for(int i = MAX_NOTIFY_STACK-1; i > 0; i--){
+  for(int i = MAX_NOTIFY_STACK-1; i >= 0; i--){
     strncpy(serial_p->notify[i+1], serial_p->notify[i], MAX_NOTIFY_SIZE+50);
   }
   sprintf(serial_p->notify[0], "%d %d %d %s", (int)time(0), serial_p->notify_nr, prio, w_log);
@@ -325,7 +324,14 @@ bool spb_write_notify(print_seri *serial_p, const char *w_log, int prio){
   file = fopen(SERVER_CONFIG_DIR SERVER_NOTIFY_FILE ,"a+");
   fprintf(file,"%d %d %d %s\n", (int)time(0), serial_p->notify_nr, prio, w_log);
   fclose(file);
-
+  
+  char tmp_send[MAX_NOTIFY_SIZE+50];
+  sprintf(tmp_send, "notifya %d %d %d %s\n", (int)time(0), serial_p->notify_nr, prio, w_log); 
+  for(int i=0; i<MAX_LISTEN; i++){
+    if(serial_p->server->session_open[i]){
+      serial_p->server->send_data(i, prepare, counter+5);    
+    }
+  }
 
 }
 
@@ -428,6 +434,8 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
       }
 
       }
+      sprintf(tmp, "notifc %d\n", serial_p->notify_nr);
+      serial_p->server->send_data(listnum, tmp, strlen(tmp));
       serial_p->server->send_data(listnum, "udevlist \n", strlen("udevlist \n"));
 
       serial_p->server->session_open[listnum] = 1;
@@ -525,9 +533,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 	dst = serial_p->notify_nr + 1;
       else
 	dst = MAX_NOTIFY_STACK;
-      printf("%d\n", dst);
       for(int i=0; i < dst; i++){
-	printf("notifya %s\n", serial_p->notify[i]);
 	sprintf(reply, "notifya %s\n", serial_p->notify[i]);
 	serial_p->server->send_data(listnum, reply, 
 				    strlen(reply));
