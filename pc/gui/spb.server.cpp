@@ -329,7 +329,7 @@ bool spb_write_notify(print_seri *serial_p, const char *w_log, int prio){
   sprintf(tmp_send, "notifya %d %d %d %s\n", (int)time(0), serial_p->notify_nr, prio, w_log); 
   for(int i=0; i<MAX_LISTEN; i++){
     if(serial_p->server->session_open[i]){
-      serial_p->server->send_data(i, prepare, counter+5);    
+      serial_p->server->send_data(i, tmp_send, strlen(tmp_send));    
     }
   }
 
@@ -538,6 +538,8 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 	serial_p->server->send_data(listnum, reply, 
 				    strlen(reply));
       }
+	serial_p->server->send_data(listnum, "good\n", 
+				    strlen("good\n"));
     }
 
     // To make the cewd abit more easy read, i just make an is admin if statment here, so, the 
