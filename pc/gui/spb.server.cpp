@@ -530,7 +530,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
       char reply[MAX_NOTIFY_SIZE+51];
       int dst;
       if(serial_p->notify_nr < MAX_NOTIFY_STACK)
-	dst = serial_p->notify_nr + 1;
+	dst = serial_p->notify_nr;
       else
 	dst = MAX_NOTIFY_STACK;
       for(int i=0; i < dst; i++){
