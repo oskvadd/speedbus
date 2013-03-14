@@ -208,7 +208,7 @@ void *print_ser_backend(void *ptr){
 		//
 		// Run actions from the config files
 		//
-		get_vars_load(serial_p,data,counter);
+		// get_vars_load(serial_p,data,counter); Disable this until the bug is fixed
 		//
 
 		// Send it away to the clients
@@ -306,7 +306,6 @@ bool spb_inalize_notify(print_seri *serial_p){
   int write_c = 0;
   while (write_c <= read_counter && write_c < 10 && line_c > -1){
     strncpy(serial_p->notify[line_c], tmp_notify[write_c], MAX_NOTIFY_SIZE+50);
-    printf("%d\n", line_c);
     write_c++; line_c--;
   }
   }else{
