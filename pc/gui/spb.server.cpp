@@ -1095,14 +1095,14 @@ int main(int argc, char *argv[])
     //server.addclient();
     wtime();
     printf("Starting SpeedBus TTY interface Thread\n");
-
+    serial_p.backe = init_backend();
     serial_p.server = &server;
+
     pthread_t printr;
     pthread_create(&printr, NULL, &print_ser_backend, (void *)&serial_p);
     addr1 = addr2 = 20;
 
     spb_write_log("Server started.");
-    serial_p.backe = init_backend();
     if(serial_port.IsOpen()){
       wtime();
       fprintf(stdout, "Scanning for devices");
