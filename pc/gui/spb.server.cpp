@@ -523,7 +523,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 	while(strchr(varr, ',') || strchr(varr, ']')){	 
 	  if(sscanf(varr, "%d=%d,", &varnr, &varval) == 2 || sscanf(varr, "%d=%d]", &varnr, &varval) == 2){
 	    if(varnr > 255 && varnr <= (257 + MAX_VARIABLE) && varval < 256 && varval >= 0)
-	     printf("Setting variable: %d=%d\n", varnr, varval);
+	      //printf("Setting variable: %d=%d\n", varnr, varval);
 	     backend_set_variable(serial_p->backe, devid, varnr, (char)varval);
 	  }
 	  varr = strchr(varr, ',');

@@ -130,6 +130,7 @@ usb_hid =
 	   5 = And
 	   6 = Or
 	*/
+	/*
   operations = (
 
   	      // { event = 0;
@@ -155,3 +156,4 @@ usb_hid =
               second_arg = 0;}
 
 	      );
+*/
