@@ -21,6 +21,7 @@
 #define SERVER_CONFIG_DIR "/etc/spbserver/"
 #define SERVER_CONFIG_URI "/etc/spbserver/server.cfg"
 #define SERVER_NOTIFY_FILE "server.notify"
+#define SERVER_DEVCACHE_FILE "server.devcache"
 
 int socket_user_id[MAX_LISTEN];
 char users[MAX_USERS][2][MAX_LOGIN_TEXT];
@@ -50,6 +51,7 @@ bool del_user(config_t *server_cfg, char *user);
 bool mod_user(config_t *server_cfg, char *user, char *user_n, char *pass_n, bool is_admin_s);
 bool set_tty(print_seri *serial_p, const char *tty);
 bool spb_write_log(const char *w_log);
+bool spb_write_notify(print_seri *serial_p, const char *w_log, int prio);
 //
 
 
@@ -66,9 +68,12 @@ bool file_exists(const char * filename)
 
 static void get_vars_load(void *data, char *p_data, int counter){
   // Because the log event handling, you need to filter out broadcast if you do not want them
+
   print_seri *serial_p = (print_seri*)data;
   for(int i=0; i <serial_p->backe->devids;i++){
+
     if(serial_p->backe->daddr1[i] == p_data[2] && serial_p->backe->daddr2[i] == p_data[3]){ // Device id is found in the MAIN device list
+
       for(int ii=0; ii < MAX_EVENT; ii++){
 	
 	if((serial_p->backe->event_exist[ii]) && strcmp(serial_p->backe->event_exec[i][ii],"getvars") == 0){
@@ -86,7 +91,6 @@ static void get_vars_load(void *data, char *p_data, int counter){
 	    }
 	  }
 	}
-	
 	if((serial_p->backe->event_exist[ii]) && strcmp(serial_p->backe->event_exec[i][ii],"log") == 0){
 	  int count = (unsigned char)serial_p->backe->event_data[i][ii][0];
 	  for(int iii=0; iii <count; iii++){
@@ -94,12 +98,12 @@ static void get_vars_load(void *data, char *p_data, int counter){
 	      if((iii+1) == count){
 		char e_arg[MAX_LOG_SIZE];
 		memcpy(e_arg, serial_p->backe->event_data1[i][ii]+1, MAX_LOG_SIZE);
-
 		char print[MAX_LOG_SIZE];
 		sprintf(print,e_arg,backend_get_variable(serial_p->backe, i, serial_p->backe->event_data2[i][ii][1]),
 			backend_get_variable(serial_p->backe, i, serial_p->backe->event_data2[i][ii][2]),
 			backend_get_variable(serial_p->backe, i, serial_p->backe->event_data2[i][ii][3]));
 		spb_write_log(print);
+		spb_write_notify(serial_p, print, 3);
 	      }
 	    }
 	    
@@ -108,6 +112,35 @@ static void get_vars_load(void *data, char *p_data, int counter){
       }
     }
   }
+}
+
+void device_file_update(print_seri *serial_p){
+  FILE *file; 
+  file = fopen(SERVER_CONFIG_DIR SERVER_DEVCACHE_FILE,"w+");
+  for(int i=0; i<serial_p->device_num; i++){
+    fprintf(file,"%d %s\n", serial_p->device_id[i], serial_p->device_addr[i]);
+  }
+  fclose(file);
+}
+
+void device_file_init(print_seri *serial_p){
+  FILE *file = fopen (SERVER_CONFIG_DIR SERVER_DEVCACHE_FILE, "r" );
+  if (file != NULL)
+    {
+      char line [128]; /* or other suitable maximum line size */
+      while (fgets(line, sizeof line, file) != NULL) /* read a line */
+	{
+	  char addr[128]; int addr1, addr2, devid;
+	  if(sscanf(line, "%d %s\n", &devid, addr) == 2){
+	    sscanf(addr, "%d.%d", &addr1, &addr2);
+	    device_add((void*)NULL, addr1, addr2, devid);
+	    serial_p->device_id[serial_p->device_num] = devid;
+	    strcpy(serial_p->device_addr[serial_p->device_num],addr);
+	    serial_p->device_num++;
+	  }
+	}
+      fclose (file);
+    }
 }
 
 void device_add(print_seri *serial_p,char addr1, char addr2,int devid){
@@ -129,6 +162,7 @@ void device_add(print_seri *serial_p,char addr1, char addr2,int devid){
   strcpy(serial_p->device_addr[serial_p->device_num],name);
   serial_p->device_num++;
  device_add_end:
+  device_file_update(serial_p);
   return;
 }
 
@@ -208,7 +242,7 @@ void *print_ser_backend(void *ptr){
 		//
 		// Run actions from the config files
 		//
-		// get_vars_load(serial_p,data,counter); Disable this until the bug is fixed
+		get_vars_load(serial_p,data,counter);
 		//
 
 		// Send it away to the clients
@@ -316,7 +350,7 @@ bool spb_inalize_notify(print_seri *serial_p){
 
 bool spb_write_notify(print_seri *serial_p, const char *w_log, int prio){
   serial_p->notify_nr += 1;
-  for(int i = MAX_NOTIFY_STACK-1; i >= 0; i--){
+  for(int i = MAX_NOTIFY_STACK-2; i >= 0; i--){
     strncpy(serial_p->notify[i+1], serial_p->notify[i], MAX_NOTIFY_SIZE+50);
   }
   sprintf(serial_p->notify[0], "%d %d %d %s", (int)time(0), serial_p->notify_nr, prio, w_log);
@@ -391,6 +425,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 	sprintf(tmp, BACKEND_DIR "devs/%d.spb", serial_p->device_id[i]);
 	if(config_read_file(&cfg, tmp))
 	  {
+	    //printf(BACKEND_DIR "devs/%d.spb\n", serial_p->device_id[i]);
 	    config_lookup_string(&cfg, "name", &title);
 	    strncpy(titlex,title,50);
 	    sprintf(tmp, "devlistadd %s %d %s\n", serial_p->device_addr[i], serial_p->device_id[i], titlex);
@@ -421,6 +456,7 @@ bool spb_exec(print_seri *serial_p, int listnum, char *data, int len){
 			strcpy(tmpstr, descr);
 
 		      sprintf(tmpeve, "eveadd %d %d %s\n", serial_p->device_id[i], evenr, tmpstr);
+		      //printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, tmpstr);
 		      //printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, descr);
 		      serial_p->server->send_data(listnum, tmpeve, strlen(tmpeve));
 		    }else{
@@ -1103,7 +1139,15 @@ int main(int argc, char *argv[])
     addr1 = addr2 = 20;
 
     spb_write_log("Server started.");
+    device_file_init(&serial_p);
+    if(serial_p.device_num > 0){
+      wtime();
+      printf("Loaded %d cached units\n", serial_p.device_num);
+      backend_load_events(serial_p.backe);
+    }
+
     if(serial_port.IsOpen()){
+      if(serial_p.device_num < 1){
       wtime();
       fprintf(stdout, "Scanning for devices");
       int len = 8;
@@ -1118,13 +1162,14 @@ int main(int argc, char *argv[])
       printf("\n");
       wtime();
       printf("Scaning done, found %d units\n", serial_p.device_num);
-	}
+      }
+    }
 
     wtime();
     printf("Starting SPB server with %d users\n", userc);
     spb_inalize_notify(&serial_p);    
     wtime();
-    printf("Notify loaded");
+    printf("Notify loaded\n");
 
 
     spb_write_notify(&serial_p, "Server Started!", 3);    
