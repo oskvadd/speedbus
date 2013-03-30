@@ -789,8 +789,8 @@ void runselect(print_seri *serial_p){
 	  if(serial_p->server->session_open[listnum]){
 	    wtime();
 	    printf("Connection from IP: (%s) by User: (%s) died\n", serial_p->server->client_ip[listnum], users[socket_user_id[listnum]][1]);
-	    serial_p->server->sslfree(listnum);
 	  }
+	  serial_p->server->sslfree(listnum);
 	}
       }
     }
