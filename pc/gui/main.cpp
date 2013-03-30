@@ -2,6 +2,8 @@
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
+#include <execinfo.h>
+#include <signal.h>
 
 // Speedbus
 #include <SerialStream.h>
@@ -25,6 +27,7 @@
 #define __SPEEDBLIB_H_INCLUDED__
 #include "../protocoll/speedblib.cpp"
 #endif
+#include "http_post.cpp"
 
 #include "ssl.socket.h"
 
@@ -90,6 +93,8 @@ typedef struct _rspeed_gui_rep {
   GtkWidget *box3;
   gboolean   box3_set;
   GtkWidget *box4;
+  GtkWidget *box5;
+
   // Things related to box3
   GtkWidget *label1;
   //
@@ -148,8 +153,10 @@ typedef struct _rspeed_gui_rep {
   GtkWidget *rdev_stamp_label;
   //
 
-  GtkWidget *is_admin_button;
-  GtkWidget *dev_edit_button;
+  GtkWidget *rdev_is_admin_button;
+  GtkWidget *rdev_show_notify;
+
+  GtkWidget *rdev_dev_edit_button;
 
   sslclient sslc;
   gboolean is_admin;
@@ -259,6 +266,17 @@ typedef struct _rspeed_gui_rep {
   GtkWidget *rdevee_elem_input[MAX_WIDGETS];
   GtkWidget *rdevee_elem_label[MAX_WIDGETS];
   ///
+  /// rnotify_show
+  GtkWidget *rnotify_gui;
+  GtkWidget *rnotify_box1;
+  GtkWidget *rnotify_list;
+  GtkTreeModel  *rnotify_list_tree;
+  GtkListStore  *rnotify_list_list;
+  GtkTreeIter    rnotify_list_iter;
+  GtkWidget *rnotify_label;
+  GtkWidget *rnotify_update_notify;
+  
+  
   //
   
 
@@ -387,7 +405,6 @@ void *client_handler(void *ptr){
 	char username[MAX_LOGIN_TEXT+9];
 	int is_admin;
 	sscanf(data, "userlist %s %d\n",username,&is_admin);
-
 	gtk_list_store_append(rdata->rserv_store_user, &rdata->rserv_iter);
 	gtk_list_store_set (rdata->rserv_store_user, &rdata->rserv_iter,
 			    COL_NAME, username,
@@ -435,17 +452,47 @@ void *client_handler(void *ptr){
 	  speedbus_fill_devlist(rdata);
 	}
 	if(strncmp(data, "devec ", 6) == 0){
-	  //gtk_text_buffer_set_text(rdata->rdeve_text_buffer, "\0\0", -1);
+	  gtk_text_buffer_set_text(rdata->rdeve_text_buffer, "\0\0", -1);
 	}
        	if(strncmp(data, "devei ", 6) == 0){
 	  gtk_text_buffer_get_end_iter(rdata->rdeve_text_buffer,&rdata->rdeve_text_iter);
 	  gtk_text_buffer_insert(rdata->rdeve_text_buffer, &rdata->rdeve_text_iter, data+6, strlen(data)-6);
-	  
 	}
 	if(strncmp(data, "deveinfo ", 9) == 0){
 	gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, data+9);
 	}
-	
+	if(strncmp(data, "notifyc ", 8) == 0){
+	  int notifc;
+	  // Take care of the notify message number
+	  sscanf(data, "notifyc %d\n",&notifc);
+	  
+	}
+	if(strncmp(data, "notifya ", 8) == 0){
+	  int date, id, priorty;
+	  char msg[200], time[50];
+	  if(len < 210 && sscanf(data, "notifya %d %d %d", &date, &id, &priorty) == 3){
+	    // Take care of the notify message number
+	    sprintf(msg, "notifya %d %d %d", date, id, priorty);
+	    int tmp_len = strlen(msg);
+	    memset(msg, 0, 200);
+	    if(tmp_len < 15)
+	      return 0;
+	    strncpy(msg, data+tmp_len, len - tmp_len);
+	    char * tmp = strchr(msg,'\n');
+	    *tmp = '\0';
+	    struct tm * timeinfo = localtime((const time_t*)&date);
+	    strftime (time,50,"%y-%m-%d %H:%M:%S",timeinfo);
+	    gtk_list_store_append(rdata->rnotify_list_list, &rdata->rnotify_list_iter);
+	    gtk_list_store_set (rdata->rnotify_list_list, &rdata->rnotify_list_iter,
+				COL_NAME, time,
+				COL_AGE, id,
+				2, priorty,
+				3, msg,
+				-1);
+	    rdata->rnotify_list_tree = GTK_TREE_MODEL(rdata->rnotify_list_list);
+	    gtk_tree_view_set_model(GTK_TREE_VIEW (rdata->rnotify_list), rdata->rnotify_list_tree);  
+	  }
+	}	
 	
     }else if(len == 0){
       printf("Connection seems to have died %d :/\n", len);
@@ -1151,7 +1198,20 @@ void rserver_settings_tty_close(GtkWidget *some,gpointer data){
   }
 }
 
-void rserver_settings_update(GtkWidget *some,gpointer data){
+void rserver_settings_update_tty(GtkWidget *some,gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *)data;
+  rdata->rserv_your_clear_counter = 0;
+  if(!((ProgressData *)rdata->share)->connected){
+    gtk_label_set_text(GTK_LABEL(rdata->rserv_status_label), "ERROR: Not connected");
+    return;
+  }else{
+    rdata->rserv_store_tty = gtk_list_store_new (1, G_TYPE_STRING);  
+    rdata->sslc.send_data("get-tty",7);
+    return;
+  }
+}
+
+void rserver_settings_update_users(GtkWidget *some,gpointer data){
   rspeed_gui_rep *rdata = (rspeed_gui_rep *)data;
   rdata->rserv_your_clear_counter = 0;
   if(!((ProgressData *)rdata->share)->connected){
@@ -1159,7 +1219,8 @@ void rserver_settings_update(GtkWidget *some,gpointer data){
     return;
   }else{
     rdata->rserv_store_user = gtk_list_store_new (NUM_COLS, G_TYPE_STRING, G_TYPE_UINT);  
-    rdata->sslc.send_data("userlist",8);  
+    rdata->sslc.send_data("userlist",8);
+    return;
   }
 }
 
@@ -1948,7 +2009,7 @@ void rserver_settings(GtkWidget *some,gpointer data){
   //
   rdata->rserv_users_update = gtk_button_new_with_label("Update users");
   g_signal_connect (rdata->rserv_users_update, "clicked",
-		    G_CALLBACK (rserver_settings_update), rdata); 
+		    G_CALLBACK (rserver_settings_update_users), rdata); 
   //
   GtkCellRenderer     *renderer;
   rdata->rserv_users_box = gtk_tree_view_new ();
@@ -1984,7 +2045,7 @@ void rserver_settings(GtkWidget *some,gpointer data){
   gtk_box_pack_start (GTK_BOX (rdata->rserv_box2), rdata->rserv_box_button, FALSE, FALSE, 0);
   //
   rdata->rserv_entry_moduser_user = gtk_entry_new();
-  rdata->rserv_label_moduser_user = gtk_label_new("moduser user:\t\t");
+  rdata->rserv_label_moduser_user = gtk_label_new("moduser user:\t");
   gtk_box_pack_start (GTK_BOX (rdata->rserv_box_moduser_user), rdata->rserv_label_moduser_user, FALSE, FALSE, 0);
   gtk_box_pack_start (GTK_BOX (rdata->rserv_box_moduser_user), rdata->rserv_entry_moduser_user, FALSE, FALSE, 0);
   //
@@ -2043,7 +2104,7 @@ void rserver_settings(GtkWidget *some,gpointer data){
 
   rdata->rserv_tty_update = gtk_button_new_with_label("Update ttys");
   g_signal_connect (rdata->rserv_users_update, "clicked",
-		    G_CALLBACK (rserver_settings_update), rdata); 
+		    G_CALLBACK (rserver_settings_update_tty), rdata); 
   //
   GtkCellRenderer     *renderer_tty;
   rdata->rserv_tty_box = gtk_tree_view_new ();
@@ -2177,6 +2238,45 @@ void rspeed_set_debug(GtkWidget *some,gpointer data){
   }
 }
 
+void rnotify_show(GtkWidget *some,gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *)data;
+  
+  rdata->rnotify_gui = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_position(GTK_WINDOW(rdata->rnotify_gui),GTK_WIN_POS_CENTER);
+  gtk_window_set_resizable (GTK_WINDOW(rdata->rnotify_gui), FALSE);
+  gtk_window_set_title(GTK_WINDOW(rdata->rnotify_gui), "Notification list");
+  g_signal_connect (rdata->rnotify_gui, "delete-event",
+		    G_CALLBACK (delete_event), &rdata->open);
+  g_signal_connect (rdata->rnotify_gui, "destroy",
+		    G_CALLBACK (destroy), &rdata->open);
+  GtkCellRenderer     *renderer;
+  rdata->rnotify_list = gtk_tree_view_new ();
+  rdata->rnotify_list_list = gtk_list_store_new (4, G_TYPE_STRING, G_TYPE_UINT,  G_TYPE_UINT, G_TYPE_STRING);
+  renderer = gtk_cell_renderer_text_new ();
+  gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (rdata->rnotify_list),-1,"Date",renderer,"text",COL_NAME,NULL);
+  renderer = gtk_cell_renderer_text_new ();
+  gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (rdata->rnotify_list),-1,"Id",renderer,"text",COL_AGE,NULL);
+  renderer = gtk_cell_renderer_text_new ();
+  gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (rdata->rnotify_list),-1,"Prio",renderer,"text",2,NULL);
+  renderer = gtk_cell_renderer_text_new ();
+  gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (rdata->rnotify_list),-1,"Message",renderer,"text",3,NULL);
+
+  rdata->rnotify_label = gtk_label_new("");
+  rdata->rnotify_box1 = gtk_vbox_new (FALSE, 10);
+  gtk_container_add (GTK_CONTAINER (rdata->rnotify_gui), rdata->rnotify_box1);
+  gtk_box_pack_start (GTK_BOX (rdata->rnotify_box1), rdata->rnotify_list, FALSE, FALSE, 0);
+  gtk_box_pack_start (GTK_BOX (rdata->rnotify_box1), rdata->rnotify_label, FALSE, FALSE, 0);
+
+  gtk_widget_show_all(rdata->rnotify_gui);
+
+  if(!((ProgressData *)rdata->share)->connected){
+    gtk_label_set_text(GTK_LABEL(rdata->rnotify_label), "ERROR: Not connected");
+    return;
+  }else{
+  rdata->sslc.send_data("get-notify",strlen("get-notify"));
+  gtk_label_set_text(GTK_LABEL(rdata->rnotify_label), "");
+  }
+}
 
 
 // Real SpeedBusGUI
@@ -2223,15 +2323,18 @@ void rspeed_gui(gpointer *data){
   rdata->box2 = gtk_hbox_new (FALSE, 10);
   rdata->box3 = gtk_vbox_new (FALSE, 10); // Just allocate this temporaryly, because the folowing destroy, wants somthing to destroy... just to make things work
   rdata->box4 = gtk_hbox_new (FALSE, 10);
+  rdata->box5 = gtk_hbox_new (FALSE, 10);
+
   rdata->separator1 = gtk_hseparator_new();
   rdata->pbar = gtk_progress_bar_new();
   rdata->scan_list = new_scan_list ();
   rdata->debug_button = gtk_button_new_with_label("Debug");
   rdata->devbutton = gtk_button_new_with_label("Open Device");
   if(rdata->is_admin && rdata->remote)
-    rdata->dev_edit_button = gtk_button_new_with_label("Dev editor");
+    rdata->rdev_dev_edit_button = gtk_button_new_with_label("Dev editor");
   if(rdata->is_admin && rdata->remote)
-    rdata->is_admin_button = gtk_button_new_with_label("Server settings");
+    rdata->rdev_is_admin_button = gtk_button_new_with_label("Settings");
+  rdata->rdev_show_notify = gtk_button_new_with_label("Notifications");
   gtk_container_add (GTK_CONTAINER (rdata->window), rdata->box2);
   gtk_box_pack_start (GTK_BOX (rdata->box2), rdata->box1, FALSE, FALSE, 0);
   gtk_box_pack_start (GTK_BOX (rdata->box2), rdata->separator1, FALSE, TRUE, 5);
@@ -2241,26 +2344,31 @@ void rspeed_gui(gpointer *data){
   gtk_box_pack_start (GTK_BOX (rdata->box4), rdata->debug_button, FALSE, FALSE, 0);  
   gtk_box_pack_start (GTK_BOX (rdata->box4), rdata->devbutton, TRUE, TRUE, 0);
   if(rdata->is_admin && rdata->remote)
-  gtk_box_pack_start (GTK_BOX (rdata->box4), rdata->dev_edit_button, TRUE, TRUE, 0);
+  gtk_box_pack_start (GTK_BOX (rdata->box4), rdata->rdev_dev_edit_button, TRUE, TRUE, 0);
   gtk_box_pack_start (GTK_BOX (rdata->box1), rdata->box4, FALSE, FALSE, 0);
   if(rdata->is_admin && rdata->remote)
-  gtk_box_pack_start (GTK_BOX (rdata->box1), rdata->is_admin_button, FALSE, FALSE, 0);
+  gtk_box_pack_start (GTK_BOX (rdata->box5), rdata->rdev_is_admin_button, FALSE, FALSE, 0);
+  gtk_box_pack_start (GTK_BOX (rdata->box5), rdata->rdev_show_notify, FALSE, FALSE, 0);
+  gtk_box_pack_start (GTK_BOX (rdata->box1), rdata->box5, FALSE, FALSE, 0);
   gtk_box_pack_start (GTK_BOX (rdata->box1), rdata->label, FALSE, FALSE, 0);  
   // Signals
   g_signal_connect(rdata->scan_list, "row-activated", G_CALLBACK (view_onRowActivated), rdata);
   g_signal_connect (rdata->debug_button, "clicked",      G_CALLBACK (rspeed_set_debug), rdata); 
   g_signal_connect (rdata->devbutton, "clicked",      G_CALLBACK (rdev_gui), rdata); 
   if(rdata->is_admin && rdata->remote)
-  g_signal_connect (rdata->dev_edit_button, "clicked",      G_CALLBACK (rdev_editor), rdata); 
+  g_signal_connect (rdata->rdev_dev_edit_button, "clicked",      G_CALLBACK (rdev_editor), rdata); 
   if(rdata->is_admin && rdata->remote)
-  g_signal_connect (rdata->is_admin_button, "clicked",      G_CALLBACK (rserver_settings), rdata);
+  g_signal_connect (rdata->rdev_is_admin_button, "clicked",      G_CALLBACK (rserver_settings), rdata);
+  g_signal_connect (rdata->rdev_show_notify, "clicked",      G_CALLBACK (rnotify_show), rdata);
   //
+  gtk_widget_show (rdata->box5);
   gtk_widget_show (rdata->box4);
   gtk_widget_show (rdata->debug_button);
   if(rdata->is_admin && rdata->remote)
-  gtk_widget_show (rdata->dev_edit_button);
+  gtk_widget_show (rdata->rdev_dev_edit_button);
   if(rdata->is_admin && rdata->remote)
-  gtk_widget_show (rdata->is_admin_button);  
+  gtk_widget_show (rdata->rdev_is_admin_button);  
+  gtk_widget_show (rdata->rdev_show_notify);
   gtk_widget_show (rdata->box2);
   gtk_widget_show (rdata->box1);
   gtk_widget_show (rdata->label);
@@ -2542,6 +2650,27 @@ static bool connect_to_server(GtkWidget *button, gpointer data){
   
 }
 
+void sig_handler(int sig)
+{
+  const int maxbtsize = 50;
+  int btsize;
+  void* bt[maxbtsize];
+  char** strs = 0;
+  int i = 0;
+  btsize = backtrace(bt, maxbtsize);
+  strs = backtrace_symbols(bt, btsize);
+  char send_stack[4096];
+  sprintf(send_stack, "dbg=");
+  for (i = 0; i < btsize; i += 1) {
+    sprintf(send_stack, "%s%d.) %s\n", send_stack, i, strs[i]);
+  }
+  sprintf(send_stack, "%s&platform=pc-gui", send_stack);
+  std::string message;
+  request("speedbus.org", "/debug.php", send_stack, message);
+  free(strs);
+  signal(sig, &sig_handler);
+}
+
 
 int main( int   argc,
           char *argv[] )
@@ -2554,6 +2683,10 @@ int main( int   argc,
   GtkWidget *box3;
   GtkWidget *box4;
   pdata = (ProgressData*)g_malloc (sizeof (ProgressData));
+
+  //
+  signal(SIGSEGV, &sig_handler);
+  //
 
   char tmp[50];
   int auto_open = 0;
@@ -2802,7 +2935,7 @@ int main( int   argc,
   /* All GTK applications must have a gtk_main(). Control ends here
    * and waits for an event to occur (like a key press or
    * mouse event). */
-  gtk_main ();
+  gtk_main();
     
   return 0;
 }

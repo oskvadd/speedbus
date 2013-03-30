@@ -83,33 +83,34 @@ spb =
 
   events = ( { event = 1;  // To read this text more clear, use a binary->dec decorder :)
                type = "send"; // Anyway, this first command is simply Nexa LYC On Off Dim.
-               data = (0x0A,44,1);}, 
+               data = (0x0A,44,1);
+	       descr = "Tak Lampa PÅ";}, 
              { event = 2;
-               type = "send";
+               type = "send"; descr = "Tak Lampa AV";
                data = (0x0A,42,1);},
              { event = 3;
-               type = "send";
+               type = "send"; descr = "Tak Lampa Dim {('Dim')257=15}";
                data = (0x0A,40,1,257);},
 	     { event = 4;
-               type = "send";
+               type = "send"; descr = "Vägg Lampa PÅ";
                data = (0x0A,44,2);},
              { event = 5;
-               type = "send";
+               type = "send"; descr = "Vägg Lampa AV";
                data = (0x0A,42,2);},
              { event = 6;
-               type = "send"; 
+               type = "send"; descr = "Vägg Lampa Dim {('Dim')258=15}";
                data = (0x0A,40,2,258);},
 	     { event = 7; // This is to controll waveman units, simply the first one at adress 0 ON
-               type = "send";
+               type = "send"; descr = "TV PÅ";
                data = (0x0A,30,0,0);},
              { event = 8; // Waveman OFF
-               type = "send";
+               type = "send"; descr = "TV AV";
                data = (0x0A,26,0,0);},
              { event = 9;
-               type = "send";
+               type = "send"; descr = "TV Huvudström PÅ";
                data = (0x0A,30,8,0);},
              { event = 10;
-               type = "send";
+               type = "send"; descr = "TV Huvudström AV";
                data = (0x0A,26,8,0);},
              { event = 11;
                type = "send";
@@ -117,10 +118,10 @@ spb =
              { event = 12;
                type = "send";
                data = (0x0A,40,2,257);},
-             { event = 13;
+             { event = 13; descr = "Ljus slinga PÅ";
                type = "send";
                data = (0x0A,12,128);},
-             { event = 14;
+             { event = 14; descr = "Ljus slinga AV";
                type = "send";
                data = (0x0A,10,128);}
 

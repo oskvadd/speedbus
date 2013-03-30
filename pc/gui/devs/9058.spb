@@ -43,10 +43,10 @@ spb =
 		
 
   events = ( { event = 1;
-               type = "send";
+               type = "send"; descr = "Lampa På";
                data = (0x0A,0x01);},
              { event = 2;
-               type = "send";
+               type = "send"; descr = "Lampa Av";
                data = (0x0A,0x00);},
              { event = 3;
                type = "send";

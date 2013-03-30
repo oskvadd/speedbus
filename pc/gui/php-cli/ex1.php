@@ -14,7 +14,7 @@ function strtohex($string)
 
 class spb
 {
-  private $fp;
+  public $fp;
   private $is_root;
   private $devlist;
   private $status;
@@ -110,16 +110,33 @@ class spb
     }
   }
 }
-$spb = new spb("192.168.2.2", "root", "toor");
+$spb = new spb("127.0.0.1", "root", "toor");
 if(!$spb->spb_errc()){
   die($spb->spb_errcm() . "\n");
 }
 
-
-if($spb->spb_event_exec($argv[1], $argv[2], $argv[3])){
+switch($argv[1]){
+case "evexec":
+if($spb->spb_event_exec($argv[2], $argv[3], $argv[4])){
 print("Succefully executed the event!\n");
 }else{
 print("Error executing the event, check event and devid nr!\n");
+}
+break;
+case "ping": 
+while(1){
+$out = "ping " . microtime(true) . "\n";
+fwrite($spb->fp, $out);
+$recv = "                                                                                                                                                    ";
+while($recv = fread($spb->fp, 128)){
+if(strpos($recv,"ping") > -1){
+break;}
+}
+$val = substr($recv,5,strpos($recv, "\n")-1);
+print("Pinged in " . round(1000*(microtime(true) - (float)$val)) . "ms\n");
+sleep(1);
+}
+break;
 }
 //print_r($devlist);
 ?>

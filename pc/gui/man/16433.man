@@ -1,0 +1,163 @@
++----------------------------------------------------------+
+|        Remote On Off controller (Nexa, Waveman)          |
++----------------------------------------------------------+
+| Date: 130209 13:12 | Email: opencline@hotmail.se |______/
++--------------------------------------------------+
+
++----------------------------------------------------------+
+|			   Summary			   |
++----------------------------------------------------------+
+
+A bus nod for my growing house. The lights is controlled by
+the 433mhz transmitter nod. But i need to make sure to get 
+an aknowledge on the signal, so i setup a check, so there 
+is power to the lights. And so that the fan:s i running.
+Ofc, i know no that the to check that the fan:s is running,
+just check the signal from the fan. And also an output to
+control the water.
+
+So, two temps, one inside the grow house, on at the heat 
+sink. One input to check the power to the lamps, and two to 
+check that the fans is running smothly. And one output to 
+controll the water.
+
+Thats makes 5 IO:s. Plus the bus, wich is 3 pins, thats make 
+8, wich is more than the 12f1840 can take, so that leaves 
+16f690. 
+
+Input: 
+	One to check the 12V.
+	One for lamps.
+	One IO for fan 1.
+	One IO for fan 2.
+	One temp on the heat sink.
+	One temp in the grow house.
+	
+Output: 
+	One to control the fans.
+	One for the water.
+	One spare, for eve extra fan
+
++----------------------------------------------------------+
+|			Tech data			   |
++----------------------------------------------------------+
+___________________________________________________________
+[  Component  |  Art.nr |  pc   |           NOTE           ]
+| Main Device | 16432   | 1 pc  | You may increase range by|
+|_______________________________| putting 12V to the tx    |
+| 433mhz tx unit | cdt-88 | 1pc | unit.                    |
+|__________________________________________________________|
+
++----------------------------------------------------------+
+|			Protocoll			   |
++----------------------------------------------------------+
+
+So, well, need to write some documentation to make some 
+things clear.
+
+
+Yeah, hare we go again, said somone? anyway:
+
+Function:
+0x0A <- This is a command special to this unit(read general 
+notations). Anyways, 
+When you send an data:
+
+NOTE: this is only the data "layer"
+NOTE: i do NOT use capital "b" here, so the data shown, is
+in bit
+b0			     	    	 	       b3
++-------------------------------------------------------+
+|  Signal(Old nexa, Waveman, NEXA LYC) (16st availible) |
++-------------------------------------------------------+
+
+b4	       b5	b7	    b8
++--------------+--------+-----------+
+| Group Action | Method | Lern mode |
++--------------+--------+-----------+
+
+
+Nexa LYC:---------------------------------->
+b8	     b10	 b12	     b16    \
++------------+-----------+-----------+      |
+| Channel ID | Button ID | Dim Value |      |
++------------+-----------+-----------+    _/
+                                <--------+
+
+Nexa Old, Waveman:-------->
+b8         b12       b16   \
++----------+---------+      |
+| House ID | Unit ID |	    | <- READ DOCUMENTATION
++----------+---------+    _/
+		<--------+
+
+
+Sooo, here we are:
+Type of signal(b0-3):
+This is the typ of signal to transmit, currently, 
+there are three availible:
+0000 - This is Nexa OLD
+0001 - This is Waveman
+0010 - This is the Nexa LYC
+
+Group Action(b4-5):
+Just set this to "1". Never mind, dont know much about 
+this.
+
+Method(b5-7):
+This is the method to use.
+NOTE: Ofc, when you use a protocoll that "dont know" dim, 
+you cant use it like in the old nexa, och waveman.
+10(2) - ON
+01(1) - OFF
+00(0) - Dim	<- Currently only avalible in Nexa LYC
+
+Lern mode(b7-8):
+This is a bit you can set when you lern the 
+selflerning(Nexa LYC) devices. Now, when i think about it,
+i also made it availible in OLD Waveman, Nexa
+protocolls, anyway:
+1 - This makes the remothe send the package 80times
+0 - This makes it use the default set. currently 8times
+
+---> NEXA LCY
+
+Channel ID(b12-14):
+This is the channel ID to use, 4 diffrent.
+
+Button ID(b14-16):
+This is the button ID to use, 4 diffrent per channel ID
+
+Dim Value(b20-24):
+When you use absolute dim. Here is where to put the 
+0-15 value. To use. 
+The dim level to set
+
+<---
+/\/\/\|
+---> Old Waveman/Nexa
+
+House ID(b8-12):
+This is the 4bit house ID:
+NOTE: the binary:s are swaped. Showing some examples.
+0000 - A
+X000 - B
+0X00 - C
+XX00 - D
+and so on...
+
+Unit ID(b12-16):
+This is the 4bit unit number
+NOTE: Swap:ed the same way as the example abowe
+0000 - 1
+X000 - 2
+0X00 - 3
+XX00 - 4
+and so on...
+
+<---
+
+// 120905 - Speedster. Well, no problems really, to
+	rewrite the unit cewd, so you split the data
+	sent on a cuple of more bytes, but, no probs 
+	right now. :)
