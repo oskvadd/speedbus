@@ -5,14 +5,14 @@ build:
 build/main.cfg: main.cfg
 	cp main.cfg build/main.cfg
 
-build/spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp build/usb.hid.o
-	g++ -ggdb -I "/usr/local/ssl/include/" -o build/spbserver spb.server.cpp build/ssl.socket.o build/usb.hid.o /usr/local/lib/libserial.a `pkg-config --cflags --libs libconfig libusb-1.0 libssl libcrypto` -lpthread
+build/spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp http_post.cpp build/usb.hid.o
+	g++ -rdynamic -ggdb -I "/usr/local/ssl/include/" -o build/spbserver spb.server.cpp build/ssl.socket.o build/usb.hid.o /usr/local/lib/libserial.a `pkg-config --cflags --libs libconfig libusb-1.0 libssl libcrypto` -lpthread
 build/ssl.socket.o: ssl.socket.cpp
 	g++ -ggdb -I "/usr/local/ssl/include/" -c -o build/ssl.socket.o ssl.socket.cpp
 build/usb.hid.o: usb.hid.cpp
 	gcc -ggdb -c -o build/usb.hid.o usb.hid.cpp 
-build/main: main.cpp build/usb.hid.o build/ssl.socket.o spb.backend.cpp
-	gcc -ggdb main.cpp -o build/main build/ssl.socket.o build/usb.hid.o `pkg-config --cflags --libs gtk+-2.0 libconfig libserial libusb-1.0` -lssl -lcrypto
+build/main: main.cpp http_post.cpp build/usb.hid.o build/ssl.socket.o spb.backend.cpp
+	gcc -rdynamic -ggdb main.cpp -o build/main build/ssl.socket.o build/usb.hid.o `pkg-config --cflags --libs gtk+-2.0 libconfig libserial libusb-1.0` -lssl -lcrypto
 
 install: build/spbserver
 	cp build/spbserver /usr/bin/

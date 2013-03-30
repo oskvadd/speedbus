@@ -2,6 +2,8 @@
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
+#include <execinfo.h>
+#include <signal.h>
 
 // Speedbus
 #include <SerialStream.h>
@@ -25,6 +27,7 @@
 #define __SPEEDBLIB_H_INCLUDED__
 #include "../protocoll/speedblib.cpp"
 #endif
+#include "http_post.cpp"
 
 #include "ssl.socket.h"
 
@@ -2455,6 +2458,7 @@ bool show_yes_no(const char *msg, const gchar *title,gpointer data, GtkMessageTy
 
 static bool connect_to_server(GtkWidget *button, gpointer data){
   ProgressData *pdata = (ProgressData *)data;
+
   if(pdata->connected){
     if(pdata->share != NULL)
       pthread_cancel(((rspeed_gui_rep *)pdata->share)->printr);
@@ -2545,6 +2549,28 @@ static bool connect_to_server(GtkWidget *button, gpointer data){
   
 }
 
+void sig_handler(int sig)
+{
+  const int maxbtsize = 50;
+  int btsize;
+  void* bt[maxbtsize];
+  char** strs = 0;
+  int i = 0;
+  btsize = backtrace(bt, maxbtsize);
+  strs = backtrace_symbols(bt, btsize);
+  char send_stack[4096];
+  sprintf(send_stack, "dbg=");
+  for (i = 0; i < btsize; i += 1) {
+    sprintf(send_stack, "%s%d.) %s\n", send_stack, i, strs[i]);
+  }
+  sprintf(send_stack, "%s&platform=pc-gui", send_stack);
+  std::string message;
+  request("speedbus.org", "/debug.php", send_stack, message);
+  free(strs);
+  signal(sig, &sig_handler);
+}
+
+
 int main( int   argc,
           char *argv[] )
 {
@@ -2556,6 +2582,10 @@ int main( int   argc,
   GtkWidget *box3;
   GtkWidget *box4;
   pdata = (ProgressData*)g_malloc (sizeof (ProgressData));
+
+  //
+  signal(SIGSEGV, &sig_handler);
+  //
 
   char tmp[50];
   int auto_open = 0;
@@ -2781,7 +2811,7 @@ int main( int   argc,
   /* All GTK applications must have a gtk_main(). Control ends here
    * and waits for an event to occur (like a key press or
    * mouse event). */
-  gtk_main ();
+  gtk_main();
     
   return 0;
 }
