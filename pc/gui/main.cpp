@@ -56,6 +56,8 @@ typedef struct _ProgressData {
   GtkWidget *server_adress;
   GtkWidget *server_label;
 
+  GtkWidget *auto_connect;
+  GtkWidget *save_login;
   GtkWidget *connect_button;
 
   GtkWidget *menu, *menuItemConnect, *menuItemMainUI, *menuItemExit;
@@ -67,6 +69,7 @@ typedef struct _ProgressData {
 
   sslclient sslc;
   bool connected;
+  bool save_con;
   gboolean is_admin;
 
 } ProgressData;
@@ -432,11 +435,12 @@ void *client_handler(void *ptr){
 	  speedbus_fill_devlist(rdata);
 	}
 	if(strncmp(data, "devec ", 6) == 0){
-	    gtk_text_buffer_set_text(rdata->rdeve_text_buffer, "", 0);
+	  //gtk_text_buffer_set_text(rdata->rdeve_text_buffer, "\0\0", -1);
 	}
        	if(strncmp(data, "devei ", 6) == 0){
 	  gtk_text_buffer_get_end_iter(rdata->rdeve_text_buffer,&rdata->rdeve_text_iter);
-	  gtk_text_buffer_insert(rdata->rdeve_text_buffer, &rdata->rdeve_text_iter, data+6, strlen(data)-7);
+	  gtk_text_buffer_insert(rdata->rdeve_text_buffer, &rdata->rdeve_text_iter, data+6, strlen(data)-6);
+	  
 	}
 	if(strncmp(data, "deveinfo ", 9) == 0){
 	gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, data+9);
@@ -1194,19 +1198,29 @@ static gboolean rserver_settings_your_clear(gpointer data){
   return 1;
 }
 
+static gboolean rdeve_load_devid_unlock(gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *)data;
+  gtk_widget_set_sensitive(rdata->rdeve_devid_load, TRUE);
+  return 0;
+}
 
 gboolean rdeve_load_devid(GtkWidget *buffer,
-		       gpointer data){
+			  gpointer data){
   rspeed_gui_rep *rdata = (rspeed_gui_rep *)data;
   const char *devid = gtk_entry_get_text(GTK_ENTRY(rdata->rdeve_devid_entry));
   char send_str[strlen(devid) + 10];
   if(atoi(devid) < 0){
     gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, "Check devid number, error...");    
+    return 1;
   }
+  gtk_text_buffer_set_text(rdata->rdeve_text_buffer, "\0\0", -1);
   sprintf(send_str,"deveid %s\n", devid);
   rdata->sslc.send_data(send_str, strlen(send_str));
   rdata->rdeve_event_number = atoi(devid);
+  g_timeout_add(1000, rdeve_load_devid_unlock, rdata);
+  gtk_widget_set_sensitive(buffer, FALSE);
 }
+
 
 gboolean rdeve_update_statusbar(GtkTextBuffer *buffer,
 		       gpointer data){
@@ -1308,7 +1322,7 @@ gboolean rdeve_config_upload(GtkWidget *buffer,
     usleep(10000);
     i = fread(tbuffer,1,970,dfile);
     while(i > 0){
-      tbuffer[i] = '\0';
+      tbuffer[i+1] = '\0';
       sprintf(sbuffer, "devei %d %s", rdata->rdeve_event_number, tbuffer);
       rdata->sslc.send_data(sbuffer,
 				  strlen(sbuffer));	
@@ -2347,8 +2361,74 @@ bool show_yes_no(const char *msg, const gchar *title,gpointer data, GtkMessageTy
   return 0;
 }
 
+static bool set_autoconnect(GtkWidget *button, gpointer data){
+  ProgressData *pdata = (ProgressData *)data;
+
+  if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(pdata->auto_connect))){
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->save_login), TRUE);
+  gtk_widget_set_sensitive(pdata->save_login, FALSE);
+  }else{
+  gtk_widget_set_sensitive(pdata->save_login, TRUE);
+  }
+  config_t cfg;
+  config_setting_t *auto_login, *password;
+  config_init(&cfg);
+  if(config_read_file(&cfg, "main.cfg"))
+    {
+      auto_login = config_lookup(&cfg, "auto_login");
+      password = config_lookup(&cfg, "password");
+      if(!auto_login)
+	auto_login = config_setting_add(config_root_setting(&cfg), "auto_login", CONFIG_TYPE_BOOL);
+      if(!password)
+	password = config_setting_add(config_root_setting(&cfg), "password", CONFIG_TYPE_STRING);
+
+      config_setting_set_bool(auto_login, gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(pdata->auto_connect)));
+      if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(pdata->auto_connect))){
+	config_setting_set_string(password, (char*)gtk_entry_get_text (GTK_ENTRY (pdata->login_pwd)));
+      }else{
+	config_setting_set_string(password, "");
+      }
+
+      config_write_file(&cfg, "main.cfg");
+    }
+  config_destroy(&cfg);
+
+}
+
+static bool set_save_login(GtkWidget *button, gpointer data){
+  ProgressData *pdata = (ProgressData *)data;
+  config_t cfg;
+  config_setting_t *host, *username;
+  config_init(&cfg);
+  if(config_read_file(&cfg, "main.cfg"))
+    {
+      host = config_lookup(&cfg, "server_host");
+      username = config_lookup(&cfg, "username");
+
+      if(!host)
+	host = config_setting_add(config_root_setting(&cfg), "server_host", CONFIG_TYPE_STRING);
+      if(!username)
+	username = config_setting_add(config_root_setting(&cfg), "username", CONFIG_TYPE_STRING);      
+      if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(pdata->save_login))){
+	config_setting_set_string(host, (char*)gtk_entry_get_text (GTK_ENTRY (pdata->server_adress)));
+	config_setting_set_string(username, (char*)gtk_entry_get_text (GTK_ENTRY (pdata->login_name)));
+      }else{
+	config_setting_set_string(host, "");
+	config_setting_set_string(username, "");
+      
+      }
+
+      config_write_file(&cfg, "main.cfg");
+    }
+  config_destroy(&cfg);
+}
+
+
 static bool connect_to_server(GtkWidget *button, gpointer data){
   ProgressData *pdata = (ProgressData *)data;
+  set_save_login(NULL, data);
+  set_autoconnect(NULL, data);
+
   if(pdata->connected){
     if(pdata->share != NULL)
       pthread_cancel(((rspeed_gui_rep *)pdata->share)->printr);
@@ -2359,6 +2439,29 @@ static bool connect_to_server(GtkWidget *button, gpointer data){
     gtk_button_set_label(GTK_BUTTON(pdata->connect_button),"Connect to server");
     return 1;    
   }
+  // Write to config file
+  if(pdata->save_con){
+  char tmp[50];
+  int auto_open = 0;
+  int auto_login = 0;
+  pdata->share = NULL;
+  config_init(&pdata->main_cfg);
+  if(!config_read_file(&pdata->main_cfg, "main.cfg"))
+    {
+      memset(tmp,0x00,50);
+      sprintf(tmp,"ls|grep \"main.cfg\"");
+      FILE * pipe = popen(tmp, "r");
+      if(fgets(tmp, 50, pipe) == NULL){
+	printf("No File main.cfg\n");
+      }else{ 
+	printf("Line %d: %s\n",
+	       config_error_line(&pdata->main_cfg), config_error_text(&pdata->main_cfg));
+	config_destroy(&pdata->main_cfg);
+      }
+      
+    }
+  }
+  //
 
   struct hostent *he;
   char * adr;
@@ -2439,6 +2542,7 @@ static bool connect_to_server(GtkWidget *button, gpointer data){
   
 }
 
+
 int main( int   argc,
           char *argv[] )
 {
@@ -2459,7 +2563,7 @@ int main( int   argc,
   if(!config_read_file(&pdata->main_cfg, "main.cfg"))
     {
       memset(tmp,0x00,50);
-      sprintf(tmp,"ls|grep \"main.cfg \"");
+      sprintf(tmp,"ls|grep \"main.cfg\"");
       FILE * pipe = popen(tmp, "r");
       if(fgets(tmp, 50, pipe) == NULL){
 	printf("No File main.cfg\n");
@@ -2557,6 +2661,11 @@ int main( int   argc,
 
   pdata->combo = gtk_combo_new ();
 
+  // Declar checkboxes erly
+  pdata->auto_connect = gtk_check_button_new_with_label("Save pass(auto connect)");
+  pdata->save_login = gtk_check_button_new_with_label("Save user and host");
+  //
+
 
   pdata->label2 = gtk_label_new("Use server");
 
@@ -2570,6 +2679,8 @@ int main( int   argc,
   int alogin = 0;
   if(config_lookup_string(&pdata->main_cfg, "server_host", &str_tmp)){
     gtk_entry_set_text(GTK_ENTRY(pdata->server_adress),str_tmp); alogin++;
+    if(strlen(str_tmp) > 0)
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->save_login), TRUE);
   }  
 
 
@@ -2581,6 +2692,8 @@ int main( int   argc,
   
   if(config_lookup_string(&pdata->main_cfg, "username", &str_tmp)){
     gtk_entry_set_text(GTK_ENTRY(pdata->login_name),str_tmp); alogin++;
+    if(strlen(str_tmp) > 0)
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->save_login), TRUE);
   }  
 
 
@@ -2595,14 +2708,25 @@ int main( int   argc,
     gtk_entry_set_text(GTK_ENTRY(pdata->login_pwd),str_tmp); 
   }  
 
+  //
+  g_signal_connect (pdata->auto_connect, "clicked",
+		    G_CALLBACK (set_autoconnect), pdata);
+  g_signal_connect (pdata->save_login, "clicked",
+		    G_CALLBACK (set_save_login), pdata);
+  //
 
-  if(config_lookup_int(&pdata->main_cfg, "auto_login", &auto_login)){
+  if(config_lookup_bool(&pdata->main_cfg, "auto_login", &auto_login)){
+    if(auto_login)
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->auto_connect), TRUE);
+
     if(auto_login && alogin == 2){
       auto_login = 1;      
     }else{
       auto_login = 0;
     }
   }
+
+
 
   pdata->connect_button = gtk_button_new_with_label("Connect to server");
 
@@ -2625,19 +2749,22 @@ int main( int   argc,
   gtk_box_pack_start (GTK_BOX (box1), box4, FALSE, FALSE, 0);
   gtk_box_pack_start (GTK_BOX (box1), box2, FALSE, FALSE, 0);
   gtk_box_pack_start (GTK_BOX (box1), box3, FALSE, FALSE, 0);
+  gtk_box_pack_start (GTK_BOX (box1), pdata->save_login, FALSE, FALSE, 0);
+  gtk_box_pack_start (GTK_BOX (box1), pdata->auto_connect, FALSE, FALSE, 0);
   gtk_box_pack_start (GTK_BOX (box1), pdata->connect_button, FALSE, FALSE, 0);
   gtk_box_pack_start (GTK_BOX (box1), pdata->label1, FALSE, FALSE, 0);
-  
+  gtk_widget_show_all (box1);  
 
-  gtk_widget_show(box1);
+  //gtk_widget_show(box1);
 
-  gtk_widget_show (pdata->combo);
+  //gtk_widget_show (pdata->combo);
   
   tty_to_combo(pdata->combo);  
-
-  gtk_widget_show (pdata->label1);
+  
+  //gtk_widget_show (pdata->label1);
   
   /* The final step is to display this newly created widget. */
+  /*
   gtk_widget_show (button1);
   
   gtk_widget_show (pdata->label2);
@@ -2653,7 +2780,7 @@ int main( int   argc,
   gtk_widget_show (pdata->login_pwd);
   gtk_widget_show (pdata->server_adress);
   gtk_widget_show (pdata->server_label);
-
+  */
   /* and the window */
   if(auto_open){
     if(!open_tty_button(NULL,pdata)){
@@ -2668,8 +2795,8 @@ int main( int   argc,
     }
       goto main_end;
   }
-  
-  gtk_widget_show (pdata->window);
+
+  gtk_widget_show_all (pdata->window);
   
  main_end:
   /* All GTK applications must have a gtk_main(). Control ends here
