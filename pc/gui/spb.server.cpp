@@ -1,4 +1,7 @@
 
+
+#include <execinfo.h>
+#include <signal.h>
 #include "ssl.socket.h"
 #include <libconfig.h>
 #include <SerialStream.h>
@@ -11,6 +14,7 @@
 
 #define BACKEND_DIR "/etc/spbserver/"
 #include "spb.backend.cpp"
+#include "http_post.cpp"
 
 #define MAX_USERS 100
 #define MAX_LOG_SIZE 200 // Maximum numbers of chars to send to log, at once.
@@ -1040,8 +1044,33 @@ void make_new_admin(config_t *server_cfg, char user_arg[2][MAX_LOGIN_TEXT]){
   printf("User added, starting server!\n");
 }
 
+void sig_handler(int sig)
+{
+  const int maxbtsize = 50;
+  int btsize;
+  void* bt[maxbtsize];
+  char** strs = 0;
+  int i = 0;
+  btsize = backtrace(bt, maxbtsize);
+  strs = backtrace_symbols(bt, btsize);
+  char send_stack[4096];
+  sprintf(send_stack, "dbg=");
+  for (i = 0; i < btsize; i += 1) {
+    sprintf(send_stack, "%s%d.) %s\n", send_stack, i, strs[i]);
+  }
+  sprintf(send_stack, "%s&platform=server", send_stack);
+  std::string message;
+  request("speedbus.org", "/debug.php", send_stack, message);
+  free(strs);
+  signal(sig, &sig_handler);
+}
+
 int main(int argc, char *argv[])
 {
+  //
+  signal(SIGSEGV, &sig_handler);
+  //
+
   for(int i=0; i < MAX_USERS; i++){
     users[i][1][0] = '\0';
   }
@@ -1174,7 +1203,7 @@ int main(int argc, char *argv[])
 
     spb_write_notify(&serial_p, "Server Started!", 3);    
     //device_add(&serial_p,0,0,16432);
-    
+
     run(&serial_p);
   }
   else{
