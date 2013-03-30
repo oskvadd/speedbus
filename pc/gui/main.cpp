@@ -2481,8 +2481,7 @@ static bool set_autoconnect(GtkWidget *button, gpointer data){
   config_t cfg;
   config_setting_t *auto_login, *password;
   config_init(&cfg);
-  if(config_read_file(&cfg, "main.cfg"))
-    {
+  config_read_file(&cfg, "main.cfg");
       auto_login = config_lookup(&cfg, "auto_login");
       password = config_lookup(&cfg, "password");
       if(!auto_login)
@@ -2498,7 +2497,6 @@ static bool set_autoconnect(GtkWidget *button, gpointer data){
       }
 
       config_write_file(&cfg, "main.cfg");
-    }
   config_destroy(&cfg);
 
 }
@@ -2508,8 +2506,7 @@ static bool set_save_login(GtkWidget *button, gpointer data){
   config_t cfg;
   config_setting_t *host, *username;
   config_init(&cfg);
-  if(config_read_file(&cfg, "main.cfg"))
-    {
+  config_read_file(&cfg, "main.cfg");
       host = config_lookup(&cfg, "server_host");
       username = config_lookup(&cfg, "username");
 
@@ -2527,7 +2524,6 @@ static bool set_save_login(GtkWidget *button, gpointer data){
       }
 
       config_write_file(&cfg, "main.cfg");
-    }
   config_destroy(&cfg);
 }
 
