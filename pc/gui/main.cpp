@@ -494,7 +494,7 @@ void *client_handler(void *ptr){
 	  }
 	}	
 	
-    }else if(len < 1){
+    }else if(len == 0){
       printf("Connection seems to have died %d :/\n", len);
       gtk_widget_show(((ProgressData *)rdata->share)->window);
       gtk_label_set_text(GTK_LABEL(((ProgressData *)rdata->share)->label1),"Disconnected");
@@ -2614,7 +2614,6 @@ static bool connect_to_server(GtkWidget *button, gpointer data){
       show_ok("Unable to write to file, known_hosts","Info",pdata,GTK_MESSAGE_WARNING);
   }
 
-    
   if(pdata->sslc.send_data(login, strlen(login))){
     char data[RECV_MAX];
     int len;
@@ -2632,21 +2631,30 @@ static bool connect_to_server(GtkWidget *button, gpointer data){
 	pdata->is_admin = 0;
 	printf("I am not admin :/\n");
       }
+    }else{
+	gtk_label_set_text(GTK_LABEL(pdata->label1),"Connection reset");
+	pdata->sslc.sslfree();
+	return 0;
     }
   }
-
   gtk_button_set_label(GTK_BUTTON(pdata->connect_button),"Disconnect");
   pdata->connected = 1;
   gtk_label_set_text(GTK_LABEL(pdata->label1),"Connected!");
-
   gtk_widget_hide(GTK_WIDGET(pdata->window));
   pdata->open = 0;
   pdata->remote = 1;
   if(pdata->share == NULL || ((rspeed_gui_rep *)pdata->share)->open != 1){
   rspeed_gui((gpointer*)pdata);
   }else{
+    if(pdata->is_admin != ((rspeed_gui_rep *)pdata->share)->is_admin){
+      pthread_cancel(((rspeed_gui_rep *)pdata->share)->printr);
+      gtk_widget_destroy(GTK_WIDGET(((rspeed_gui_rep *)pdata->share)->window));
+      rspeed_gui((gpointer*)pdata);
+    }else{
+      pthread_create(&((rspeed_gui_rep *)pdata->share)->printr, NULL, &client_handler, pdata->share);    
+    }
     ((rspeed_gui_rep *)pdata->share)->sslc = pdata->sslc;
-    pthread_create(&((rspeed_gui_rep *)pdata->share)->printr, NULL, &client_handler, pdata->share);    
+
   }
   return 1;
     //pdata->sslc.send_data("hej");
