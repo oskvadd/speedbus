@@ -494,7 +494,7 @@ void *client_handler(void *ptr){
 	  }
 	}	
 	
-    }else if(len == 0){
+    }else if(len < 1){
       printf("Connection seems to have died %d :/\n", len);
       gtk_widget_show(((ProgressData *)rdata->share)->window);
       gtk_label_set_text(GTK_LABEL(((ProgressData *)rdata->share)->label1),"Disconnected");
@@ -840,6 +840,8 @@ static void load_device(gpointer data, int devid){
       gtk_widget_hide(rdata->separator1);
       return;
     }
+  config_destroy(&cfg);
+
   rdata->c_devid = devid;
 
   sprintf(tmp,"Sucess devs/%d.spb",devid);
@@ -1347,11 +1349,14 @@ bool rdeve_open_config(gpointer data, config_t *cfg){
 	     config_error_line(cfg), config_error_text(cfg));
       config_destroy(cfg);
       gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, msg);
+      config_destroy(cfg);	    
       return 0;
     }else{
     gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, "Config seems OK");
+    config_destroy(cfg);
     return 1;  
   }
+  
 }
 
 gboolean rdeve_config_upload(GtkWidget *buffer,
@@ -2294,17 +2299,11 @@ void rspeed_gui(gpointer *data){
   rdata->scan_lock = 0;
   device_num = 0;
   rdata->box3 = gtk_vbox_new (FALSE, 10);
-  // Startup Speedbus Backgruond thread
-  if(pdata->remote){
-    pthread_create(&rdata->printr, NULL, &client_handler, (void *)rdata);
-  }else{
-    pthread_create(&rdata->printr, NULL, &print_ser_gui, (void *)rdata);}
-    // I put it here, because the thread must be started AFTER the serialport has been opened
     
-    // Start the device backend AFTER the serial has been opened
-    rdata->backe = init_backend();
-
-    rdata->backe->rdata = rdata;
+  // Start the device backend AFTER the serial has been opened
+  rdata->backe = init_backend();
+  
+  rdata->backe->rdata = rdata;
   
   rdata->window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
   gtk_window_set_position(GTK_WINDOW(rdata->window),GTK_WIN_POS_CENTER);
@@ -2377,6 +2376,14 @@ void rspeed_gui(gpointer *data){
   gtk_widget_show (rdata->scan_list);
   gtk_widget_show (rdata->window);
 
+  
+  // Startup Speedbus Backgruond thread
+  if(pdata->remote){
+    pthread_create(&rdata->printr, NULL, &client_handler, (void *)rdata);
+  }else{
+    pthread_create(&rdata->printr, NULL, &print_ser_gui, (void *)rdata);}
+  // I put it here, because the thread must be started AFTER the serialport has been opened
+  
 
   // Fill dev list
   speedbus_fill_devlist(rdata);
@@ -2560,10 +2567,10 @@ static bool connect_to_server(GtkWidget *button, gpointer data){
       }else{ 
 	printf("Line %d: %s\n",
 	       config_error_line(&pdata->main_cfg), config_error_text(&pdata->main_cfg));
-	config_destroy(&pdata->main_cfg);
       }
       
     }
+  config_destroy(&pdata->main_cfg);
   }
   //
 
@@ -2699,8 +2706,8 @@ int main( int   argc,
       }else{ 
 	printf("Line %d: %s\n",
 	       config_error_line(&pdata->main_cfg), config_error_text(&pdata->main_cfg));
-	config_destroy(&pdata->main_cfg);
       }
+      config_destroy(&pdata->main_cfg);
       
     }else{
 
@@ -2935,3 +2942,4 @@ int main( int   argc,
     
   return 0;
 }
+
