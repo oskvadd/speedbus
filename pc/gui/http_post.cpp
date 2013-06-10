@@ -102,7 +102,7 @@ int request (const char* hostname,const  char* api, char* parameters, string& me
  SEND_RQ("\r\n");
  SEND_RQ("Content-Type: application/x-www-form-urlencoded\r\n"); 
  char content_header[100];
- sprintf(content_header,"Content-Length: %d\r\n",strlen(parameters));
+ sprintf(content_header,"Content-Length: %d\r\n",(int)strlen(parameters));
  SEND_RQ(content_header);
 
  //If you need to send a basic authorization

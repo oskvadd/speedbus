@@ -840,8 +840,6 @@ static void load_device(gpointer data, int devid){
       gtk_widget_hide(rdata->separator1);
       return;
     }
-  config_destroy(&cfg);
-
   rdata->c_devid = devid;
 
   sprintf(tmp,"Sucess devs/%d.spb",devid);
