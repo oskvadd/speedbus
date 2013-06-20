@@ -964,6 +964,27 @@ static void load_device(gpointer data, int devid){
 	}
     }
 
+  // Autorun device event, after opening the device in gui
+
+  setting = config_lookup(&cfg, "spb.events");
+  if(setting != NULL)
+    {
+      int count = config_setting_length(setting);	  
+      for(int i = 0; i < count; ++i)
+	{
+	  config_setting_t *book = config_setting_get_elem(setting, i);
+	  int event, runon_open;
+	  const char *type;
+	  if(!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_string(book, "type", &type)) || !(config_setting_lookup_int(book, "runon_open", &runon_open)))
+	    continue;
+	  if(sizeof(event) > MAX_EVENT || sizeof(type) > MAX_BUFFER)
+	    continue;
+	  if(runon_open)
+	    backend_exec(rdata->backe, event, rdata->c_devid,1);	  
+	}
+    }
+
+
   gtk_widget_show (rdata->box3);
   gtk_widget_show (rdata->label1);
 }
