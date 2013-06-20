@@ -56,7 +56,7 @@ main_backend* init_backend(){
   memset(arg,0x00,100);
   while ((dirp = readdir(dp)) != NULL) {
     int len = strlen(dirp->d_name);
-    int pos = (int)strstr(dirp->d_name,".hid") - (int)dirp->d_name;
+    int pos = (int)(strstr(dirp->d_name,".hid") - dirp->d_name);
     if(pos > 0 && pos+4 == len){
       sprintf(arg,BACKEND_DIR "usb/%s",dirp->d_name);
       if(debug)
