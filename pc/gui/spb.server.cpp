@@ -523,6 +523,7 @@ bool spb_inalize_notify(print_seri * serial_p)
 		while (fgets(line, sizeof(line), file) != NULL) {	/* read a line */
 			if (linec >= start && line_c < 10) {
 				char *line_end = strchr(line, '\n');
+				if(line_end)
 				*line_end = '\0';
 				strncpy(tmp_notify[line_c], line,
 					MAX_NOTIFY_SIZE + 50);
