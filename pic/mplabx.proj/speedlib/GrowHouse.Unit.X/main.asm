@@ -210,22 +210,20 @@ main:
 
 
 custom_command_handler:
-        movlw   0x0A          ; Min  custom
-        subwf   INDF,W        ; This is the command data byte, predefinde, before called by this funktion
-        movwf   rand          ; Just use the random register rand(no reason why, just a temporary register availble)
-        btfss   STATUS,C      ; Check so that the Commmand bit is >= 0x0A ; NOTE: If "addwf PC,F" Gets a zero, it brobubly will act like a "goto $"
-        goto    restore
+       	movlw	0x0A
+        subwf	INDF,W
+        btfsc	STATUS,Z
+        goto	get_status
 
-        movlw   2             ; MaxCommand; This is the number of functions in the list bellow, just to make sure its safe for buffer overflow
-        subwf   rand,W        ; Command
-        btfsc   STATUS,C      ; If Command >= MaxCommand then goto restore
-        goto    restore
+    	movlw	0x0B
+        subwf	INDF,W
+    	btfsc	STATUS,Z
+        goto	get_temp
 
-        movf    rand,W
-        addwf   PCL,F
-        goto    get_status
-        goto    get_temp
-        goto    set_fan
+       	movlw	0x0C
+        subwf	INDF,W
+        btfsc	STATUS,Z
+        goto	set_fan
         goto    restore
 
 set_fan:
