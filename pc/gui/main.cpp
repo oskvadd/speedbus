@@ -3651,6 +3651,10 @@ static bool connect_to_server(GtkWidget * button, gpointer data)
 	adr = (char *) gtk_entry_get_text(GTK_ENTRY(pdata->server_adress));
 	he = gethostbyname(adr);
 	sprintf(login, "%s\n%s", usr, pwd);
+
+	// Fixed reconnect, so the connection not is reset on popup messages...
+	int do_retry=0;
+ do_reconnect:
 	if (!pdata->sslc.
 	    sslsocket(inet_ntoa(*(struct in_addr *) he->h_addr), 306)) {
 		gtk_label_set_text(GTK_LABEL(pdata->label1),
@@ -3717,6 +3721,7 @@ static bool connect_to_server(GtkWidget * button, gpointer data)
 			show_ok("Unable to write to file, known_hosts",
 				"Info", pdata, GTK_MESSAGE_WARNING);
 	}
+	
 
 	if (pdata->sslc.send_data(login, strlen(login))) {
 		char data[RECV_MAX];
@@ -3737,11 +3742,14 @@ static bool connect_to_server(GtkWidget * button, gpointer data)
 				pdata->is_admin = 0;
 				printf("I am not admin :/\n");
 			}
-		} else {
+	        } else {
 			gtk_label_set_text(GTK_LABEL(pdata->label1),
 					   "Connection reset");
+			if(do_retry < 1){
+			  goto do_reconnect; do_retry++;
+			}
 			pdata->sslc.sslfree();
-			return 0;
+			
 		}
 	}
 	gtk_button_set_label(GTK_BUTTON(pdata->connect_button),
