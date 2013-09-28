@@ -1849,7 +1849,6 @@ bool rdeve_open_config(gpointer data, config_t * cfg)
 	} else {
 		gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar),
 				   0, "Config seems OK");
-		config_destroy(cfg);
 		return 1;
 	}
 
