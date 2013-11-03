@@ -499,19 +499,14 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
    * Receive data from the SSL client 
    */
   int err = 0;
-      printf ("Received %u chars:\n%s\n", len, data);
 
   if (!serial_p->server->session_open[listnum])
     {
 
-      printf ("Received %d chars:\n%s\n", len, data);
-
       char user[MAX_LOGIN_TEXT * 2], pass[MAX_LOGIN_TEXT * 2];
       sscanf(data, "%s\n%s", user, pass);
-      printf(data, "%s:%s\n", user, pass);
       md5sum(pass);
       sprintf(data, "%s:%s", user, pass);
-      printf(data, "%s:%s\n", user, pass);
 
       // sleep(1); Wait for further acess limitations, cant just sleep the whole fucking server -.-
       for (int i = 0; i < userc; i++)
