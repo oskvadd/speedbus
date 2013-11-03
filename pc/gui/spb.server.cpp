@@ -15,6 +15,7 @@
 #define BACKEND_DIR "/etc/spbserver/"
 #include "spb.backend.cpp"
 #include "http_post.cpp"
+// #include "v4l2grab.c"
 
 #define MAX_USERS 100
 #define MAX_LOG_SIZE 200	// Maximum numbers of chars to send to log, at once.
@@ -498,15 +499,20 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
    * Receive data from the SSL client 
    */
   int err = 0;
+      printf ("Received %u chars:\n%s\n", len, data);
+
   if (!serial_p->server->session_open[listnum])
     {
 
-      //  printf ("Received %d chars:\n%s\n", len, data);
+      printf ("Received %d chars:\n%s\n", len, data);
 
       char user[MAX_LOGIN_TEXT * 2], pass[MAX_LOGIN_TEXT * 2];
       sscanf(data, "%s\n%s", user, pass);
+      printf(data, "%s:%s\n", user, pass);
       md5sum(pass);
       sprintf(data, "%s:%s", user, pass);
+      printf(data, "%s:%s\n", user, pass);
+
       // sleep(1); Wait for further acess limitations, cant just sleep the whole fucking server -.-
       for (int i = 0; i < userc; i++)
 	{
@@ -707,6 +713,10 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
 	      serial_p->server->send_data(listnum, reply, strlen(reply));
 	    }
 	  serial_p->server->send_data(listnum, "good\n", strlen("good\n"));
+	}
+      if (strncmp(data, "getcam", 6) == 0)
+	{
+	  
 	}
       // To make the cewd abit more easy read, i just make an is admin if statment here, so, the 
       // cewd below in this function is ONLY executed, IF the user is admin, else, return.
