@@ -157,6 +157,8 @@ typedef struct _rspeed_gui_rep
 
   GtkWidget *rdev_is_admin_button;
   GtkWidget *rdev_show_notify;
+  GtkWidget *rdev_surve_screen_button;
+
 
   GtkWidget *rdev_dev_edit_button;
 
@@ -278,7 +280,23 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rnotify_label;
   GtkWidget *rnotify_update_notify;
 
+  /// rsurve_screen_show
+  GtkWidget *rsurve_gui;
+  GtkWidget *rsurve_box1;
+  GtkWidget *rsurve_box2;
+  GtkWidget *rsurve_box3;
+  GtkWidget *rsurve_box4;
+    
 
+  GtkWidget *rsurve_screen; 
+  GtkWidget *rsurve_separator1; 
+  GtkWidget *rsurve_separator2; 
+  GtkWidget *rsurve_separator3;
+  GtkWidget *rsurve_label1; 
+  GtkWidget *rsurve_label2; 
+  GtkWidget *rsurve_button1; 
+  
+ 
   //
 
 
@@ -2592,6 +2610,8 @@ rspeed_set_debug(GtkWidget * some, gpointer data)
     }
 }
 
+// Notify screen
+
 void
 rnotify_show(GtkWidget * some, gpointer data)
 {
@@ -2635,6 +2655,69 @@ rnotify_show(GtkWidget * some, gpointer data)
     }
 }
 
+// Surveillance screen OVH functions
+
+void
+rsurve_screen_change(GtkWidget * some, gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  gtk_image_set_from_file (GTK_IMAGE(rdata->rsurve_screen), "spg2.jpg");
+}
+
+
+// Surveillance screen
+
+void
+rsurve_screen_show(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  rdata->rsurve_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_position(GTK_WINDOW(rdata->rsurve_gui), GTK_WIN_POS_CENTER);
+  gtk_window_set_resizable(GTK_WINDOW(rdata->rsurve_gui), FALSE);
+  gtk_window_set_title(GTK_WINDOW(rdata->rsurve_gui), "Surveillance Screen");
+  g_signal_connect(rdata->rsurve_gui, "delete-event", G_CALLBACK(delete_event), &rdata->open);
+  g_signal_connect(rdata->rsurve_gui, "destroy", G_CALLBACK(destroy), &rdata->open);
+  // Screen
+  rdata->rsurve_box1 = gtk_vbox_new(FALSE, 10);
+  rdata->rsurve_screen = gtk_image_new_from_file ("spg1.jpg");
+  rdata->rsurve_separator1 = gtk_hseparator_new();
+  
+  // Cams
+  rdata->rsurve_box2 = gtk_hbox_new(FALSE, 10);
+  rdata->rsurve_separator2 = gtk_vseparator_new();
+  rdata->rsurve_box3 = gtk_vbox_new(FALSE, 10);  
+  rdata->rsurve_label1 = gtk_label_new("Cameras");
+
+  // Commands
+  rdata->rsurve_box4 = gtk_vbox_new(FALSE, 10);
+  rdata->rsurve_separator3 = gtk_vseparator_new();  
+  rdata->rsurve_label2 = gtk_label_new("Commands");
+  rdata->rsurve_button1 = gtk_button_new_with_label("Change");
+
+
+  gtk_container_add(GTK_CONTAINER(rdata->rsurve_gui), rdata->rsurve_box1);
+  // Screen
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box1), rdata->rsurve_screen, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box1), rdata->rsurve_separator1, FALSE, FALSE, 0);
+
+  // Cams
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box1), rdata->rsurve_box2, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box2), rdata->rsurve_box3, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box3), rdata->rsurve_label1, FALSE, FALSE, 0);
+
+  // Commands
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box2), rdata->rsurve_separator2, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box2), rdata->rsurve_box4, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box4), rdata->rsurve_label2, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box4), rdata->rsurve_button1, FALSE, FALSE, 0);
+
+
+  g_signal_connect(rdata->rsurve_button1, "clicked", G_CALLBACK(rsurve_screen_change), rdata);
+
+  gtk_widget_show_all(rdata->rsurve_gui);
+
+}
 
 // Real SpeedBusGUI
 
@@ -2669,7 +2752,7 @@ rspeed_gui(gpointer * data)
   rdata->scan_button = gtk_button_new_with_label("Scan");
   g_signal_connect(rdata->scan_button, "clicked", G_CALLBACK(speedbus_unit_scan), rdata);
   rdata->label = gtk_label_new("Linked to bus!");
-  rdata->box1 = gtk_vbox_new(FALSE, 10);
+  rdata->box1 = gtk_vbox_new(FALSE, 1);
   rdata->box2 = gtk_hbox_new(FALSE, 10);
   rdata->box3 = gtk_vbox_new(FALSE, 10);	// Just allocate this temporaryly, because the folowing destroy, wants somthing to destroy... just to make things work
   rdata->box4 = gtk_hbox_new(FALSE, 10);
@@ -2685,6 +2768,7 @@ rspeed_gui(gpointer * data)
   if (rdata->is_admin && rdata->remote)
     rdata->rdev_is_admin_button = gtk_button_new_with_label("Settings");
   rdata->rdev_show_notify = gtk_button_new_with_label("Notifications");
+  rdata->rdev_surve_screen_button = gtk_button_new_with_label("Surveillance Screen");
   gtk_container_add(GTK_CONTAINER(rdata->window), rdata->box2);
   gtk_box_pack_start(GTK_BOX(rdata->box2), rdata->box1, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box2), rdata->separator1, FALSE, TRUE, 5);
@@ -2700,6 +2784,7 @@ rspeed_gui(gpointer * data)
     gtk_box_pack_start(GTK_BOX(rdata->box5), rdata->rdev_is_admin_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box5), rdata->rdev_show_notify, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->box5, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->rdev_surve_screen_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->label, FALSE, FALSE, 0);
   // Signals
   g_signal_connect(rdata->scan_list, "row-activated", G_CALLBACK(view_onRowActivated), rdata);
@@ -2710,6 +2795,7 @@ rspeed_gui(gpointer * data)
   if (rdata->is_admin && rdata->remote)
     g_signal_connect(rdata->rdev_is_admin_button, "clicked", G_CALLBACK(rserver_settings), rdata);
   g_signal_connect(rdata->rdev_show_notify, "clicked", G_CALLBACK(rnotify_show), rdata);
+  g_signal_connect(rdata->rdev_surve_screen_button, "clicked", G_CALLBACK(rsurve_screen_show), rdata);
   //
   gtk_widget_show(rdata->box5);
   gtk_widget_show(rdata->box4);
@@ -2719,6 +2805,7 @@ rspeed_gui(gpointer * data)
   if (rdata->is_admin && rdata->remote)
     gtk_widget_show(rdata->rdev_is_admin_button);
   gtk_widget_show(rdata->rdev_show_notify);
+  gtk_widget_show(rdata->rdev_surve_screen_button);
   gtk_widget_show(rdata->box2);
   gtk_widget_show(rdata->box1);
   gtk_widget_show(rdata->label);
