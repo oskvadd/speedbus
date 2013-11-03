@@ -3149,8 +3149,8 @@ do_reconnect:
 	  gtk_label_set_text(GTK_LABEL(pdata->label1), "Connection reset");
 	  if (do_retry < 1)
 	    {
-	      goto do_reconnect;
 	      do_retry++;
+	      goto do_reconnect;
 	    }
 	  pdata->sslc.sslfree();
 
