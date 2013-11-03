@@ -53,8 +53,8 @@ sslserver::sslserver()
   ssllist = new SSL *[MAX_LISTEN];
   for (int i = 0; i < MAX_LISTEN; i++)
     ssllist[i] = new SSL;
-  timeout.tv_sec = 0;
-  timeout.tv_usec = 10000;
+  timeout.tv_sec = 5;
+  timeout.tv_usec = 0;
   verify_client = 0;		/* To verify a client certificate, set 1  */
   s_port = 306;
   client_cert = NULL;
@@ -182,14 +182,19 @@ int
 sslserver::read_data(int listnum)
 {
   int errc = 0;
+  timeout.tv_sec = 5;
+  timeout.tv_usec = 0;
   while (1)
     {
-      timeout.tv_usec = 10000;
+      this->init_select();
       if (select(connectlist[listnum] + 1, &socks, NULL, NULL, &timeout) < 1)
 	break;
       err = SSL_read(ssllist[listnum], buf + errc, 4096 - (1 + errc));
       errc += err;
       RETURN_SSL(err);
+      // Change timeout to not wait so long for the end delay.
+      timeout.tv_sec = 0;
+      timeout.tv_usec = 10000;
       if (err < 1)
 	break;
     }
