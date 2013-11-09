@@ -295,8 +295,9 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rsurve_label1; 
   GtkWidget *rsurve_label2; 
   GtkWidget *rsurve_button1; 
-  
- 
+  int rsurve_utimeout; 
+  gboolean rsurve_fresh_update;
+
   //
 
 
@@ -552,6 +553,31 @@ client_handler(void *ptr)
 		  rdata->rnotify_list_tree = GTK_TREE_MODEL(rdata->rnotify_list_list);
 		  gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rnotify_list), rdata->rnotify_list_tree);
 		}
+	    }
+	  if (strncmp(data, "camec ", 6) == 0)
+	    {
+	      FILE *clear_file;
+	      clear_file = fopen("tmp.jpg", "w");
+	      fwrite("", 0, 0, clear_file);
+	      fclose(clear_file);
+	    }
+	  if (strncmp(data, "camei ", 6) == 0)
+	    {
+	      FILE *a_file;
+	      a_file = fopen("tmp.jpg", "a");
+	      fwrite(data + 6, len - 6, 1, a_file);
+	      fclose(a_file);
+
+	      rdata->sslc.send_data("camei\n", strlen("camei\n"));  
+
+	      printf("hej %d\n", len);
+	    }
+	  if (strncmp(data, "camep ", 6) == 0)
+	    {
+	      rdata->rsurve_fresh_update = 1;
+	      //gtk_widget_show_all(rdata->rsurve_gui);
+	      //gtk_image_set_from_file (GTK_IMAGE(rdata->rsurve_screen), "tmp.jpg");
+	      //gtk_widget_set_size_request (rdata->rsurve_screen, 720, 576);
 	    }
 
 	}
@@ -2661,7 +2687,25 @@ void
 rsurve_screen_change(GtkWidget * some, gpointer data){
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
 
-  gtk_image_set_from_file (GTK_IMAGE(rdata->rsurve_screen), "spg2.jpg");
+  rdata->sslc.send_data("getcam", strlen("getcam"));  
+
+}
+
+
+// Pic update
+
+static gboolean
+rsurve_refresh_pic(gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  if(rdata->rsurve_fresh_update){
+  gtk_image_set_from_file (GTK_IMAGE(rdata->rsurve_screen), "tmp.jpg");
+  rdata->rsurve_fresh_update = 0;
+  usleep(1000);
+  rdata->sslc.send_data("getcam", strlen("getcam"));  
+  }
+
+  return 1;
 }
 
 
@@ -2672,9 +2716,11 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
 
+  rdata->rsurve_fresh_update = 0;
+
   rdata->rsurve_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_position(GTK_WINDOW(rdata->rsurve_gui), GTK_WIN_POS_CENTER);
-  gtk_window_set_resizable(GTK_WINDOW(rdata->rsurve_gui), FALSE);
+  gtk_window_set_resizable(GTK_WINDOW(rdata->rsurve_gui), TRUE);
   gtk_window_set_title(GTK_WINDOW(rdata->rsurve_gui), "Surveillance Screen");
   g_signal_connect(rdata->rsurve_gui, "delete-event", G_CALLBACK(delete_event), &rdata->open);
   g_signal_connect(rdata->rsurve_gui, "destroy", G_CALLBACK(destroy), &rdata->open);
@@ -2686,7 +2732,7 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
   // Cams
   rdata->rsurve_box2 = gtk_hbox_new(FALSE, 10);
   rdata->rsurve_separator2 = gtk_vseparator_new();
-  rdata->rsurve_box3 = gtk_vbox_new(FALSE, 10);  
+  rdata->rsurve_box3 = gtk_vbox_new(FALSE, 10);
   rdata->rsurve_label1 = gtk_label_new("Cameras");
 
   // Commands
@@ -2694,7 +2740,6 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
   rdata->rsurve_separator3 = gtk_vseparator_new();  
   rdata->rsurve_label2 = gtk_label_new("Commands");
   rdata->rsurve_button1 = gtk_button_new_with_label("Change");
-
 
   gtk_container_add(GTK_CONTAINER(rdata->rsurve_gui), rdata->rsurve_box1);
   // Screen
@@ -2712,6 +2757,8 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box4), rdata->rsurve_label2, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box4), rdata->rsurve_button1, FALSE, FALSE, 0);
 
+
+  rdata->rsurve_utimeout = g_timeout_add(100, rsurve_refresh_pic, rdata);
 
   g_signal_connect(rdata->rsurve_button1, "clicked", G_CALLBACK(rsurve_screen_change), rdata);
 
