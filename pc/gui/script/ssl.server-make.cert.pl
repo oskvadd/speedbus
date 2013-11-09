@@ -23,4 +23,4 @@ system("openssl genrsa -out server.key 1024");
 print("* Step 2: Generate a CSR (Certificate Signing Request).\n");
 system("openssl req -new -key server.key -out server.csr");
 print("* Step 3: Generate a Self-Signed Certificate\n");
-system("openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt");
+system("openssl x509 -req -days 3650 -in server.csr -signkey server.key -out server.crt");
