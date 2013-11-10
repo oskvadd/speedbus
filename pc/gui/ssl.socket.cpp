@@ -182,7 +182,7 @@ int
 sslserver::read_data(int listnum)
 {
   int errc = 0;
-  timeout.tv_sec = 2;
+  timeout.tv_sec = 5;
   timeout.tv_usec = 0;
   while (1)
     {
@@ -464,7 +464,7 @@ sslclient::sslsocket(const char *s_ipaddr, short int s_port)
 /* ------------------------------------------------------------- */
 /* Set up a TCP socket */
 
-  sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+  sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
   RETURN_ERR(sock, "socket");
 
