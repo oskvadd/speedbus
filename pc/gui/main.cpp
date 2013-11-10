@@ -560,6 +560,8 @@ client_handler(void *ptr)
 	      clear_file = fopen("tmp.jpg", "w");
 	      fwrite("", 0, 0, clear_file);
 	      fclose(clear_file);
+	      rdata->sslc.send_data("resp\n", strlen("resp\n"));  
+
 	    }
 	  if (strncmp(data, "camei ", 6) == 0)
 	    {
@@ -567,17 +569,15 @@ client_handler(void *ptr)
 	      a_file = fopen("tmp.jpg", "a");
 	      fwrite(data + 6, len - 6, 1, a_file);
 	      fclose(a_file);
-
-	      rdata->sslc.send_data("camei\n", strlen("camei\n"));  
+	      rdata->sslc.send_data("resp\n", strlen("resp\n"));  
 
 	      printf("hej %d\n", len);
 	    }
 	  if (strncmp(data, "camep ", 6) == 0)
 	    {
 	      rdata->rsurve_fresh_update = 1;
-	      //gtk_widget_show_all(rdata->rsurve_gui);
-	      //gtk_image_set_from_file (GTK_IMAGE(rdata->rsurve_screen), "tmp.jpg");
-	      //gtk_widget_set_size_request (rdata->rsurve_screen, 720, 576);
+	      rdata->sslc.send_data("resp\n", strlen("resp\n"));  
+
 	    }
 
 	}
@@ -2686,8 +2686,8 @@ rnotify_show(GtkWidget * some, gpointer data)
 void
 rsurve_screen_change(GtkWidget * some, gpointer data){
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
-
-  rdata->sslc.send_data("getcam", strlen("getcam"));  
+  
+  rdata->sslc.send_data("getcam\n", strlen("getcam\n"));  
 
 }
 
@@ -2701,8 +2701,10 @@ rsurve_refresh_pic(gpointer data){
   if(rdata->rsurve_fresh_update){
   gtk_image_set_from_file (GTK_IMAGE(rdata->rsurve_screen), "tmp.jpg");
   rdata->rsurve_fresh_update = 0;
-  usleep(1000);
-  rdata->sslc.send_data("getcam", strlen("getcam"));  
+  if(1){  // live view
+  rdata->sslc.send_data("getcam\n", strlen("getcam\n"));
+  
+  }
   }
 
   return 1;

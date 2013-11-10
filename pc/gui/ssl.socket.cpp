@@ -466,7 +466,7 @@ sslclient::sslsocket(const char *s_ipaddr, short int s_port)
 /* ------------------------------------------------------------- */
 /* Set up a TCP socket */
 
-  sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+  sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
   RETURN_ERR(sock, "socket");
 
