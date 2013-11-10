@@ -15,8 +15,8 @@
 #define BACKEND_DIR "/etc/spbserver/"
 #include "spb.backend.cpp"
 #include "http_post.cpp"
-// #include "v4l2grab.c"
 
+#define MAX_RESP_TIME 2		// Maximum resp time, before dropping the transfer. This may be tuned in future. 
 #define MAX_USERS 100
 #define MAX_LOG_SIZE 200	// Maximum numbers of chars to send to log, at once.
 #define MAX_NOTIFY_STACK 10
@@ -33,6 +33,16 @@ char users[MAX_USERS][2][MAX_LOGIN_TEXT];
 bool is_admin[MAX_USERS];
 int userc = 0;
 
+
+// Surv type, for the getcam thread
+typedef struct _surv_t
+{
+  int listnum;
+  pthread_cond_t      cond;
+  pthread_mutex_t     mutex;
+} surv_t;
+
+
 typedef struct _print_seri
 {
   sslserver *server;
@@ -48,6 +58,10 @@ typedef struct _print_seri
   char notify[MAX_NOTIFY_STACK][MAX_NOTIFY_SIZE + 50];
   //
   main_backend *backe;
+  // Surv resp
+  int surv_resp;
+  surv_t *surve;
+
 } print_seri;
 
 
@@ -58,8 +72,13 @@ bool mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, boo
 bool set_tty(print_seri * serial_p, const char *tty);
 bool spb_write_log(const char *w_log);
 bool spb_write_notify(print_seri * serial_p, const char *w_log, int prio);
+bool spb_resp_wait(print_seri * serial_p, int listnum, int wait_sec);
+
 //
 
+
+// Use print_serial in v4l2grab
+#include "v4l2grab.cpp"
 
 
 bool
@@ -71,6 +90,19 @@ file_exists(const char *filename)
       return true;
     }
   return false;
+}
+
+bool
+spb_resp_wait(print_seri * serial_p, int listnum, int wait_sec)
+{
+  int i = 0;
+  while(i < 400){
+    if(serial_p->surv_resp)
+      break;
+    usleep(5000);
+    i++;
+  }
+
 }
 
 static void
@@ -394,6 +426,33 @@ md5sum(char *input)
 }
 
 bool
+spb_inalize_surv(print_seri * serial_p)
+{
+  // open and initialize device
+  deviceOpen();
+  deviceInit();
+
+  // start capturing
+  captureStart();
+
+  // process frames
+  //mainLoop();
+
+  // stop capturing
+  //  captureStop();
+
+  // close device
+  // deviceUninit();
+  // deviceClose();
+  serial_p->surve = new surv_t;
+  pthread_mutex_init ( &serial_p->surve->mutex, NULL);
+  pthread_cond_init( &serial_p->surve->cond, NULL);
+  serial_p->surve->listnum = 0;
+  pthread_t genpic;
+  pthread_create(&genpic, NULL, &gen_pic_backend, (void *)serial_p);
+}
+
+bool
 spb_inalize_notify(print_seri * serial_p)
 {
   char tmp_notify[MAX_NOTIFY_STACK][MAX_NOTIFY_SIZE + 50];
@@ -711,8 +770,16 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
 	}
       if (strncmp(data, "getcam", 6) == 0)
 	{
-	  
+	  serial_p->surve->listnum = listnum;
+	  pthread_mutex_lock(&serial_p->surve->mutex);
+	  pthread_cond_broadcast(&serial_p->surve->cond);
+	  pthread_mutex_unlock(&serial_p->surve->mutex);
+ 	}
+      if (strncmp(data, "resp", 4) == 0)
+	{
+	  serial_p->surv_resp = 1;
 	}
+      
       // To make the cewd abit more easy read, i just make an is admin if statment here, so, the 
       // cewd below in this function is ONLY executed, IF the user is admin, else, return.
       if (!is_admin[socket_user_id[listnum]])
@@ -1363,7 +1430,6 @@ main(int argc, char *argv[])
       print_seri serial_p;
       serial_p.server_cfg = &server_cfg;
 
-
       if (argc > 2)
 	{
 	  if (strcmp(argv[1], "deluser") == 0)
@@ -1449,8 +1515,10 @@ main(int argc, char *argv[])
       spb_inalize_notify(&serial_p);
       wtime();
       printf("Notify loaded\n");
-
-
+      spb_inalize_surv(&serial_p);
+      wtime();
+      printf("Surv loaded\n");
+      
       spb_write_notify(&serial_p, "Server Started!", 3);
       //device_add(&serial_p,0,0,16432);
 

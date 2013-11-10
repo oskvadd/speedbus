@@ -182,22 +182,18 @@ int
 sslserver::read_data(int listnum)
 {
   int errc = 0;
-  timeout.tv_sec = 5;
+  timeout.tv_sec = 2;
   timeout.tv_usec = 0;
   while (1)
     {
-      this->init_select();
-      if (select(connectlist[listnum] + 1, &socks, NULL, NULL, &timeout) < 1)
-	break;
       err = SSL_read(ssllist[listnum], buf + errc, 4096 - (1 + errc));
       errc += err;
       RETURN_SSL(err);
-      // Change timeout to not wait so long for the end delay.
-      timeout.tv_sec = 0;
-      timeout.tv_usec = 10000;
-      if (err < 1)
+
+      if (!SSL_pending(ssllist[listnum]))
 	break;
     }
+  
   if (err < 0)
     {
       return -1;
@@ -230,6 +226,8 @@ sslserver::datarun(int listnum, char *data, int *len)
 int
 sslserver::send_data(int listnum, const char *data, int len)
 {
+  if(!connectlist[listnum])
+    return 0;
   return SSL_write(ssllist[listnum], data, len);
 }
 
