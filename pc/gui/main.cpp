@@ -2760,7 +2760,7 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box4), rdata->rsurve_button1, FALSE, FALSE, 0);
 
 
-  rdata->rsurve_utimeout = g_timeout_add(100, rsurve_refresh_pic, rdata);
+  rdata->rsurve_utimeout = g_timeout_add(50, rsurve_refresh_pic, rdata);
 
   g_signal_connect(rdata->rsurve_button1, "clicked", G_CALLBACK(rsurve_screen_change), rdata);
 
