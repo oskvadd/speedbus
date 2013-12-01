@@ -69,7 +69,8 @@ typedef struct _print_seri
   int  slinks_nr;
   char slinks_host[MAX_LINKS][MAX_TEXT_BUFFER];
   int slinks_port[MAX_LINKS];
-  char slinks_login[MAX_LINKS][MAX_TEXT_BUFFER];
+  char slinks_user[MAX_LINKS][MAX_LOGIN_TEXT];
+  char slinks_pass[MAX_LINKS][MAX_LOGIN_TEXT];
   int slinks_status[MAX_LINKS];
   sslclient *sslc[MAX_LINKS];
 
@@ -486,12 +487,19 @@ spb_links_thread(void *ptr)
 	  serial_p->slinks_status[i] = 0; sleep(15);
 	  continue;
 	}
-      if (serial_p->sslc[i]->send_data(serial_p->slinks_login[i], strlen(serial_p->slinks_login[i])))
+
+      char login[MAX_LOGIN_TEXT * 3];
+      memset(login, 0, MAX_LOGIN_TEXT * 3);
+      sprintf(login, "%s\n%s", serial_p->slinks_user[i], serial_p->slinks_pass[i]);
+
+      if (serial_p->sslc[i]->send_data(login, strlen(login)))
 	{
 	  char data[RECV_MAX];
 	  int len;
+	  printf("hej\n");
 	  if (len = serial_p->sslc[i]->recv_data(data))
 	    {
+	      printf("hej\n");
 	      if (strcmp(data, "Login Failed\n") == 0)
 		{
 		  printf("Login failed on link %s, Killing thread\n", serial_p->slinks_host[i]);
@@ -514,9 +522,12 @@ spb_links_thread(void *ptr)
 	      serial_p->slinks_status[i] = 0; sleep(15);
 	      continue;
 	    }
-	}
+      serial_p->sslc[i]->recv_data(data);
+	printf("data: %s\n", data);
+
       // Flush recv to the end "udevlist"
       while(strncmp("udevlist", data, 8) != 0){
+	printf("data: %s\n", data);
 	serial_p->sslc[i]->recv_data(data);
       }
       //
@@ -527,7 +538,7 @@ spb_links_thread(void *ptr)
 	  int len;
 	  if (len = serial_p->sslc[i]->recv_data(data))
 	    {
-	      if (strcmp(data, "good\n") != 0){
+	      if (strncmp(data, "good\n",5) != 0){
 	      serial_p->sslc[i]->sslfree();
 	      serial_p->slinks_status[i] = 0; sleep(15);
 	      continue;		
@@ -537,15 +548,22 @@ spb_links_thread(void *ptr)
 	      }
 	    }
 	}
-      
+	}
     }
+    printf("good\n");
     serial_p->slinks_status[i] = 1;
     
     len = serial_p->sslc[i]->recv_data(data);
     if(len > 0){
     printf("Data got from link %s, len %d: %s\n", serial_p->slinks_host[i], len, data);
     spb_exec(serial_p, -1, i, data, len);
-
+    for (int i = 0; i < MAX_LISTEN; i++)
+      {
+	if (serial_p->server->session_open[i])
+	  {
+	    serial_p->server->send_data(i, data, len);
+	  }
+      }
 
     }
     // Notice FIX known_hosts
@@ -581,20 +599,23 @@ spb_inalize_links(print_seri * serial_p)
   setting = config_lookup(serial_p->server_cfg, "links");
   if (setting != NULL)
     {
-      const char *host, *login;
+      const char *host, *user, *pass;
       int port;
       int count = config_setting_length(setting);
       for (int i = 0; i < count; ++i)
 	{
 	  tmp = config_setting_get_elem(setting, i);
-	  if ((config_setting_lookup_string
-	       (tmp, "host", &host))
-	      && (config_setting_lookup_int(tmp, "port", &port)) && (config_setting_lookup_string(tmp, "login", &login)))
+	  if (config_setting_lookup_string(tmp, "host", &host)
+	      && config_setting_lookup_int(tmp, "port", &port) 
+	      && config_setting_lookup_string(tmp, "user", &user)
+		  && config_setting_lookup_string(tmp, "pass", &pass))
 	    {
-	      //printf("Found one user! %s:%s with is_admin %d\n",user,pass, is_admin_a);
+	      //porintf("Found one user! %s:%s with is_admin %d\n",user,pass, is_admin_a);
 	      strncpy(serial_p->slinks_host[serial_p->slinks_nr], host, MAX_TEXT_BUFFER);
 	      serial_p->slinks_port[serial_p->slinks_nr] = port;
-	      strncpy(serial_p->slinks_login[serial_p->slinks_nr], login, MAX_TEXT_BUFFER);
+	      strncpy(serial_p->slinks_user[serial_p->slinks_nr], user, MAX_LOGIN_TEXT);
+	      strncpy(serial_p->slinks_pass[serial_p->slinks_nr], pass, MAX_LOGIN_TEXT);
+
 	      //is_admin[userc] = is_admin_a;
 	      //userc++;
 	      printf("Found link %s\n", host);
@@ -760,7 +781,10 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
    */
   int err = 0;
 
-  if (!serial_p->server->session_open[listnum] && !linknum)
+  if(linknum > -1)
+    goto spb_recv_link;
+
+  if (!serial_p->server->session_open[listnum])
     {
 
       char user[MAX_LOGIN_TEXT * 2], pass[MAX_LOGIN_TEXT * 2];
@@ -870,6 +894,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
     }
   else
     {
+    spb_recv_link:
       // Ordinary binary send, just output the data that is sent to it.
       if (strncmp(data, "send", 4) == 0)
 	{
