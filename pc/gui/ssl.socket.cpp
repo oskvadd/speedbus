@@ -226,6 +226,9 @@ sslserver::datarun(int listnum, char *data, int *len)
 int
 sslserver::send_data(int listnum, const char *data, int len)
 {
+  if(listnum < 0)
+    return 0;
+  
   if(!connectlist[listnum])
     return 0;
   return SSL_write(ssllist[listnum], data, len);

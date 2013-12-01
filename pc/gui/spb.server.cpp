@@ -16,8 +16,10 @@
 #include "spb.backend.cpp"
 #include "http_post.cpp"
 
+#define MAX_TEXT_BUFFER 200     // Maximum text buffer for preferences
 #define MAX_RESP_TIME 2		// Maximum resp time, before dropping the transfer. This may be tuned in future. 
 #define MAX_USERS 100
+#define MAX_LINKS 10            // Maximum numbers of server links
 #define MAX_LOG_SIZE 200	// Maximum numbers of chars to send to log, at once.
 #define MAX_NOTIFY_STACK 10
 #define MAX_NOTIFY_SIZE 200	// Maximum size of the notify message
@@ -28,9 +30,15 @@
 #define SERVER_NOTIFY_FILE "server.notify"
 #define SERVER_DEVCACHE_FILE "server.devcache"
 
+// User Privs
+#define USER_NORMAL 0
+#define USER_ADMIN 1
+#define USER_LINK 2
+//
+
 int socket_user_id[MAX_LISTEN];
 char users[MAX_USERS][2][MAX_LOGIN_TEXT];
-bool is_admin[MAX_USERS];
+int user_type[MAX_USERS];
 int userc = 0;
 
 
@@ -57,12 +65,29 @@ typedef struct _print_seri
   int notify_nr;
   char notify[MAX_NOTIFY_STACK][MAX_NOTIFY_SIZE + 50];
   //
+  // Server Links
+  int  slinks_nr;
+  char slinks_host[MAX_LINKS][MAX_TEXT_BUFFER];
+  int slinks_port[MAX_LINKS];
+  char slinks_login[MAX_LINKS][MAX_TEXT_BUFFER];
+  int slinks_status[MAX_LINKS];
+  sslclient *sslc[MAX_LINKS];
+
+  //
   main_backend *backe;
   // Surv resp
   int surv_resp;
   surv_t *surve;
 
 } print_seri;
+
+// Links thread type
+typedef struct _slinks_t
+{
+  int links_nr;
+  print_seri *serial_p;
+  
+} slinks_t;
 
 
 // Pre allocated functions 
@@ -73,6 +98,7 @@ bool set_tty(print_seri * serial_p, const char *tty);
 bool spb_write_log(const char *w_log);
 bool spb_write_notify(print_seri * serial_p, const char *w_log, int prio);
 bool spb_resp_wait(print_seri * serial_p, int listnum, int wait_sec);
+bool spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len);
 
 //
 
@@ -425,11 +451,186 @@ md5sum(char *input)
     }
 }
 
+
+// Links thread
+void *
+spb_links_thread(void *ptr)
+{
+  printf("start thread\n");
+
+  slinks_t *slink = (slinks_t *) ptr;
+  print_seri *serial_p = slink->serial_p;
+
+  int i = slink->links_nr; // The links nr
+  int len;
+  fd_set socks;
+  char data[RECV_MAX];
+
+  while(1){
+    if(!serial_p->slinks_status[i]){
+      serial_p->sslc[i] = new sslclient;
+      printf("start\n");
+      // If Not connected
+      struct hostent *he;
+      he = gethostbyname(serial_p->slinks_host[i]);
+      if (!serial_p->sslc[i]->sslsocket(inet_ntoa(*(struct in_addr *)he->h_addr), serial_p->slinks_port[i]))
+	{
+	  printf("Links connection to %s Failed\n", serial_p->slinks_host[i]);
+	  serial_p->slinks_status[i] = 0; sleep(15);
+	  continue;
+	}
+      if (!serial_p->sslc[i]->loadssl())
+	{
+	  printf("Links ssl handshake to %s Failed\n", serial_p->slinks_host[i]);
+	  serial_p->sslc[i]->sslfree();
+	  serial_p->slinks_status[i] = 0; sleep(15);
+	  continue;
+	}
+      if (serial_p->sslc[i]->send_data(serial_p->slinks_login[i], strlen(serial_p->slinks_login[i])))
+	{
+	  char data[RECV_MAX];
+	  int len;
+	  if (len = serial_p->sslc[i]->recv_data(data))
+	    {
+	      if (strcmp(data, "Login Failed\n") == 0)
+		{
+		  printf("Login failed on link %s, Killing thread\n", serial_p->slinks_host[i]);
+		  serial_p->sslc[i]->sslfree();
+		  return 0;
+		}
+	      if (strcmp(data, "root\n") == 0)
+		{
+		  printf("Got admin!\n");
+		}
+	      if (strcmp(data, "user\n") == 0)
+		{
+		  printf("I am not admin :/\n");
+		}
+	    }
+	  else
+	    {
+	      printf("Links connection to %s Reset", serial_p->slinks_host[i]);
+	      serial_p->sslc[i]->sslfree();
+	      serial_p->slinks_status[i] = 0; sleep(15);
+	      continue;
+	    }
+	}
+      // Flush recv to the end "udevlist"
+      while(strncmp("udevlist", data, 8) != 0){
+	serial_p->sslc[i]->recv_data(data);
+      }
+      //
+      
+      if (serial_p->sslc[i]->send_data("slinks ", 7))
+	{
+	  char data[RECV_MAX];
+	  int len;
+	  if (len = serial_p->sslc[i]->recv_data(data))
+	    {
+	      if (strcmp(data, "good\n") != 0){
+	      serial_p->sslc[i]->sslfree();
+	      serial_p->slinks_status[i] = 0; sleep(15);
+	      continue;		
+	      }else{
+		wtime();
+		printf("Linked up with %s\n", serial_p->slinks_host[i]);
+	      }
+	    }
+	}
+      
+    }
+    serial_p->slinks_status[i] = 1;
+    
+    len = serial_p->sslc[i]->recv_data(data);
+    if(len > 0){
+    printf("Data got from link %s, len %d: %s\n", serial_p->slinks_host[i], len, data);
+    spb_exec(serial_p, -1, i, data, len);
+
+
+    }
+    // Notice FIX known_hosts
+    //char host_entry[200];
+    //char finger[100];
+    //char host[100];
+    //strncpy(host, adr, 100);
+    //pdata->sslc.get_ssl_finger(finger);
+    //sprintf(host_entry, "Host: %s | Fingerprint: %s", host, finger);
+    //int sig = pdata->sslc.find_known_hosts(host_entry);
+    printf("hej\n");
+  }
+}
+//
+
+bool 
+spb_links_send(print_seri * serial_p, int linknum, char * data, int len){
+  int i;
+  for(i=0; i < serial_p->slinks_nr; i++){
+    if(serial_p->slinks_status[i] && i != linknum){
+      serial_p->sslc[i]->send_data(data, len);
+    }
+  } 
+}
+
+
+bool
+spb_inalize_links(print_seri * serial_p)
+{
+  
+  serial_p->slinks_nr = 0;
+  config_setting_t *setting, *tmp;
+  setting = config_lookup(serial_p->server_cfg, "links");
+  if (setting != NULL)
+    {
+      const char *host, *login;
+      int port;
+      int count = config_setting_length(setting);
+      for (int i = 0; i < count; ++i)
+	{
+	  tmp = config_setting_get_elem(setting, i);
+	  if ((config_setting_lookup_string
+	       (tmp, "host", &host))
+	      && (config_setting_lookup_int(tmp, "port", &port)) && (config_setting_lookup_string(tmp, "login", &login)))
+	    {
+	      //printf("Found one user! %s:%s with is_admin %d\n",user,pass, is_admin_a);
+	      strncpy(serial_p->slinks_host[serial_p->slinks_nr], host, MAX_TEXT_BUFFER);
+	      serial_p->slinks_port[serial_p->slinks_nr] = port;
+	      strncpy(serial_p->slinks_login[serial_p->slinks_nr], login, MAX_TEXT_BUFFER);
+	      //is_admin[userc] = is_admin_a;
+	      //userc++;
+	      printf("Found link %s\n", host);
+
+	      slinks_t *slink = new slinks_t;
+	      slink->links_nr = serial_p->slinks_nr;
+	      slink->serial_p = serial_p;
+
+	      serial_p->slinks_status[i] = 0; // Set link status not connected 
+	      pthread_t printr;
+	      pthread_create(&printr, NULL, &spb_links_thread, (void *)slink);
+	      printf("Link Thread started\n");
+
+	      serial_p->slinks_nr++;
+	    }
+	}
+    }
+  else
+    {
+      // no links
+    }
+  
+  if(serial_p->slinks_nr > 0){
+    // Start server links backend
+
+  }
+}
+
+//
+
 bool
 spb_inalize_surv(print_seri * serial_p)
 {
   // open and initialize device
-  deviceOpen();
+  if(deviceOpen() < 0)
+    return 0;
   deviceInit();
 
   // start capturing
@@ -551,7 +752,7 @@ spb_write_log(const char *w_log)
 }
 
 bool
-spb_exec(print_seri * serial_p, int listnum, char *data, int len)
+spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 {
   /*------- DATA EXCHANGE - Receive message and send reply. -------*/
   /*
@@ -559,7 +760,7 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
    */
   int err = 0;
 
-  if (!serial_p->server->session_open[listnum])
+  if (!serial_p->server->session_open[listnum] && !linknum)
     {
 
       char user[MAX_LOGIN_TEXT * 2], pass[MAX_LOGIN_TEXT * 2];
@@ -577,7 +778,7 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
 	  if (strncmp(data, tmp, len) == 0)
 	    {
 	      socket_user_id[listnum] = i;
-	      if (is_admin[i])
+	      if (user_type[i] == USER_ADMIN)
 		{
 		  err = serial_p->server->send_data(listnum, "root\n", strlen("root\n"));
 		}
@@ -672,6 +873,9 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
       // Ordinary binary send, just output the data that is sent to it.
       if (strncmp(data, "send", 4) == 0)
 	{
+	  // Send command to links upstream
+	  spb_links_send(serial_p, linknum, data, len);
+	  //
 	  if (!serial_port.IsOpen())
 	    {
 	      serial_p->server->send_data(listnum,
@@ -782,7 +986,7 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
       
       // To make the cewd abit more easy read, i just make an is admin if statment here, so, the 
       // cewd below in this function is ONLY executed, IF the user is admin, else, return.
-      if (!is_admin[socket_user_id[listnum]])
+      if (user_type[socket_user_id[listnum]] < USER_ADMIN)
 	return 0;
       if (strncmp(data, "adduser", 7) == 0)
 	{
@@ -845,8 +1049,8 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
 	      if (users[i][1][0] != '\0')
 		{
 		  char send[(MAX_LOGIN_TEXT * 2) + 1 + 9];
-		  sprintf(send, "userlist %s %d\n", users[i][1], is_admin[i]);
-		  printf(send, "userlist %s %d\n", users[i][1], is_admin[i]);
+		  sprintf(send, "userlist %s %d\n", users[i][1], user_type[i]);
+		  printf(send, "userlist %s %d\n", users[i][1], user_type[i]);
 		  serial_p->server->send_data(listnum, send, strlen(send));
 		}
 	    }
@@ -996,6 +1200,13 @@ spb_exec(print_seri * serial_p, int listnum, char *data, int len)
 	  serial_p->backe->devids = 0;	// Make the server reload the config files on the next exec
 	}
 
+      if (strncmp(data, "slinks ", 7) == 0)
+	{
+	  user_type[socket_user_id[listnum]] = USER_LINK;  // Mark the user as a link. 
+	  serial_p->server->send_data(listnum, "good\n", strlen("good\n"));
+	}
+      
+
     }
 
 }
@@ -1019,7 +1230,7 @@ runselect(print_seri * serial_p)
 	{
 	  if (serial_p->server->datarun(listnum, data, &len))
 	    {
-	      spb_exec(serial_p, listnum, data, len);
+	      spb_exec(serial_p, listnum, -1, data, len);
 	    }
 	  else
 	    {
@@ -1107,7 +1318,11 @@ add_user(config_t * server_cfg, char *user, char *pass, bool is_admin_s)
 
   strncpy(users[index][1], user, MAX_LOGIN_TEXT);
   strncpy(users[index][2], pass, MAX_LOGIN_TEXT);
-  is_admin[index] = 1;
+  
+  if(is_admin_s)
+    user_type[index] = USER_ADMIN;
+  else
+    user_type[index] = USER_NORMAL;
   userc++;
 
   return 1;
@@ -1150,7 +1365,7 @@ del_user(config_t * server_cfg, char *user)
 	{
 	  users[i][1][0] = '\0';
 	  users[i][2][0] = '\0';
-	  is_admin[i] = 0;
+	  user_type[i] = 0;
 	  userc--;
 	  status++;
 	}
@@ -1215,7 +1430,12 @@ mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, bool is_
 		      config_setting_set_string(member, passwd);
 		    }
 		  member = config_setting_get_member(element, "is_admin");
-		  is_admin[index] = is_admin_s;
+
+		  if(is_admin_s)
+		    user_type[index] = USER_ADMIN;
+		  else
+		    user_type[index] = USER_NORMAL;
+
 		  config_setting_set_bool(member, is_admin_s);
 		  goto del_user_end;
 		}
@@ -1413,7 +1633,12 @@ main(int argc, char *argv[])
 		      //printf("Found one user! %s:%s with is_admin %d\n",user,pass, is_admin_a);
 		      strncpy(users[userc][1], user, MAX_LOGIN_TEXT);
 		      strncpy(users[userc][2], pass, MAX_LOGIN_TEXT);
-		      is_admin[userc] = is_admin_a;
+
+		      if(is_admin_a)
+			user_type[userc] = USER_ADMIN;
+		      else
+			user_type[userc] = USER_NORMAL;
+
 		      userc++;
 		    }
 		}
@@ -1518,6 +1743,9 @@ main(int argc, char *argv[])
       spb_inalize_surv(&serial_p);
       wtime();
       printf("Surv loaded\n");
+      spb_inalize_links(&serial_p);
+      wtime();
+      printf("Links loaded\n");
       
       spb_write_notify(&serial_p, "Server Started!", 3);
       //device_add(&serial_p,0,0,16432);

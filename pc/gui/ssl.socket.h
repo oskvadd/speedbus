@@ -74,7 +74,6 @@ class sslserver {
 class sslclient {
 	int err;
 	int verify_client;	/* To verify a client certificate, set ON */
-	int sock;
 	struct sockaddr_in server_addr;
 	char *str;
 	char buf[4096];
@@ -91,7 +90,9 @@ class sslclient {
 	unsigned int n;
 
       public:
-	 sslclient();
+	int sock;
+
+	sslclient();
 	bool sslsocket(const char *s_ipaddr, short int s_port);
 	bool loadssl();
 	bool send_data(const char *msg, int len);

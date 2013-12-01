@@ -777,20 +777,20 @@ static void deviceClose(void)
 /**
   open device
 */
-static void deviceOpen(void)
+static int deviceOpen(void)
 {
   struct stat st;
 
   // stat file
   if (-1 == stat(deviceName, &st)) {
     fprintf(stderr, "Cannot identify '%s': %d, %s\n", deviceName, errno, strerror (errno));
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   // check if its device
   if (!S_ISCHR (st.st_mode)) {
     fprintf(stderr, "%s is no device\n", deviceName);
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   // open device
@@ -799,7 +799,7 @@ static void deviceOpen(void)
   // check if opening was successfull
   if (-1 == fd) {
     fprintf(stderr, "Cannot open '%s': %d, %s\n", deviceName, errno, strerror (errno));
-    exit(EXIT_FAILURE);
+    return -1;
   }
 }
 
