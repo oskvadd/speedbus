@@ -254,17 +254,27 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rdevee_box1;
   GtkWidget *rdevee_box2;
   GtkWidget *rdevee_box3;
+  GtkWidget *rdevee_box4;
   GtkWidget *rdevee_ebox;
   GtkWidget *rdevee_ebox1;
   GtkWidget *rdevee_load_event_label;
-  GtkWidget *rdevee_load_event_entry;
-  GtkWidget *rdevee_load_event_button;
   GtkWidget *rdevee_save_event_button;
+  GtkWidget *rdevee_new_event_button;
+  GtkWidget *rdevee_remove_event_button;
+
   GtkWidget *rdevee_status_bar;
   bool rdevee_event_loaded;
   int rdevee_loaded_nr;
   int rdevee_load_type_hardcode;
   GtkWidget *rdevee_combo_opt;
+  // Event box list
+  GtkWidget *rdevee_list;
+  GtkWidget *rdevee_list_box;
+  GtkTreeModel *rdevee_list_tree;
+  GtkListStore *rdevee_list_list;
+  GtkTreeIter rdevee_list_iter;
+
+
 
   GtkWidget *rdevee_elem_box[MAX_WIDGETS];
   GtkWidget *rdevee_elem_input[MAX_WIDGETS];
@@ -750,6 +760,52 @@ delete_event(GtkWidget * widget, GdkEvent * event, gpointer data)
   gtk_widget_hide(GTK_WIDGET(widget));
   return TRUE;
 }
+
+void treeViewMapHandler(GtkTreeView *treeView, gpointer data)
+{
+  GtkWidget *padBox = (GtkWidget*)data; 
+  gint x, y;
+
+  g_assert(GTK_IS_HBOX(padBox));
+
+  /* Set the size of the padding above the tree view's vertical scrollbar to the
+   * height of its header_window (i.e. the offset to the top of its bin_window) */
+  gtk_tree_view_convert_bin_window_to_widget_coords(GTK_TREE_VIEW(treeView),
+						    0, 0, &x, &y);
+  gtk_widget_set_size_request(padBox, -1, y);
+}
+
+// Add scrollbar
+GtkWidget *addScrollBarToTreeView(GtkWidget *treeView)
+{
+  GtkAdjustment *pAdj = gtk_tree_view_get_vadjustment(GTK_TREE_VIEW(treeView));
+  GtkWidget *vScroll = gtk_vscrollbar_new(pAdj);
+  GtkWidget *padBox, *hBox, *vBox; 
+
+  hBox = gtk_hbox_new(FALSE, 0);
+
+  /* First insert the tree view */
+  gtk_box_pack_start(GTK_BOX(hBox), treeView, TRUE, TRUE, 0);
+  gtk_widget_show(treeView);
+
+  /* Then, packed up against its right side, add in a vbox containing a
+   * box for padding at the top and the scrollbar below that */
+  vBox = gtk_vbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(hBox), vBox, FALSE, FALSE, 0);
+  gtk_widget_show(vBox);
+  padBox = gtk_hbox_new(FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(vBox), padBox, FALSE, FALSE, 0);
+  gtk_widget_show(padBox);
+  gtk_box_pack_start(GTK_BOX(vBox), vScroll, TRUE, TRUE, 0);
+  gtk_widget_show(vScroll);
+
+  /* The padding box above the scroll bar needs to be set to the height of the
+   * tree view's header_window, but we can't do that until it is mapped */
+  g_signal_connect(treeView, "map", G_CALLBACK(treeViewMapHandler), padBox);
+
+  return hBox;
+}
+//
 
 /* Another callback */
 static void
@@ -1758,7 +1814,7 @@ rdeve_event_change(GtkWidget * buffer, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
   rdata->rdevee_load_type_hardcode = gtk_combo_box_get_active(GTK_COMBO_BOX(rdata->rdevee_combo_opt)) + 1;
-  rdeve_event_load(buffer, rdata);
+  //  rdeve_event_load(buffer, rdata);
 }
 
 
@@ -1967,16 +2023,16 @@ rdeve_event_save(GtkWidget * buffer, gpointer data)
 }
 
 
+
 gboolean
-rdeve_event_load(GtkWidget * buffer, gpointer data)
+rdeve_load_event_(int levent, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
-
+  
   config_t cfg;
   if (!rdeve_fetch_config(rdata) || !rdeve_open_config(rdata, &cfg))
     return 0;
-
-
+ 
   if (rdata->rdevee_event_loaded)
     {
       if (!rdata->rdevee_load_type_hardcode)
@@ -1992,19 +2048,23 @@ rdeve_event_load(GtkWidget * buffer, gpointer data)
       gtk_box_pack_start(GTK_BOX(rdata->rdevee_box3), rdata->rdevee_ebox, FALSE, TRUE, 0);
       //gtk_widget_set_size_request(rdata->rdevee_ebox, 600, 250);
     }
-  rdata->rdevee_event_loaded = 1;
 
-
-
-  int levent;
+  char event_label[50];
+  sprintf(event_label, "Event number: %d", levent);
+  gtk_label_set_text(GTK_LABEL(rdata->rdevee_load_event_label), event_label);
+  
+    /*
+  
   sscanf((char *)gtk_entry_get_text(GTK_ENTRY(rdata->rdevee_load_event_entry)), "%d", &levent);
   if (levent < 1)
     {
       gtk_statusbar_push(GTK_STATUSBAR(rdata->rdevee_status_bar), 0, "Cant load, number is fail");
       return 0;
     }
+  */
+  rdata->rdevee_event_loaded = 1;
   rdata->rdevee_loaded_nr = levent;
-
+ 
 
   config_setting_t *setting;
   setting = config_lookup(&cfg, "spb.events");
@@ -2018,7 +2078,7 @@ rdeve_event_load(GtkWidget * buffer, gpointer data)
 	  const char *type;
 	  if (!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_string(book, "type", &type)))
 	    continue;
-	  if (sizeof(event) > MAX_EVENT || sizeof(type) > MAX_BUFFER)
+	  if (event > MAX_EVENT || sizeof(type) > MAX_BUFFER)
 	    continue;
 	  if (event == levent)
 	    {
@@ -2277,6 +2337,160 @@ rdeve_event_load(GtkWidget * buffer, gpointer data)
 }
 
 gboolean
+rdeve_load_event(GtkTreeView * treeview, GtkTreePath * path, GtkTreeViewColumn * col, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  GtkTreeModel *model;
+  GtkTreeIter iter;
+  int levent;
+
+
+
+  model = gtk_tree_view_get_model(treeview);
+  if (gtk_tree_model_get_iter(model, &iter, path))
+    {
+      gtk_tree_model_get(model, &iter, 1, (gpointer) & levent, -1);
+      rdeve_load_event_(levent, rdata);
+   }
+
+}
+
+
+gboolean
+rdeve_load_list(gpointer data)
+{
+
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  config_t cfg;
+  if (!rdeve_fetch_config(rdata) || !rdeve_open_config(rdata, &cfg))
+    return 0;
+
+  config_setting_t *setting;
+  setting = config_lookup(&cfg, "spb.events");
+  if (setting != NULL)
+    {
+      int count = config_setting_length(setting);
+      for (int i = 0; i < count; ++i)
+	{
+	  config_setting_t *book = config_setting_get_elem(setting, i);
+	  int event;
+	  const char *type;
+	  if (!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_string(book, "type", &type)))
+	    continue;
+
+	  gtk_list_store_append(rdata->rdevee_list_list, &rdata->rdevee_list_iter);
+	  gtk_list_store_set(rdata->rdevee_list_list,
+			     &rdata->rdevee_list_iter, 0, type, 1, event, -1);
+	  rdata->rdevee_list_tree = GTK_TREE_MODEL(rdata->rdevee_list_list);
+	  gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rdevee_list), rdata->rdevee_list_tree);
+	}
+    }
+  
+}
+
+gboolean
+rdeve_event_remove(GtkWidget * buffer, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  config_t cfg;
+  if (!rdeve_fetch_config(rdata) || !rdeve_open_config(rdata, &cfg) || !rdata->rdevee_event_loaded)
+    return 0;
+
+  config_setting_t *setting;
+  setting = config_lookup(&cfg, "spb.events");
+  if (setting != NULL)
+    {
+      int count = config_setting_length(setting);
+      for (int i = 0; i < count; ++i)
+	{
+	  config_setting_t *book = config_setting_get_elem(setting, i);
+	  int event;
+	  const char *type;
+	  if (!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_string(book, "type", &type)))
+	    continue;
+	  if (event > MAX_EVENT || sizeof(type) > MAX_BUFFER)
+	    continue;
+	  if (event == rdata->rdevee_loaded_nr)
+	    {
+	      config_setting_remove_elem(setting, i);
+	      config_write_file(&cfg, ".tmp.conf");
+	      rdeve_config_reload(rdata);
+	      config_destroy(&cfg);
+	      rdata->rdevee_list_list = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_UINT);
+	      rdeve_load_list(rdata);
+	      gtk_widget_destroy(rdata->rdevee_ebox1);
+	      gtk_widget_destroy(rdata->rdevee_ebox);
+	      rdata->rdevee_ebox1 = gtk_vbox_new(FALSE, 10);
+	      gtk_box_pack_start(GTK_BOX(rdata->rdevee_box3), rdata->rdevee_ebox1, FALSE, TRUE, 0);
+	      rdata->rdevee_ebox = gtk_vbox_new(FALSE, 10);
+	      gtk_box_pack_start(GTK_BOX(rdata->rdevee_box3), rdata->rdevee_ebox, FALSE, TRUE, 0);
+
+	      rdata->rdevee_event_loaded = 0;
+	      gtk_label_set_text(GTK_LABEL(rdata->rdevee_load_event_label), "Event number: ");
+	      return 1;
+	    }
+	}
+    }
+}
+
+
+gboolean
+rdeve_event_new(GtkWidget * buffer, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  config_t cfg;
+  if (!rdeve_fetch_config(rdata) || !rdeve_open_config(rdata, &cfg))
+    return 0;
+
+  config_setting_t *setting, *elem, *nelem;
+  setting = config_lookup(&cfg, "spb.events");
+  if (setting != NULL)
+    {
+      int count = config_setting_length(setting);
+      int new_nr = 1;
+      int event;
+      for (int i = 0; i < count; ++i)
+	{
+	  config_setting_t *book = config_setting_get_elem(setting, i);
+	  if (!(config_setting_lookup_int(book, "event", &event)))
+	    continue;
+	  if (event > MAX_EVENT)
+	    return 0;
+	  if (event == new_nr)
+	    {
+	      i = 0;
+	      new_nr++;
+	    }
+	}
+      if(new_nr <= MAX_EVENT){
+	elem = config_setting_add(setting, NULL, CONFIG_TYPE_GROUP);
+
+	nelem = config_setting_add(elem, "event", CONFIG_TYPE_INT);
+	config_setting_set_int(nelem, new_nr);
+
+	nelem = config_setting_add(elem, "type", CONFIG_TYPE_STRING);
+	config_setting_set_string(nelem, "send");
+
+
+	nelem = config_setting_add(elem, "data", CONFIG_TYPE_LIST);
+	config_setting_add(nelem, NULL, CONFIG_TYPE_INT);
+	config_write_file(&cfg, ".tmp.conf");
+	rdeve_config_reload(rdata);
+	config_destroy(&cfg);
+	rdata->rdevee_list_list = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_UINT);
+	rdeve_load_list(rdata);
+	rdeve_load_event_(new_nr, rdata);
+	
+      }
+    }
+
+}
+
+
+gboolean
 rdeve_event_edit(GtkWidget * buffer, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
@@ -2296,32 +2510,62 @@ rdeve_event_edit(GtkWidget * buffer, gpointer data)
   rdata->rdevee_box1 = gtk_vbox_new(FALSE, 10);
   rdata->rdevee_box2 = gtk_hbox_new(FALSE, 10);
   rdata->rdevee_box3 = gtk_vbox_new(FALSE, 10);
+  rdata->rdevee_box4 = gtk_hbox_new(FALSE, 10);
   rdata->rdevee_ebox = gtk_vbox_new(FALSE, 10);
   rdata->rdevee_ebox1 = gtk_vbox_new(FALSE, 10);
   //gtk_widget_set_size_request(rdata->rdevee_box3, 600, 250);
 
-  gtk_container_add(GTK_CONTAINER(rdata->rdevee_gui), rdata->rdevee_box1);
+  gtk_container_add(GTK_CONTAINER(rdata->rdevee_gui), rdata->rdevee_box4);
   rdata->rdevee_load_event_label = gtk_label_new("Event number: ");
-  rdata->rdevee_load_event_entry = gtk_entry_new();
-  rdata->rdevee_load_event_button = gtk_button_new_with_label("Load event");
+  //rdata->rdevee_load_event_entry = gtk_entry_new();
+  //rdata->rdevee_load_event_button = gtk_button_new_with_label("Load event");
   rdata->rdevee_save_event_button = gtk_button_new_with_label("Save event");
+  rdata->rdevee_remove_event_button = gtk_button_new_with_label("Remove event");
+  rdata->rdevee_new_event_button = gtk_button_new_with_label("New event");
+
+  // Event list
+  GtkCellRenderer *renderer;
+  rdata->rdevee_list = gtk_tree_view_new();
+
+  rdata->rdevee_list_list = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_UINT);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rdevee_list), -1, "Type", renderer, "text", 0, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rdevee_list), -1, "Id", renderer, "text", 1, NULL);
+  rdata->rdevee_list_box = addScrollBarToTreeView(rdata->rdevee_list);
+  
+  //
+
+
   gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_load_event_label, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_load_event_entry, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_load_event_button, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_save_event_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_save_event_button, FALSE, FALSE, 0); 
+  gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_remove_event_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_new_event_button, FALSE, FALSE, 0);
+ 
   gtk_box_pack_start(GTK_BOX(rdata->rdevee_box1), rdata->rdevee_box2, FALSE, FALSE, 0);
-  g_signal_connect(rdata->rdevee_load_event_button, "clicked", G_CALLBACK(rdeve_event_load), rdata);
+
+  //g_signal_connect(rdata->rdevee_load_event_button, "clicked", G_CALLBACK(rdeve_event_load), rdata);
+  g_signal_connect(rdata->rdevee_list, "row-activated", G_CALLBACK(rdeve_load_event), rdata);
   g_signal_connect(rdata->rdevee_save_event_button, "clicked", G_CALLBACK(rdeve_event_save), rdata);
+  g_signal_connect(rdata->rdevee_remove_event_button, "clicked", G_CALLBACK(rdeve_event_remove), rdata);
+  g_signal_connect(rdata->rdevee_new_event_button, "clicked", G_CALLBACK(rdeve_event_new), rdata);
 
 
   gtk_box_pack_start(GTK_BOX(rdata->rdevee_box1), rdata->rdevee_box3, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rdevee_box3), rdata->rdevee_ebox1, FALSE, TRUE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rdevee_box3), rdata->rdevee_ebox, FALSE, FALSE, 0);
 
+
   rdata->rdevee_status_bar = gtk_statusbar_new();
   gtk_box_pack_start(GTK_BOX(rdata->rdevee_box1), rdata->rdevee_status_bar, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rdevee_box4), rdata->rdevee_list_box, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rdevee_box4), rdata->rdevee_box1, FALSE, FALSE, 0);
+
+  rdeve_load_list(rdata);
+
   gtk_widget_show_all(rdata->rdevee_gui);
   config_destroy(&cfg);
+
 }
 
 
