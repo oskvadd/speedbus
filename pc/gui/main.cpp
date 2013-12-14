@@ -1814,7 +1814,7 @@ rdeve_event_change(GtkWidget * buffer, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
   rdata->rdevee_load_type_hardcode = gtk_combo_box_get_active(GTK_COMBO_BOX(rdata->rdevee_combo_opt)) + 1;
-  //  rdeve_event_load(buffer, rdata);
+  rdeve_load_event_(rdata->rdevee_event_loaded, rdata);
 }
 
 
@@ -2088,20 +2088,26 @@ rdeve_load_event_(int levent, gpointer data)
 
 		  config_setting_t *gdata_t;
 		  gdata_t = config_setting_get_member(book, "data");
+		  // edcount, the number of data bytes.
 		  int edcount = config_setting_length(gdata_t);
 		  int edata[edcount];
 		  int ed;
+
+		  // Put the data bytes in edata
 		  for (int i = 0; i < edcount; ++i)
 		    {
 		      ed = config_setting_get_int_elem(gdata_t, i);
 		      edata[i] = ed;
 		    }
+
 		  // -> Event editor load
 		  config_setting_t *deves;
 		  deves = config_lookup(&cfg, "deve");
+		  // deves is the number of "types" for the config
 		  if (deves != NULL)
 		    {
 		      int d_c = config_setting_length(deves);
+		      // d_c is the number of options defined, so that we can make widget of the data bytes.
 		      for (int di = 0; di < d_c; ++di)
 			{
 			  config_setting_t *dvel = config_setting_get_elem(deves, di);
@@ -2350,6 +2356,7 @@ rdeve_load_event(GtkTreeView * treeview, GtkTreePath * path, GtkTreeViewColumn *
   if (gtk_tree_model_get_iter(model, &iter, path))
     {
       gtk_tree_model_get(model, &iter, 1, (gpointer) & levent, -1);
+      printf("Load evet: %d", levent);
       rdeve_load_event_(levent, rdata);
    }
 

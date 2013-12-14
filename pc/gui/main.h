@@ -6,3 +6,4 @@ static void get_vars_load(void *data, char *p_data, int counter);
 static int get_variable_gui(void *data, int var_id, bool from_gui);
 static void speedbus_fill_devlist(void *data);
 gboolean rdeve_load_event(GtkTreeView * treeview, GtkTreePath * path, GtkTreeViewColumn * col, gpointer data);
+gboolean rdeve_load_event_(int levent, gpointer data);
