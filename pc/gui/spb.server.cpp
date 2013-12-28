@@ -376,8 +376,7 @@ print_ser_backend(void *ptr)
 			  // Send it away to the clients
 			  char prepare[RECV_MAX];
 			  sprintf(prepare, "send ");
-			  if (data[0] != data[1] != 0xFF)	// Change the adress so there either 0:0 for unicast, to client, och FF:FF to broadcast to client
-			    data[0] = data[1] = 0;
+
 			  memcpy(prepare + 5, data, counter);
 
 			  for (int i = 0; i < MAX_LISTEN; i++)
@@ -554,6 +553,30 @@ spb_links_thread(void *ptr)
 	if (serial_p->server->session_open[i])
 	    serial_p->server->send_data(i, data, len);
       }
+
+    int counter = len - 5;
+    // Device add, so the link-server can cache devices
+    // +6 so the "send " got counted for.
+    
+    if ((data[0+5] == addr1 && data[1+5] == addr2) || (data[0+5] == 0xFF && data[1+5] == 0xFF))
+      {
+	// Store devices that sends device aknowledge
+	if (data[0+5] == addr1 && data[1+5] == addr2 && data[6+5] == 1)
+	  {
+	    if (counter < 11)
+	      {	// If counter is less than 11, there is a usual 0x01, "ping" package,return
+		break;
+	      }	    
+	    int devid = 0;
+	    for (int i = 0; i < counter - 10; i++)
+	      {	// Run this backwards to get the bytes right
+		devid <<= 8;
+		devid += data[i + 7 + 5];
+	      }
+	    device_add(serial_p, data[2+5], data[3+5], devid);
+	  }
+      }
+    // 
 
     }
     // Notice FIX known_hosts
