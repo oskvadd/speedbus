@@ -527,6 +527,13 @@ spb_links_thread(void *ptr)
 
       // Flush recv to the end "udevlist"
       while(strncmp("udevlist", data, 8) != 0){
+	// 
+	if (strncmp(data, "devlistadd ", 11) == 0 && strlen(data) <= RECV_MAX)
+	  {
+	    int addr1, addr2, devid;
+	    sscanf(data, "devlistadd %d.%d %d\n", &addr1, &addr2, &devid);
+	    device_add(serial_p, addr1, addr2, devid);
+	  }
 	serial_p->sslc[i]->recv_data(data);
       }
       //
