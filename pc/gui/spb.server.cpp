@@ -518,7 +518,7 @@ spb_links_thread(void *ptr)
 	  else
 	    {
 	      wtime();
-	      printf("Links connection to %s Reset", serial_p->slinks_host[i]);
+	      printf("Links connection to %s Reset\n", serial_p->slinks_host[i]);
 	      serial_p->sslc[i]->sslfree();
 	      serial_p->slinks_status[i] = 0; sleep(15);
 	      continue;
@@ -568,12 +568,8 @@ spb_links_thread(void *ptr)
     if ((data[0+5] == addr1 && data[1+5] == addr2) || (data[0+5] == 0xFF && data[1+5] == 0xFF))
       {
 	// Store devices that sends device aknowledge
-	if (data[0+5] == addr1 && data[1+5] == addr2 && data[6+5] == 1)
+	if (data[0+5] == addr1 && data[1+5] == addr2 && data[6+5] == 1 && counter >= 11) // If counter is less than 11, there is a usual 0x01, "ping" package,return
 	  {
-	    if (counter < 11)
-	      {	// If counter is less than 11, there is a usual 0x01, "ping" package,return
-		break;
-	      }	    
 	    int devid = 0;
 	    for (int i = 0; i < counter - 10; i++)
 	      {	// Run this backwards to get the bytes right
@@ -585,6 +581,11 @@ spb_links_thread(void *ptr)
       }
     // 
 
+    }else if(len == 0) {
+      serial_p->slinks_status[i] = 0;
+      wtime();
+      printf("Links connection to %s seems to have died\n", serial_p->slinks_host[i]);
+      continue;
     }
     // Notice FIX known_hosts
     //char host_entry[200];
