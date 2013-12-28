@@ -457,8 +457,6 @@ md5sum(char *input)
 void *
 spb_links_thread(void *ptr)
 {
-  printf("start thread\n");
-
   slinks_t *slink = (slinks_t *) ptr;
   print_seri *serial_p = slink->serial_p;
 
@@ -470,7 +468,6 @@ spb_links_thread(void *ptr)
   while(1){
     if(!serial_p->slinks_status[i]){
       serial_p->sslc[i] = new sslclient;
-      printf("start\n");
       // If Not connected
       struct hostent *he;
       he = gethostbyname(serial_p->slinks_host[i]);
@@ -496,10 +493,8 @@ spb_links_thread(void *ptr)
 	{
 	  char data[RECV_MAX];
 	  int len;
-	  printf("hej\n");
 	  if (len = serial_p->sslc[i]->recv_data(data))
 	    {
-	      printf("hej\n");
 	      if (strcmp(data, "Login Failed\n") == 0)
 		{
 		  printf("Login failed on link %s, Killing thread\n", serial_p->slinks_host[i]);
@@ -523,11 +518,9 @@ spb_links_thread(void *ptr)
 	      continue;
 	    }
       serial_p->sslc[i]->recv_data(data);
-	printf("data: %s\n", data);
 
       // Flush recv to the end "udevlist"
       while(strncmp("udevlist", data, 8) != 0){
-	printf("data: %s\n", data);
 	serial_p->sslc[i]->recv_data(data);
       }
       //
@@ -550,19 +543,16 @@ spb_links_thread(void *ptr)
 	}
 	}
     }
-    printf("good\n");
     serial_p->slinks_status[i] = 1;
-    
+
     len = serial_p->sslc[i]->recv_data(data);
     if(len > 0){
-    printf("Data got from link %s, len %d: %s\n", serial_p->slinks_host[i], len, data);
+      //printf("Data got from link %s, len %d: %s\n", serial_p->slinks_host[i], len, data);
     spb_exec(serial_p, -1, i, data, len);
     for (int i = 0; i < MAX_LISTEN; i++)
       {
 	if (serial_p->server->session_open[i])
-	  {
 	    serial_p->server->send_data(i, data, len);
-	  }
       }
 
     }
@@ -574,19 +564,21 @@ spb_links_thread(void *ptr)
     //pdata->sslc.get_ssl_finger(finger);
     //sprintf(host_entry, "Host: %s | Fingerprint: %s", host, finger);
     //int sig = pdata->sslc.find_known_hosts(host_entry);
-    printf("hej\n");
   }
 }
 //
 
 bool 
 spb_links_send(print_seri * serial_p, int linknum, char * data, int len){
-  int i;
+  int i, got_link=0;
   for(i=0; i < serial_p->slinks_nr; i++){
     if(serial_p->slinks_status[i] && i != linknum){
-      serial_p->sslc[i]->send_data(data, len);
+      serial_p->sslc[i]->send_data(data, len); got_link=1;
     }
-  } 
+  }
+  if(got_link)
+    return 1;
+  return 0;
 }
 
 
@@ -899,13 +891,14 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       if (strncmp(data, "send", 4) == 0)
 	{
 	  // Send command to links upstream
-	  spb_links_send(serial_p, linknum, data, len);
+	  int u_link = spb_links_send(serial_p, linknum, data, len);
 	  //
-	  if (!serial_port.IsOpen())
+	  if (!serial_port.IsOpen() || !u_link)
 	    {
 	      serial_p->server->send_data(listnum,
 		"info Cant send, serial port is down\n", strlen("info Cant send, serial port is down\n"));
 	    }
+	  
 	  //      printf("Received send with %d chars: \n", len-5);  
 	  char send_data[RECV_MAX];
 	  memcpy(send_data, data + 5, len - 5);
@@ -915,8 +908,9 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  //printf("\n");
 	  send_data[2] = addr1;	// Hardcode in the dev addr, so the send respons wont get hong up, due to the send response is done at server side.
 	  send_data[3] = addr2;
-
-	  send(send_data, len - 5);
+	  
+	  if (serial_port.IsOpen())
+	    send(send_data, len - 5);
 	  serial_p->server->send_data(listnum, "good\n", strlen("good\n"));
 	}
       // Event executions, output things on the bus based on the conf files, like "execute event 123"
