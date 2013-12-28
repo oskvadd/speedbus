@@ -472,12 +472,15 @@ spb_links_thread(void *ptr)
       he = gethostbyname(serial_p->slinks_host[i]);
       if (!serial_p->sslc[i]->sslsocket(inet_ntoa(*(struct in_addr *)he->h_addr), serial_p->slinks_port[i]))
 	{
+	  wtime();
 	  printf("Links connection to %s Failed\n", serial_p->slinks_host[i]);
 	  serial_p->slinks_status[i] = 0; sleep(15);
 	  continue;
 	}
+      
       if (!serial_p->sslc[i]->loadssl())
 	{
+	  wtime();
 	  printf("Links ssl handshake to %s Failed\n", serial_p->slinks_host[i]);
 	  serial_p->sslc[i]->sslfree();
 	  serial_p->slinks_status[i] = 0; sleep(15);
@@ -496,21 +499,25 @@ spb_links_thread(void *ptr)
 	    {
 	      if (strcmp(data, "Login Failed\n") == 0)
 		{
+		  wtime();
 		  printf("Login failed on link %s, Killing thread\n", serial_p->slinks_host[i]);
 		  serial_p->sslc[i]->sslfree();
 		  return 0;
 		}
 	      if (strcmp(data, "root\n") == 0)
 		{
-		  printf("Got admin!\n");
+		  //wtime(); Dont care about it on links.
+		  //printf("Got admin!\n");
 		}
 	      if (strcmp(data, "user\n") == 0)
 		{
-		  printf("I am not admin :/\n");
+		  //wtime(); Dont care about it on links.
+		  //printf("I am not admin :/\n");
 		}
 	    }
 	  else
 	    {
+	      wtime();
 	      printf("Links connection to %s Reset", serial_p->slinks_host[i]);
 	      serial_p->sslc[i]->sslfree();
 	      serial_p->slinks_status[i] = 0; sleep(15);
@@ -633,7 +640,7 @@ spb_inalize_links(print_seri * serial_p)
 
 	      //is_admin[userc] = is_admin_a;
 	      //userc++;
-	      printf("Found link %s\n", host);
+	      //printf("Found link %s\n", host);
 
 	      slinks_t *slink = new slinks_t;
 	      slink->links_nr = serial_p->slinks_nr;
@@ -642,7 +649,6 @@ spb_inalize_links(print_seri * serial_p)
 	      serial_p->slinks_status[i] = 0; // Set link status not connected 
 	      pthread_t printr;
 	      pthread_create(&printr, NULL, &spb_links_thread, (void *)slink);
-	      printf("Link Thread started\n");
 
 	      serial_p->slinks_nr++;
 	    }
@@ -916,7 +922,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  // Send command to links upstream
 	  int u_link = spb_links_send(serial_p, linknum, data, len);
 	  //
-	  if (!serial_port.IsOpen() || !u_link)
+	  if (!serial_port.IsOpen() && !u_link && linknum < 0)
 	    {
 	      serial_p->server->send_data(listnum,
 		"info Cant send, serial port is down\n", strlen("info Cant send, serial port is down\n"));

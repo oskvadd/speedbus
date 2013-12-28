@@ -573,7 +573,9 @@ sslclient::loadssl()
 
 
 /* Informational output (optional) */
+#ifdef IS_GUI
   printf("SSL connection using %s\n", SSL_get_cipher(ssl));
+#endif  
 
   if (server_cert != NULL)
     {
