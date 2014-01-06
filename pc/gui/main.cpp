@@ -304,9 +304,15 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rsurve_separator3;
   GtkWidget *rsurve_label1; 
   GtkWidget *rsurve_label2; 
-  GtkWidget *rsurve_button1; 
+  GtkWidget *rsurve_button1;
+  GtkWidget *rsurve_button2;
+  GtkWidget *rsurve_combobox1;
+  GtkWidget *rsurve_combobox1_list;
+
+  int rsurve_camid;
   int rsurve_utimeout; 
   gboolean rsurve_fresh_update;
+  gboolean rsurve_rtv_stop;
 
   //
 
@@ -588,6 +594,16 @@ client_handler(void *ptr)
 	      rdata->rsurve_fresh_update = 1;
 	      rdata->sslc.send_data("resp\n", strlen("resp\n"));  
 
+	    }
+	  if (strncmp(data, "camadd ", 7) == 0)
+	    {
+	      char name[MAX_BUFFER];
+	      int id;
+	      if(sscanf(data, "camadd %d %s\n", &id, name)){
+		char tmp[MAX_BUFFER];
+		sprintf(tmp, "%d: %s", id, name);
+		gtk_combo_box_append_text(GTK_COMBO_BOX(rdata->rsurve_combobox1_list), tmp);
+	      }
 	    }
 
 	}
@@ -2935,13 +2951,34 @@ rnotify_show(GtkWidget * some, gpointer data)
 // Surveillance screen OVH functions
 
 void
-rsurve_screen_change(GtkWidget * some, gpointer data){
+rsurve_screen_start_rtv(GtkWidget * some, gpointer data){
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
-  
-  rdata->sslc.send_data("getcam\n", strlen("getcam\n"));  
 
+  char tmp[MAX_BUFFER];
+  sprintf(tmp, "getcam %d\n", rdata->rsurve_camid);
+  
+  rdata->sslc.send_data(tmp, strlen(tmp));  
 }
 
+void
+rsurve_screen_stop_rtv(GtkWidget * some, gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  rdata->rsurve_rtv_stop = 1;
+}
+
+
+void
+rsurve_cam_change(GtkWidget *widget, gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  char tmp[MAX_BUFFER];
+  gchar *text =  gtk_combo_box_get_active_text(GTK_COMBO_BOX(widget));
+  gtk_widget_set_sensitive(rdata->rsurve_button1, true);
+  gtk_widget_set_sensitive(rdata->rsurve_button2, true);
+
+  sscanf(text, "%d:%s", &rdata->rsurve_camid, tmp);
+  g_free(text);
+}
 
 // Pic update
 
@@ -2950,14 +2987,16 @@ rsurve_refresh_pic(gpointer data){
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
 
   if(rdata->rsurve_fresh_update){
-  gtk_image_set_from_file (GTK_IMAGE(rdata->rsurve_screen), "tmp.jpg");
-  rdata->rsurve_fresh_update = 0;
-  if(1){  // live view
-  rdata->sslc.send_data("getcam\n", strlen("getcam\n"));
+    gtk_image_set_from_file (GTK_IMAGE(rdata->rsurve_screen), "tmp.jpg");
+    rdata->rsurve_fresh_update = 0;
+    if(!rdata->rsurve_rtv_stop){  // live view
+      char tmp[MAX_BUFFER];
+      sprintf(tmp, "getcam %d\n", rdata->rsurve_camid);
+      rdata->sslc.send_data(tmp, strlen(tmp));
+    }else
+      rdata->rsurve_rtv_stop = 0;
+  }
   
-  }
-  }
-
   return 1;
 }
 
@@ -2983,16 +3022,27 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
   rdata->rsurve_separator1 = gtk_hseparator_new();
   
   // Cams
-  rdata->rsurve_box2 = gtk_hbox_new(FALSE, 10);
+  rdata->rsurve_box2 = gtk_hbox_new(FALSE, 30);
   rdata->rsurve_separator2 = gtk_vseparator_new();
   rdata->rsurve_box3 = gtk_vbox_new(FALSE, 10);
   rdata->rsurve_label1 = gtk_label_new("Cameras");
+  rdata->rsurve_combobox1 = gtk_combo_box_new();
+  //gtk_combo_box_set_text(GTK_COMBO_BOX(rdata->rsurve_combobox1), "Cam1");
+  rdata->rsurve_combobox1 = gtk_fixed_new();
+  rdata->rsurve_combobox1_list = gtk_combo_box_new_text();
+  gtk_fixed_put(GTK_FIXED(rdata->rsurve_combobox1), rdata->rsurve_combobox1_list, 0, 0);
 
+		
   // Commands
   rdata->rsurve_box4 = gtk_vbox_new(FALSE, 10);
   rdata->rsurve_separator3 = gtk_vseparator_new();  
   rdata->rsurve_label2 = gtk_label_new("Commands");
-  rdata->rsurve_button1 = gtk_button_new_with_label("Change");
+  rdata->rsurve_button1 = gtk_button_new_with_label("Realtime start");
+  rdata->rsurve_button2 = gtk_button_new_with_label("Realtime stop");
+
+  gtk_widget_set_sensitive(rdata->rsurve_button1, false);
+  gtk_widget_set_sensitive(rdata->rsurve_button2, false);
+
 
   gtk_container_add(GTK_CONTAINER(rdata->rsurve_gui), rdata->rsurve_box1);
   // Screen
@@ -3003,19 +3053,29 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box1), rdata->rsurve_box2, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box2), rdata->rsurve_box3, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box3), rdata->rsurve_label1, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box3), rdata->rsurve_combobox1, FALSE, FALSE, 0);
+
+
 
   // Commands
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box2), rdata->rsurve_separator2, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box2), rdata->rsurve_box4, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box4), rdata->rsurve_label2, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rsurve_box4), rdata->rsurve_button1, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsurve_box4), rdata->rsurve_button2, FALSE, FALSE, 0);
 
-
+  rdata->rsurve_rtv_stop = 0;
   rdata->rsurve_utimeout = g_timeout_add(50, rsurve_refresh_pic, rdata);
 
-  g_signal_connect(rdata->rsurve_button1, "clicked", G_CALLBACK(rsurve_screen_change), rdata);
+  g_signal_connect(rdata->rsurve_button1, "clicked", G_CALLBACK(rsurve_screen_start_rtv), rdata);
+  g_signal_connect(rdata->rsurve_button2, "clicked", G_CALLBACK(rsurve_screen_stop_rtv), rdata);
+
+  g_signal_connect(rdata->rsurve_combobox1_list, "changed",  G_CALLBACK(rsurve_cam_change), rdata);
+
 
   gtk_widget_show_all(rdata->rsurve_gui);
+
+  rdata->sslc.send_data("survlist\n", 9);
 
 }
 
