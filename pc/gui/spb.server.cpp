@@ -11,18 +11,23 @@
 #include "../protocoll/speedblib.cpp"
 #endif
 #include <openssl/md5.h>
+#include <mysql/mysql.h>
 
 #define BACKEND_DIR "/etc/spbserver/"
 #include "spb.backend.cpp"
 #include "http_post.cpp"
 
 #define MAX_TEXT_BUFFER 200     // Maximum text buffer for preferences
+#define MAX_STR(X)  ((strlen(X)) > (MAX_TEXT_BUFFER-1) ? (MAX_TEXT_BUFFER-1) : (strlen(X)+1)) 
+// If the var_dst is sizeof MAX_TEXT_BUFFER, then strncpy(var_dst, var_src, MAX_STR(var_src))  
+
 #define MAX_RESP_TIME 2		// Maximum resp time, before dropping the transfer. This may be tuned in future. 
 #define MAX_USERS 100
 #define MAX_LINKS 10            // Maximum numbers of server links
 #define MAX_LOG_SIZE 200	// Maximum numbers of chars to send to log, at once.
 #define MAX_NOTIFY_STACK 10
 #define MAX_NOTIFY_SIZE 200	// Maximum size of the notify message
+#define MAX_SURV_MONS 20        // Maximum numbers of surv monitors
 #define SERVER_LOG_FILE "/var/log/spbserver.log"
 #define SERVER_CONFIG_FILE "server.cfg"
 #define SERVER_CONFIG_DIR "/etc/spbserver/"
@@ -46,8 +51,15 @@ int userc = 0;
 typedef struct _surv_t
 {
   int listnum;
+  int camid;
   pthread_cond_t      cond;
   pthread_mutex_t     mutex;
+  MYSQL *mysql_conn;
+  // Monitors ->
+  int mon_c;
+  int mon_id[MAX_SURV_MONS];
+  char mon_name[MAX_SURV_MONS][MAX_TEXT_BUFFER];
+  // 
 } surv_t;
 
 
@@ -102,10 +114,6 @@ bool spb_resp_wait(print_seri * serial_p, int listnum, int wait_sec);
 bool spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len);
 
 //
-
-
-// Use print_serial in v4l2grab
-#include "v4l2grab.cpp"
 
 
 bool
@@ -673,29 +681,139 @@ spb_inalize_links(print_seri * serial_p)
   }
 }
 
+// Use zoneminder to get picture from.
+void *
+gen_pic_backend(void *ptr)
+{
+  print_seri *serial_p = (print_seri *) ptr;
+  
+  
+  int listnum = serial_p->surve->listnum;
+  FILE *fp;
+  int status;
+  char stdin[4000];
+  int i = 0;
+  char cbuf[4050];
+  int retval;
+
+  while(1){
+    pthread_mutex_lock(&serial_p->surve->mutex);
+    pthread_cond_wait(&serial_p->surve->cond, &serial_p->surve->mutex );
+    pthread_mutex_unlock(&serial_p->surve->mutex);
+
+    serial_p->surv_resp = 0;
+    serial_p->server->send_data(listnum, "camec \n", strlen("camec \n"));
+    spb_resp_wait(serial_p, listnum, 0);
+
+    char tmp[50];
+    sprintf(tmp, "zmstreamer -e single -m %d", serial_p->surve->camid);
+
+    fp = popen(tmp, "r");
+    if (fp == NULL) {
+      printf("Failed to run command\n" );
+      exit;
+    }
+
+    retval = fread (stdin,1,4000,fp);
+    if(retval) {
+      int start = (strstr(stdin,"\r\n\r\n") - stdin) + 4;
+      serial_p->surv_resp = 0;
+      strcpy(cbuf, "camei ");
+      memcpy(&cbuf[6], &stdin[start], retval - start);
+      serial_p->server->send_data(listnum, cbuf, (retval - start) + 6);
+      spb_resp_wait(serial_p, listnum, 0);      
+    }
+    if(retval < 4000)
+      continue;
+
+    while (1)
+      {
+	retval = fread (stdin,1,4000,fp);
+
+	serial_p->surv_resp = 0;
+
+	strcpy(cbuf, "camei ");
+	memcpy(&cbuf[6], &stdin, retval + 6);
+	serial_p->server->send_data(listnum, cbuf, retval + 6);
+
+	if(retval < 4000)
+	  break;
+
+	spb_resp_wait(serial_p, listnum, 0);      
+      }
+    
+    //
+    pclose(fp);
+    //
+    //sleep(100000);
+    serial_p->surv_resp = 0;
+    serial_p->server->send_data(listnum, "camep \n", strlen("camep \n"));
+    spb_resp_wait(serial_p, listnum, 0);      
+  } 
+}
+
+// Update monitor list.
+void 
+spb_surv_fill_mon(print_seri * serial_p){  
+  config_setting_t *setting, *tmp;
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  
+  setting = config_lookup(serial_p->server_cfg, "surv");
+  if (setting != NULL)
+    {
+      const char *mysql_host, *mysql_user, *mysql_pass, *zm_db;
+      int mysql_port;
+      tmp = config_setting_get_elem(setting, 0);
+      if (config_setting_lookup_string(tmp, "zm_db", &zm_db)
+	  && config_setting_lookup_string(tmp, "mysql_host", &mysql_host) 
+	  && config_setting_lookup_int(tmp, "mysql_port", &mysql_port)
+	  && config_setting_lookup_string(tmp, "mysql_user", &mysql_user)
+	  && config_setting_lookup_string(tmp, "mysql_pass", &mysql_pass))
+	{
+	  serial_p->surve->mysql_conn = mysql_init(NULL);
+	  /* Connect to database */
+	  if (!mysql_real_connect(serial_p->surve->mysql_conn, mysql_host,
+				  mysql_user, mysql_pass, zm_db, 0, NULL, 0)) {
+	    wtime();
+	    fprintf(stderr, "%s\n", mysql_error(serial_p->surve->mysql_conn));
+	  }
+	  /* send SQL query */
+	  if (mysql_query(serial_p->surve->mysql_conn, "SELECT Id, Name, Enabled, Function FROM Monitors")) {
+	    wtime();
+	    fprintf(stderr, "%s\n", mysql_error(serial_p->surve->mysql_conn));
+	  }
+	  res = mysql_use_result(serial_p->surve->mysql_conn);
+	  int m_count = 0;
+	  while ((row = mysql_fetch_row(res)) != NULL){
+	    // Add to list if Enabled=1, and the function not is None
+	    if(atoi(row[2]) && strcmp(row[3], "None") != 0){
+	    serial_p->surve->mon_id[m_count] = atoi(row[0]); 
+	    strncpy(serial_p->surve->mon_name[m_count], row[1], MAX_STR(row[1]));
+	    serial_p->surve->mon_name[m_count][MAX_TEXT_BUFFER] = '\0'; // Make sure there is an null at the end.
+	    m_count++;
+	    }
+	  }
+
+	  serial_p->surve->mon_c = m_count;
+	  /* close connection */
+	  mysql_free_result(res);
+	  mysql_close(serial_p->surve->mysql_conn); // Make the connection remain open.
+	}	  
+    }
+}
 //
 
 bool
 spb_inalize_surv(print_seri * serial_p)
 {
-  // open and initialize device
-  if(deviceOpen() < 0)
-    return 0;
-  deviceInit();
+  // Connect mysql, open thread.
 
-  // start capturing
-  captureStart();
-
-  // process frames
-  //mainLoop();
-
-  // stop capturing
-  //  captureStop();
-
-  // close device
-  // deviceUninit();
-  // deviceClose();
   serial_p->surve = new surv_t;
+  serial_p->surve->mon_c = 0;
+
+  spb_surv_fill_mon(serial_p);
+  
   pthread_mutex_init ( &serial_p->surve->mutex, NULL);
   pthread_cond_init( &serial_p->surve->cond, NULL);
   serial_p->surve->listnum = 0;
@@ -1030,15 +1148,26 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	}
       if (strncmp(data, "getcam", 6) == 0)
 	{
+	  if(sscanf(data, "getcam %d\n", &serial_p->surve->camid)){
 	  serial_p->surve->listnum = listnum;
+	  
 	  pthread_mutex_lock(&serial_p->surve->mutex);
 	  pthread_cond_broadcast(&serial_p->surve->cond);
 	  pthread_mutex_unlock(&serial_p->surve->mutex);
+	  }
  	}
       if (strncmp(data, "resp", 4) == 0)
 	{
 	  serial_p->surv_resp = 1;
 	}
+      if (strncmp(data, "survlist", 8) == 0)
+	{
+	  for(int i=0; i<serial_p->surve->mon_c;i++){
+	    char tmp[MAX_TEXT_BUFFER*2];
+	    sprintf(tmp, "camadd %d %s\n", serial_p->surve->mon_id[i], serial_p->surve->mon_name[i]);
+	    serial_p->server->send_data(listnum, tmp, strlen(tmp));
+	  }
+    	}
       
       // To make the cewd abit more easy read, i just make an is admin if statment here, so, the 
       // cewd below in this function is ONLY executed, IF the user is admin, else, return.
