@@ -1,0 +1,13 @@
+Make sure you have installed Zoneminder correct, and that you have
+some active monitors. 
+
+surv = ( 
+  {
+  zm_db = "zm"; // Zoneminder database
+  mysql_host = "localhost";
+  mysql_port = 3306;
+  mysql_user = "root";
+  mysql_pass = "password";
+  } );
+
+Over'N out, Speedster 140112 17:49
