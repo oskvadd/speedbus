@@ -310,6 +310,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rsurve_combobox1_list;
 
   int rsurve_camid;
+  int rsurve_serverid;
   int rsurve_utimeout; 
   gboolean rsurve_fresh_update;
   gboolean rsurve_rtv_stop;
@@ -585,9 +586,7 @@ client_handler(void *ptr)
 	      a_file = fopen("tmp.jpg", "a");
 	      fwrite(data + 6, len - 6, 1, a_file);
 	      fclose(a_file);
-	      rdata->sslc.send_data("resp\n", strlen("resp\n"));  
-
-	      printf("hej %d\n", len);
+	      rdata->sslc.send_data("resp\n", strlen("resp\n"));
 	    }
 	  if (strncmp(data, "camep ", 6) == 0)
 	    {
@@ -598,10 +597,10 @@ client_handler(void *ptr)
 	  if (strncmp(data, "camadd ", 7) == 0)
 	    {
 	      char name[MAX_BUFFER];
-	      int id;
-	      if(sscanf(data, "camadd %d %s\n", &id, name)){
+	      int server, id;
+	      if(sscanf(data, "camadd %d.%d %s\n", &server, &id, name)){
 		char tmp[MAX_BUFFER];
-		sprintf(tmp, "%d: %s", id, name);
+		sprintf(tmp, "%d.%d: %s", server, id, name);
 		gtk_combo_box_append_text(GTK_COMBO_BOX(rdata->rsurve_combobox1_list), tmp);
 	      }
 	    }
@@ -2955,7 +2954,7 @@ rsurve_screen_start_rtv(GtkWidget * some, gpointer data){
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
 
   char tmp[MAX_BUFFER];
-  sprintf(tmp, "getcam %d\n", rdata->rsurve_camid);
+  sprintf(tmp, "getcam %d.%d\n", rdata->rsurve_serverid, rdata->rsurve_camid);
   
   rdata->sslc.send_data(tmp, strlen(tmp));  
 }
@@ -2976,7 +2975,7 @@ rsurve_cam_change(GtkWidget *widget, gpointer data){
   gtk_widget_set_sensitive(rdata->rsurve_button1, true);
   gtk_widget_set_sensitive(rdata->rsurve_button2, true);
 
-  sscanf(text, "%d:%s", &rdata->rsurve_camid, tmp);
+  sscanf(text, "%d.%d:%s", &rdata->rsurve_serverid, &rdata->rsurve_camid, tmp);
   g_free(text);
 }
 
@@ -2991,7 +2990,7 @@ rsurve_refresh_pic(gpointer data){
     rdata->rsurve_fresh_update = 0;
     if(!rdata->rsurve_rtv_stop){  // live view
       char tmp[MAX_BUFFER];
-      sprintf(tmp, "getcam %d\n", rdata->rsurve_camid);
+      sprintf(tmp, "getcam %d.%d\n", rdata->rsurve_serverid, rdata->rsurve_camid);
       rdata->sslc.send_data(tmp, strlen(tmp));
     }else
       rdata->rsurve_rtv_stop = 0;
