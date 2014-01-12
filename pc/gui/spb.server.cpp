@@ -616,22 +616,24 @@ spb_links_thread(void *ptr)
 //
 
 bool 
-spb_links_send(print_seri * serial_p, int listnum, int linknum, char * data, int len){
+spb_links_send(print_seri * serial_p, int listnum, int linknum, const char * data, int len){
   int i, got_link=0;
   for(i=0; i < serial_p->slinks_nr; i++){
     if(serial_p->slinks_status[i] && i != linknum){
       serial_p->sslc[i]->send_data(data, len); got_link=1;
     }
   }
-  for (int i = 0; i < MAX_LISTEN; i++)
-    {
-      if (serial_p->server->session_open[i])
-	if(user_type[socket_user_id[i]] == USER_LINK  && i != listnum){
-	  serial_p->server->send_data(i, data, len);
-	  got_link = 1;
+  if(listnum > -1){
+    for (i=0; i < MAX_LISTEN; i++)
+      {
+	if (serial_p->server->session_open[i]){
+	  if(user_type[socket_user_id[i]] == USER_LINK  && i != listnum){
+	    serial_p->server->send_data(i, data, len);
+	    got_link = 1;
+	  }
 	}
-    }
-
+      }
+  }
   if(got_link)
     return 1;
   return 0;
@@ -721,6 +723,8 @@ gen_pic_backend(void *ptr)
 
     serial_p->surv_resp = 0;
     serial_p->server->send_data(listnum, "camec \n", strlen("camec \n"));
+    spb_links_send(serial_p, -1, -1, "camec \n", strlen("camec \n"));
+
     spb_resp_wait(serial_p, listnum, 0);
 
     char tmp[50];
@@ -739,6 +743,8 @@ gen_pic_backend(void *ptr)
       strcpy(cbuf, "camei ");
       memcpy(&cbuf[6], &stdin[start], retval - start);
       serial_p->server->send_data(listnum, cbuf, (retval - start) + 6);
+      spb_links_send(serial_p, -1, -1, cbuf, (retval - start) + 6);
+
       spb_resp_wait(serial_p, listnum, 0);      
     }
     if(retval < 4000)
@@ -753,6 +759,7 @@ gen_pic_backend(void *ptr)
 	strcpy(cbuf, "camei ");
 	memcpy(&cbuf[6], &stdin, retval + 6);
 	serial_p->server->send_data(listnum, cbuf, retval + 6);
+	spb_links_send(serial_p, -1, -1, cbuf, retval + 6);
 
 	if(retval < 4000)
 	  break;
@@ -766,6 +773,8 @@ gen_pic_backend(void *ptr)
     //sleep(100000);
     serial_p->surv_resp = 0;
     serial_p->server->send_data(listnum, "camep \n", strlen("camep \n"));
+    spb_links_send(serial_p, -1, -1, "camep \n", strlen("camep \n"));
+
     spb_resp_wait(serial_p, listnum, 0);      
   } 
 }
@@ -1173,11 +1182,15 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	      pthread_mutex_lock(&serial_p->surve->mutex);
 	      pthread_cond_broadcast(&serial_p->surve->cond);
 	      pthread_mutex_unlock(&serial_p->surve->mutex);
-	    }
+	    }else
+	      spb_links_send(serial_p, listnum, linknum, data, len);
 	  }
  	}
       if (strncmp(data, "resp", 4) == 0)
 	{
+	  // Send command to links upstream
+	  spb_links_send(serial_p, listnum, linknum, data, len);
+	  //
 	  serial_p->surv_resp = 1;
 	}
       if (strncmp(data, "survlist", 8) == 0)
@@ -1185,14 +1198,21 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  // Send command to links upstream
 	  spb_links_send(serial_p, listnum, linknum, data, len);
 	  //
-	  
 	  for(int i=0; i<serial_p->surve->mon_c;i++){
 	    char tmp[MAX_TEXT_BUFFER*2];
 	    sprintf(tmp, "camadd %d.%d %s\n", serial_p->slinks_servernr, serial_p->surve->mon_id[i], serial_p->surve->mon_name[i]);
 	    serial_p->server->send_data(listnum, tmp, strlen(tmp));
+	    spb_links_send(serial_p, -1, -1, tmp, strlen(tmp));
 	  }
     	}
-      
+      if (strncmp(data, "camadd", 6) == 0 ||
+	  strncmp(data, "camec ", 6) == 0 ||
+	  strncmp(data, "camei ", 6) == 0 ||
+	  strncmp(data, "camep ", 6) == 0)
+	{
+	  spb_links_send(serial_p, listnum, linknum, data, len);
+	}
+
       // To make the cewd abit more easy read, i just make an is admin if statment here, so, the 
       // cewd below in this function is ONLY executed, IF the user is admin, else, return.
       if (user_type[socket_user_id[listnum]] < USER_ADMIN)
