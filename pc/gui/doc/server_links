@@ -15,4 +15,7 @@ links = (
   // Second link
   } );
 
+Added the "servernr" parameter, so you can separate the linked servers.
+servernr = 1; // Uniqe to each server.
+
 Over'N out, Speedster 131229 00:38
