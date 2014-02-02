@@ -577,7 +577,7 @@ client_handler(void *ptr)
 	      clear_file = fopen("tmp.jpg", "w");
 	      fwrite("", 0, 0, clear_file);
 	      fclose(clear_file);
-	      rdata->sslc.send_data("resp\n", strlen("resp\n"));  
+	      //rdata->sslc.send_data("resp\n", strlen("resp\n"));  
 
 	    }
 	  if (strncmp(data, "camei ", 6) == 0)
@@ -586,12 +586,12 @@ client_handler(void *ptr)
 	      a_file = fopen("tmp.jpg", "a");
 	      fwrite(data + 6, len - 6, 1, a_file);
 	      fclose(a_file);
-	      rdata->sslc.send_data("resp\n", strlen("resp\n"));
+	      //rdata->sslc.send_data("resp\n", strlen("resp\n"));
 	    }
 	  if (strncmp(data, "camep ", 6) == 0)
 	    {
 	      rdata->rsurve_fresh_update = 1;
-	      rdata->sslc.send_data("resp\n", strlen("resp\n"));  
+	      //rdata->sslc.send_data("resp\n", strlen("resp\n"));  
 
 	    }
 	  if (strncmp(data, "camadd ", 7) == 0)
