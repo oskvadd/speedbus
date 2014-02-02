@@ -715,19 +715,14 @@ gen_pic_backend(void *ptr)
   int i = 0;
   char cbuf[4050];
   int retval;
-  
   while(1){
     pthread_mutex_lock(&serial_p->surve->mutex);
     pthread_cond_wait(&serial_p->surve->cond, &serial_p->surve->mutex );
     pthread_mutex_unlock(&serial_p->surve->mutex);
-
-    //serial_p->surv_resp = 0;
-    if(serial_p->server->send_data(listnum, "camec \n", strlen("camec \n")) <= 0)
-      return 0;
-
-    spb_links_send(serial_p, -1, -1, "camec \n", strlen("camec \n"));
     
-    //spb_resp_wait(serial_p, listnum, 0);
+    serial_p->server->send_data(listnum, "camec \n", strlen("camec \n"));
+    
+    spb_links_send(serial_p, -1, -1, "camec \n", strlen("camec \n"));
     
     char tmp[50];
     sprintf(tmp, "zmstreamer -e single -m %d", serial_p->surve->camid);
@@ -741,15 +736,10 @@ gen_pic_backend(void *ptr)
     retval = fread (stdin,1,4000,fp);
     if(retval) {
       int start = (strstr(stdin,"\r\n\r\n") - stdin) + 4;
-      serial_p->surv_resp = 0;
       strcpy(cbuf, "camei ");
       memcpy(&cbuf[6], &stdin[start], retval - start);
-      if(serial_p->server->send_data(listnum, cbuf, (retval - start) + 6) <= 0)
-	return 0;
-
+      serial_p->server->send_data(listnum, cbuf, (retval - start) + 6);
       spb_links_send(serial_p, -1, -1, cbuf, (retval - start) + 6);
-
-      //spb_resp_wait(serial_p, listnum, 0);      
     }
     if(retval < 4000)
       continue;
@@ -758,29 +748,23 @@ gen_pic_backend(void *ptr)
       {
 	retval = fread (stdin,1,4000,fp);
 
-	//serial_p->surv_resp = 0;
-	
 	strcpy(cbuf, "camei ");
 	memcpy(&cbuf[6], &stdin, retval + 6);
-	if(serial_p->server->send_data(listnum, cbuf, retval + 6) <= 0)
-	  return 0;
+	serial_p->server->send_data(listnum, cbuf, retval + 6);
 	
 	spb_links_send(serial_p, -1, -1, cbuf, retval + 6);
 	if(retval < 4000)
 	  break;
 	
-	//spb_resp_wait(serial_p, listnum, 0);      
       }
     
     //
     pclose(fp);
     //
     //sleep(100000);
-    //serial_p->surv_resp = 0;
-    if(serial_p->server->send_data(listnum, "camep \n", strlen("camep \n")) <= 0)
-      return 0;
+    serial_p->server->send_data(listnum, "camep \n", strlen("camep \n"));
+
     spb_links_send(serial_p, -1, -1, "camep \n", strlen("camep \n"));
-    //spb_resp_wait(serial_p, listnum, 0);      
   } 
 }
 
