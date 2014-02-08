@@ -1249,14 +1249,20 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  char user[RECV_MAX], pass[RECV_MAX];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
 	  int is_admin;
 	  sscanf(data, "deluser %s\n", user);
-	  if (del_user(serial_p->server_cfg, user))
-	    {
-	      serial_p->server->send_data(listnum, "sinfo User deleted!\n", strlen("sinfo User deleted!\n"));
-	      goto send_userlist;
-	    }
+	  if(strcmp(user, users[socket_user_id[listnum]][1]) != 0){ // make sure that the current user cant delet it self
+	    if (del_user(serial_p->server_cfg, user))
+	      {
+		serial_p->server->send_data(listnum, "sinfo User deleted!\n", strlen("sinfo User deleted!\n"));
+		goto send_userlist;
+	      }
+	    else
+	      {
+		serial_p->server->send_data(listnum, "sinfo Failed to delete user\n", strlen("sinfo Failed to delete user\n"));
+	      }
+	  }
 	  else
 	    {
-	      serial_p->server->send_data(listnum, "sinfo Failed to deleted user\n", strlen("sinfo Failed to deleted user\n"));
+	      serial_p->server->send_data(listnum, "sinfo Cant delete your self.\n", strlen("sinfo Cant delete your self.\n"));	
 	    }
 	}
       if (strncmp(data, "userlist", 8) == 0)
@@ -1268,7 +1274,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 		{
 		  char send[(MAX_LOGIN_TEXT * 2) + 1 + 9];
 		  sprintf(send, "userlist %s %d\n", users[i][1], user_type[i]);
-		  printf(send, "userlist %s %d\n", users[i][1], user_type[i]);
+		  //printf(send, "userlist %s %d\n", users[i][1], user_type[i]);
 		  serial_p->server->send_data(listnum, send, strlen(send));
 		}
 	    }
