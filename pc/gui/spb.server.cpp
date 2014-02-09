@@ -31,7 +31,7 @@
 #define SERVER_LOG_FILE "/var/log/spbserver.log"
 #define SERVER_CONFIG_FILE "server.cfg"
 #define SERVER_CONFIG_DIR "/etc/spbserver/"
-#define SERVER_CONFIG_URI "/etc/spbserver/server.cfg"
+#define SERVER_CONFIG_URI SERVER_CONFIG_DIR SERVER_CONFIG_FILE
 #define SERVER_NOTIFY_FILE "server.notify"
 #define SERVER_DEVCACHE_FILE "server.devcache"
 
@@ -1516,9 +1516,6 @@ add_user(config_t * server_cfg, char *user, char *pass, bool is_admin_s)
 	return 0;
     }
 
-  const char *tty;
-  config_lookup_string(server_cfg, "tty", &tty);
-  printf("%s\n", tty);
   users_c = config_lookup(server_cfg, "users");	// Pretty messy, but if you already got a "users" in the config, the config_root_setting will make SIGSEG
   if (!users_c)
     {
@@ -1747,33 +1744,40 @@ set_tty(print_seri * serial_p, const char *tty)
 void
 make_new_admin(config_t * server_cfg, char user_arg[2][MAX_LOGIN_TEXT])
 {
+  wtime();
   printf("No users found, please add a admin user!\n");
   char user[50], pass1[50], pass2[50];
   char *nlptr;
-  printf("Username: ");
+  printf("\n\rUsername: ");
   fgets(user, sizeof(user), stdin);
   nlptr = strchr(user, '\n');
   if (nlptr)
     *nlptr = '\0';
+  printf("\r\b");
   while (1)
     {
-      printf("Password: ");
+      printf("\rPassword: ");
       system("stty -echo > /dev/tty");
       fgets(pass1, sizeof(pass1), stdin);
       system("stty echo > /dev/tty");
-      printf("\nConfirm Password: ");
+      printf("\rConfirm Password: ");
       system("stty -echo > /dev/tty");
       fgets(pass2, sizeof(pass2), stdin);
       system("stty echo > /dev/tty");
-      printf("\n");
-      if (strcmp(pass1, pass2) == 0)
+      if (strcmp(pass1, pass2) == 0){
+	printf("\n\n");
 	break;
+      }else{
+      	printf("\rPasswords dont match\n");
+      }
+      
     }
   nlptr = strchr(pass1, '\n');
   if (nlptr)
     *nlptr = '\0';
   add_user(server_cfg, user, pass1, 1);
 
+  wtime();
   printf("User added, starting server!\n");
 }
 
@@ -1818,22 +1822,18 @@ main(int argc, char *argv[])
     {
       config_t server_cfg;
       config_init(&server_cfg);
-      char tmp[50];
       if (!config_read_file(&server_cfg, SERVER_CONFIG_URI))
 	{
-	  memset(tmp, 0x00, 50);
-	  sprintf(tmp, "ls " SERVER_CONFIG_DIR "|grep \"" SERVER_CONFIG_FILE "\"");
-	  FILE *pipe = popen(tmp, "r");
-	  if (fgets(tmp, 50, pipe) == NULL)
-	    {
-	      printf("No File server.cfg\n");
-	      make_new_admin(&server_cfg, users[0]);
-	      userc++;
-	    }
-	  else
+	  if (file_exists(SERVER_CONFIG_URI))
 	    {
 	      printf("Line %d: %s\n", config_error_line(&server_cfg), config_error_text(&server_cfg));
 	      config_destroy(&server_cfg);
+	    }
+	  else
+	    {
+	      wtime();
+	      printf("No File server.cfg\n");
+	      make_new_admin(&server_cfg, users[0]);
 	    }
 	}
       else
@@ -1847,6 +1847,11 @@ main(int argc, char *argv[])
 	      const char *user, *pass;
 	      int is_admin_a;
 	      int count = config_setting_length(setting);
+	      // if there is no users, then make_new_admin
+	      if(count < 1){
+		make_new_admin(&server_cfg, users[0]);
+	      }
+	      //
 	      for (int i = 0; i < count; ++i)
 		{
 		  tmp = config_setting_get_elem(setting, i);
@@ -1870,7 +1875,6 @@ main(int argc, char *argv[])
 	  else
 	    {
 	      make_new_admin(&server_cfg, users[0]);
-	      userc++;
 	    }
 
 
