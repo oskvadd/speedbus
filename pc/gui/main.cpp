@@ -609,11 +609,13 @@ client_handler(void *ptr)
       else if (len == 0)
 	{
 	  printf("Connection seems to have died %d :/\n", len);
+	  gdk_threads_enter();
 	  gtk_widget_show(((ProgressData *) rdata->share)->window);
 	  gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "Disconnected");
 	  ((ProgressData *) rdata->share)->sslc.sslfree();
 	  ((ProgressData *) rdata->share)->connected = 0;
 	  gtk_button_set_label(GTK_BUTTON(((ProgressData *) rdata->share)->connect_button), "Connect to server");
+	  gdk_threads_leave();
 	  return 0;
 	}
     }
@@ -3623,7 +3625,7 @@ main(int argc, char *argv[])
    * * from the command line and are returned to the application. 
    */
   gtk_init(&argc, &argv);
-
+  gdk_threads_init();
   /*
    * create a new window 
    */
