@@ -105,9 +105,9 @@ typedef struct _slinks_t
 
 
 // Pre allocated functions 
-bool add_user(config_t * server_cfg, char *user, char *pass, bool is_admin_s);
+bool add_user(config_t * server_cfg, char *user, char *pass, int user_type);
 bool del_user(config_t * server_cfg, char *user);
-bool mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, bool is_admin_s);
+bool mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, int user_type);
 bool set_tty(print_seri * serial_p, const char *tty);
 bool spb_write_log(const char *w_log);
 bool spb_write_notify(print_seri * serial_p, const char *w_log, int prio);
@@ -498,7 +498,7 @@ spb_links_thread(void *ptr)
 
       char login[MAX_LOGIN_TEXT * 3];
       memset(login, 0, MAX_LOGIN_TEXT * 3);
-      sprintf(login, "%s\n%s", serial_p->slinks_user[i], serial_p->slinks_pass[i]);
+      sprintf(login, "%" MAX_LOGIN_TEXT_S "s\n%" MAX_LOGIN_TEXT_S "s\n", serial_p->slinks_user[i], serial_p->slinks_pass[i]);
 
       if (serial_p->sslc[i]->send_data(login, strlen(login)))
 	{
@@ -951,7 +951,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
     {
 
       char user[MAX_LOGIN_TEXT * 2], pass[MAX_LOGIN_TEXT * 2];
-      sscanf(data, "%s\n%s", user, pass);
+      sscanf(data, "\n%[^\n]\n%[^\n]", user, pass);
       md5sum(pass);
       sprintf(data, "%s:%s", user, pass);
 
@@ -1209,9 +1209,9 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       if (strncmp(data, "adduser", 7) == 0)
 	{
 	  char user[RECV_MAX], pass[RECV_MAX];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
-	  int is_admin;
-	  sscanf(data, "adduser %s %s %d\n", user, pass, &is_admin);
-	  if (add_user(serial_p->server_cfg, user, pass, is_admin))
+	  int user_type;
+	  sscanf(data, "adduser %d\n%[^\n]\n%[^\n]", &user_type, user, pass);
+	  if (add_user(serial_p->server_cfg, user, pass, user_type))
 	    {
 	      serial_p->server->send_data(listnum, "sinfo User added!\n", strlen("sinfo User added!\n"));
 	      goto send_userlist;
@@ -1224,8 +1224,8 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       if (strncmp(data, "moduser", 7) == 0)
 	{
 	  char moduser[RECV_MAX], user[RECV_MAX], pass[RECV_MAX];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
-	  int is_admin;
-	  sscanf(data, "moduser %s \t %d \t %s \t %s\n", moduser, &is_admin, user, pass);
+	  int user_type;
+	  sscanf(data, "moduser %d\n%[^\n]\n%[^\n]\n%[^\n]", &user_type, moduser, user, pass);
 	  if (strlen(pass) < 2)
 	    {
 	      if (pass[0] == 3)
@@ -1233,7 +1233,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 		  pass[0] = '\0';
 		}
 	    }
-	  if (mod_user(serial_p->server_cfg, moduser, user, pass, is_admin))
+	  if (mod_user(serial_p->server_cfg, moduser, user, pass, user_type))
 	    {
 	      serial_p->server->send_data(listnum, "sinfo User modded!\n", strlen("sinfo User modded!\n"));
 	      goto send_userlist;
@@ -1248,7 +1248,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	{
 	  char user[RECV_MAX], pass[RECV_MAX];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
 	  int is_admin;
-	  sscanf(data, "deluser %s\n", user);
+	  sscanf(data, "deluser\n%[^\n]s\n", user);
 	  if(strcmp(user, users[socket_user_id[listnum]][1]) != 0){ // make sure that the current user cant delet it self
 	    if (del_user(serial_p->server_cfg, user))
 	      {
@@ -1273,7 +1273,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	      if (users[i][1][0] != '\0')
 		{
 		  char send[(MAX_LOGIN_TEXT * 2) + 1 + 9];
-		  sprintf(send, "userlist %s %d\n", users[i][1], user_type[i]);
+		  sprintf(send, "userlist %d\n%s\n", user_type[i], users[i][1]);
 		  //printf(send, "userlist %s %d\n", users[i][1], user_type[i]);
 		  serial_p->server->send_data(listnum, send, strlen(send));
 		}
@@ -1490,7 +1490,7 @@ run(print_seri * serial_p)
 }
 
 bool
-add_user(config_t * server_cfg, char *user, char *pass, bool is_admin_s)
+add_user(config_t * server_cfg, char *user, char *pass, int user_type_n)
 {
   config_setting_t *root, *setting, *users_c, *user_c;
   int index;
@@ -1529,21 +1529,31 @@ add_user(config_t * server_cfg, char *user, char *pass, bool is_admin_s)
   setting = config_setting_add(user_c, "pass", CONFIG_TYPE_STRING);
   md5sum(pass);
   config_setting_set_string(setting, pass);
-  setting = config_setting_add(user_c, "is_admin", CONFIG_TYPE_BOOL);
-  config_setting_set_bool(setting, is_admin_s);
+
+
+  strncpy(users[index][1], user, MAX_LOGIN_TEXT);
+  strncpy(users[index][2], pass, MAX_LOGIN_TEXT);
+ 
+  switch(user_type_n){
+  case 2:
+    user_type[index] = USER_LINK;
+    break;
+  case 1:
+    user_type[index] = USER_ADMIN;
+    break;
+  default:
+    user_type[index] = USER_NORMAL;
+    break;
+  }
+  setting = config_setting_add(user_c, "user_type", CONFIG_TYPE_INT);
+  config_setting_set_int(setting, user_type[index]);
+
 
   if (!config_write_file(server_cfg, SERVER_CONFIG_URI))
     {
       printf("Unable to write server.cfg :/ do i have the right access? Bye!\n");
     }
 
-  strncpy(users[index][1], user, MAX_LOGIN_TEXT);
-  strncpy(users[index][2], pass, MAX_LOGIN_TEXT);
-  
-  if(is_admin_s)
-    user_type[index] = USER_ADMIN;
-  else
-    user_type[index] = USER_NORMAL;
   userc++;
 
   return 1;
@@ -1604,7 +1614,7 @@ del_user(config_t * server_cfg, char *user)
 }
 
 bool
-mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, bool is_admin_s)
+mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, int user_type_n)
 {
   int index;
   for (index = 0; index < MAX_USERS; index++)
@@ -1650,21 +1660,28 @@ mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, bool is_
 		      member = config_setting_get_member(element, "pass");
 		      config_setting_set_string(member, passwd);
 		    }
-		  member = config_setting_get_member(element, "is_admin");
+		  member = config_setting_get_member(element, "user_type");
 
-		  if(is_admin_s)
+		  switch(user_type_n){
+		  case 2:
+		    user_type[index] = USER_LINK;
+		    break;
+		  case 1:
 		    user_type[index] = USER_ADMIN;
-		  else
+		    break;
+		  default:
 		    user_type[index] = USER_NORMAL;
+		    break;
+		  }
 
-		  config_setting_set_bool(member, is_admin_s);
-		  goto del_user_end;
+		  config_setting_set_int(member, user_type[index]);
+		  goto mod_user_end;
 		}
 	    }
 	}
     }
 
-del_user_end:
+mod_user_end:
   if (!config_write_file(server_cfg, SERVER_CONFIG_URI))
     {
       printf("Unable to write server.cfg :/ do i have the right access? Bye!\n");
@@ -1845,7 +1862,7 @@ main(int argc, char *argv[])
 	  if (setting != NULL)
 	    {
 	      const char *user, *pass;
-	      int is_admin_a;
+	      int user_type_a;
 	      int count = config_setting_length(setting);
 	      // if there is no users, then make_new_admin
 	      if(count < 1){
@@ -1857,18 +1874,26 @@ main(int argc, char *argv[])
 		  tmp = config_setting_get_elem(setting, i);
 		  if ((config_setting_lookup_string
 		      (tmp, "user", &user))
-		    && (config_setting_lookup_string(tmp, "pass", &pass)) && (config_setting_lookup_bool(tmp, "is_admin", &is_admin_a)))
+		    && (config_setting_lookup_string(tmp, "pass", &pass)) && (config_setting_lookup_int(tmp, "user_type", &user_type_a)))
 		    {
 		      //printf("Found one user! %s:%s with is_admin %d\n",user,pass, is_admin_a);
 		      strncpy(users[userc][1], user, MAX_LOGIN_TEXT);
 		      strncpy(users[userc][2], pass, MAX_LOGIN_TEXT);
 
-		      if(is_admin_a)
-			user_type[userc] = USER_ADMIN;
-		      else
-			user_type[userc] = USER_NORMAL;
 
+		      switch(user_type_a){
+		      case 2:
+			user_type[userc] = USER_LINK;
+			break;
+		      case 1:
+			user_type[userc] = USER_ADMIN;
+			break;
+		      default:
+			user_type[userc] = USER_NORMAL;
+			break;
+		      }
 		      userc++;
+
 		    }
 		}
 	    }

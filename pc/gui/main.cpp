@@ -190,21 +190,24 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rserv_entry_user;
   GtkWidget *rserv_entry_pass;
   GtkWidget *rserv_entry_pass_c;
-  GtkWidget *rserv_is_admin;
+  GtkWidget *rserv_user_type_box;
+  GtkWidget *rserv_user_type_radio1;
+  GtkWidget *rserv_user_type_radio2;
+  GtkWidget *rserv_user_type_radio3;
   GtkWidget *rserv_entry_your_pass;
 
   GtkWidget *rserv_label_moduser_user;
   GtkWidget *rserv_label_user;
   GtkWidget *rserv_label_pass;
   GtkWidget *rserv_label_pass_c;
-  GtkWidget *rserv_label_is_admin;
+  GtkWidget *rserv_label_user_type;
   GtkWidget *rserv_label_your_pass;
 
   GtkWidget *rserv_box_moduser_user;
   GtkWidget *rserv_box_user;
   GtkWidget *rserv_box_pass;
   GtkWidget *rserv_box_pass_c;
-  GtkWidget *rserv_box_is_admin;
+  GtkWidget *rserv_box_user_type;
   GtkWidget *rserv_box_button;
   GtkWidget *rserv_box_your_pass;
 
@@ -473,13 +476,13 @@ client_handler(void *ptr)
 		}
 	      exec_package(rdata, data + 5, len - 5);
 	    }
-	  if (strncmp(data, "userlist ", 9) == 0)
+	  if (strncmp(data, "userlist", 8) == 0)
 	    {
 	      if (strlen(data) > MAX_LOGIN_TEXT)
 		continue;
 	      char username[MAX_LOGIN_TEXT + 9];
 	      int is_admin;
-	      sscanf(data, "userlist %s %d\n", username, &is_admin);
+	      sscanf(data, "userlist %d\n%[^\n]", &is_admin, username);
 	      gtk_list_store_append(rdata->rserv_store_user, &rdata->rserv_iter);
 	      gtk_list_store_set(rdata->rserv_store_user, &rdata->rserv_iter, COL_NAME, username, COL_AGE, is_admin, -1);
 	      rdata->rserv_model_user = GTK_TREE_MODEL(rdata->rserv_store_user);
@@ -1391,14 +1394,22 @@ rserver_settings_users_box(GtkTreeView * treeview, GtkTreePath * path, GtkTreeVi
     {
       const char *username;
       gtk_tree_model_get(model, &iter, 0, (gpointer) & username, -1);
-      int is_admin;
-      gtk_tree_model_get(model, &iter, 1, (gpointer) & is_admin, -1);
+      int user_type;
+      gtk_tree_model_get(model, &iter, 1, (gpointer) & user_type, -1);
       // Get addr...
       gtk_entry_set_text(GTK_ENTRY(rdata->rserv_entry_moduser_user), username);
-      if (is_admin)
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(rdata->rserv_is_admin), TRUE);
-      else
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(rdata->rserv_is_admin), FALSE);
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_entry_user), "");
+      switch (user_type){
+      case 2:
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(rdata->rserv_user_type_radio1), TRUE);
+	break;
+      case 1:
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(rdata->rserv_user_type_radio2), TRUE);
+	break;
+      default:
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(rdata->rserv_user_type_radio3), TRUE);
+      break;
+      }
     }
 }
 
@@ -1416,7 +1427,7 @@ rserver_settings_moduser(GtkWidget * some, gpointer data)
     {
       rdata->rserv_store_user = gtk_list_store_new(NUM_COLS, G_TYPE_STRING, G_TYPE_UINT);
       char *modusr, *usr, *pwd, *pwd_c;
-      int is_admin;
+      int user_type;
       modusr = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_entry_moduser_user));
       usr = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_entry_user));
       if (strlen(usr) < 1)
@@ -1426,17 +1437,24 @@ rserver_settings_moduser(GtkWidget * some, gpointer data)
 	}
       pwd = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_entry_pass));
       pwd_c = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_entry_pass_c));
-      is_admin = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(rdata->rserv_is_admin));
+
+      if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(rdata->rserv_user_type_radio1)))
+	user_type = 2;
+      else if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(rdata->rserv_user_type_radio2)))
+	user_type = 1;
+      else
+	user_type = 0;
+
       if (strcmp(pwd, pwd_c) == 0)
 	{
 	  char send_data[RECV_MAX];
 	  if (strlen(pwd) < 1)
 	    {
 	      pwd = new char[2];
-	      pwd[0] = '\x03';
+	      pwd[0] = '\0';
 	      pwd[1] = '\0';
 	    }
-	  sprintf(send_data, "moduser %s \t %d \t %s \t %s\n", modusr, is_admin, usr, pwd);
+	  sprintf(send_data, "moduser %d\n%s\n%s\n%s\n", user_type, modusr, usr, pwd);
 	  rdata->sslc.send_data(send_data, strlen(send_data));
 	}
       else
@@ -1462,15 +1480,22 @@ rserver_settings_adduser(GtkWidget * some, gpointer data)
       char *usr;
       char *pwd;
       char *pwd_c;
-      int is_admin;
+      int user_type;
       usr = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_entry_user));
       pwd = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_entry_pass));
       pwd_c = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_entry_pass_c));
-      is_admin = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(rdata->rserv_is_admin));
+
+      if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(rdata->rserv_user_type_radio1)))
+	user_type = 2;
+      else if(gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(rdata->rserv_user_type_radio2)))
+	user_type = 1;
+      else
+	user_type = 0;
+
       if (strcmp(pwd, pwd_c) == 0)
 	{
 	  char send_data[RECV_MAX];
-	  sprintf(send_data, "adduser %s %s %d\n", usr, pwd, is_admin);
+	  sprintf(send_data, "adduser %d\n%s\n%s\n", user_type, usr, pwd);
 	  rdata->sslc.send_data(send_data, strlen(send_data));
 	}
       else
@@ -1497,7 +1522,7 @@ rserver_settings_deluser(GtkWidget * some, gpointer data)
       char *usr;
       usr = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_entry_moduser_user));
       char send_data[RECV_MAX];
-      sprintf(send_data, "deluser %s\n", usr);
+      sprintf(send_data, "deluser\n%s\n", usr);
       rdata->sslc.send_data(send_data, strlen(send_data));
     }
 }
@@ -2680,7 +2705,7 @@ rserver_settings(GtkWidget * some, gpointer data)
   renderer = gtk_cell_renderer_text_new();
   gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rserv_users_box), -1, "Username", renderer, "text", COL_NAME, NULL);
   renderer = gtk_cell_renderer_text_new();
-  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rserv_users_box), -1, "Is_admin", renderer, "text", COL_AGE, NULL);
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rserv_users_box), -1, "Type", renderer, "text", COL_AGE, NULL);
   //
   g_signal_connect(rdata->rserv_users_box, "row-activated", G_CALLBACK(rserver_settings_users_box), rdata);
 
@@ -2697,42 +2722,52 @@ rserver_settings(GtkWidget * some, gpointer data)
   rdata->rserv_box_user = gtk_hbox_new(FALSE, 10);
   rdata->rserv_box_pass = gtk_hbox_new(FALSE, 10);
   rdata->rserv_box_pass_c = gtk_hbox_new(FALSE, 10);
-  rdata->rserv_box_is_admin = gtk_hbox_new(FALSE, 10);
+  rdata->rserv_box_user_type = gtk_hbox_new(FALSE, 10);
   rdata->rserv_box_button = gtk_hbox_new(FALSE, 10);
   rdata->rserv_box_your_pass = gtk_hbox_new(FALSE, 10);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box2), rdata->rserv_box_moduser_user, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box2), rdata->rserv_box_user, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box2), rdata->rserv_box_pass, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box2), rdata->rserv_box_pass_c, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(rdata->rserv_box2), rdata->rserv_box_is_admin, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_box2), rdata->rserv_box_user_type, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box2), rdata->rserv_box_button, FALSE, FALSE, 0);
   //
   rdata->rserv_entry_moduser_user = gtk_entry_new();
-  rdata->rserv_label_moduser_user = gtk_label_new("moduser user:\t");
+  rdata->rserv_label_moduser_user = gtk_label_new("Moduser user:\t\t");
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box_moduser_user), rdata->rserv_label_moduser_user, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box_moduser_user), rdata->rserv_entry_moduser_user, FALSE, FALSE, 0);
   //
   rdata->rserv_entry_user = gtk_entry_new();
-  rdata->rserv_label_user = gtk_label_new("new username:\t");
+  rdata->rserv_label_user = gtk_label_new("New username:\t");
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box_user), rdata->rserv_label_user, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box_user), rdata->rserv_entry_user, FALSE, FALSE, 0);
   //
   rdata->rserv_entry_pass = gtk_entry_new();
-  rdata->rserv_label_pass = gtk_label_new("new password:\t");
+  rdata->rserv_label_pass = gtk_label_new("New password:\t");
   gtk_entry_set_visibility(GTK_ENTRY(rdata->rserv_entry_pass), FALSE);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box_pass), rdata->rserv_label_pass, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box_pass), rdata->rserv_entry_pass, FALSE, FALSE, 0);
   //
   rdata->rserv_entry_pass_c = gtk_entry_new();
-  rdata->rserv_label_pass_c = gtk_label_new("confirm pass:\t\t");
+  rdata->rserv_label_pass_c = gtk_label_new("Confirm pass:\t\t");
   gtk_entry_set_visibility(GTK_ENTRY(rdata->rserv_entry_pass_c), FALSE);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box_pass_c), rdata->rserv_label_pass_c, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box_pass_c), rdata->rserv_entry_pass_c, FALSE, FALSE, 0);
   //
-  rdata->rserv_is_admin = gtk_check_button_new();
-  rdata->rserv_label_is_admin = gtk_label_new("is admin:\t\t\t");
-  gtk_box_pack_start(GTK_BOX(rdata->rserv_box_is_admin), rdata->rserv_label_is_admin, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(rdata->rserv_box_is_admin), rdata->rserv_is_admin, FALSE, FALSE, 0);
+  rdata->rserv_user_type_box = gtk_hbox_new (FALSE, 2);
+  gtk_box_set_homogeneous (GTK_BOX (rdata->rserv_user_type_box), TRUE);
+  rdata->rserv_user_type_radio1 = gtk_radio_button_new_with_label (NULL, "Link");
+  rdata->rserv_user_type_radio2 = gtk_radio_button_new_with_label_from_widget (GTK_RADIO_BUTTON (rdata->rserv_user_type_radio1),
+									       "Root");
+  rdata->rserv_user_type_radio3 = gtk_radio_button_new_with_label_from_widget (GTK_RADIO_BUTTON (rdata->rserv_user_type_radio1),
+									       "User");
+  gtk_box_pack_start (GTK_BOX (rdata->rserv_user_type_box), rdata->rserv_user_type_radio1, TRUE, TRUE, 2);
+  gtk_box_pack_start (GTK_BOX (rdata->rserv_user_type_box), rdata->rserv_user_type_radio2, TRUE, TRUE, 2);
+  gtk_box_pack_start (GTK_BOX (rdata->rserv_user_type_box), rdata->rserv_user_type_radio3, TRUE, TRUE, 2);
+
+  rdata->rserv_label_user_type = gtk_label_new("User type:\t\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_box_user_type), rdata->rserv_label_user_type, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_box_user_type), rdata->rserv_user_type_box, FALSE, FALSE, 0);
   //
   rdata->rserv_deluser_button = gtk_button_new_with_label("Del user");
   rdata->rserv_moduser_button = gtk_button_new_with_label("Mod user");
@@ -3416,7 +3451,7 @@ connect_to_server(GtkWidget * button, gpointer data)
   pwd = (char *)gtk_entry_get_text(GTK_ENTRY(pdata->login_pwd));
   adr = (char *)gtk_entry_get_text(GTK_ENTRY(pdata->server_adress));
   he = gethostbyname(adr);
-  sprintf(login, "%s\n%s", usr, pwd);
+  sprintf(login, "\n%.*s\n%.*s\n", 199, usr, 199, pwd);
 
   // Fixed reconnect, so the connection not is reset on popup messages...
   int do_retry = 0;

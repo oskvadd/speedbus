@@ -28,7 +28,7 @@
 #define MAX_LISTEN 10
 #define RECV_MAX 4096		// Watch out for bugs, due i change this from 1000 to 4096
 #define MAX_LOGIN_TEXT 50
-
+#define MAX_LOGIN_TEXT_S "50"
 
 class sslserver {
 	int err;
