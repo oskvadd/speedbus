@@ -1647,6 +1647,12 @@ mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, int user
 		{
 		  if (strlen(user_n) > 0)
 		    {
+		      for (int i = 0; i < MAX_USERS; i++)
+			{				// Check so we do not make any doublets
+			  if (strcmp(users[i][1], user_n) == 0)
+			    return 0;
+			}
+
 		      strncpy(user_s, user_n, MAX_LOGIN_TEXT);
 		      strncpy(users[index][1], user_s, MAX_LOGIN_TEXT);
 		      member = config_setting_get_member(element, "user");
