@@ -965,7 +965,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  if (strncmp(data, tmp, len) == 0)
 	    {
 	      socket_user_id[listnum] = i;
-	      if (user_type[i] == USER_ADMIN)
+	      if (user_type[i] >= USER_ADMIN)
 		{
 		  err = serial_p->server->send_data(listnum, "root\n", strlen("root\n"));
 		}
