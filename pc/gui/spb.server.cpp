@@ -84,6 +84,7 @@ typedef struct _print_seri
   char slinks_user[MAX_LINKS][MAX_LOGIN_TEXT];
   char slinks_pass[MAX_LINKS][MAX_LOGIN_TEXT];
   int slinks_status[MAX_LINKS];
+  pthread_t slinks_thread[MAX_LINKS];
   sslclient *sslc[MAX_LINKS];
   int slinks_servernr; // Server nr for links, uniqe for each server.
 
@@ -108,6 +109,9 @@ typedef struct _slinks_t
 bool add_user(config_t * server_cfg, char *user, char *pass, int user_type);
 bool del_user(config_t * server_cfg, char *user);
 bool mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, int user_type);
+bool add_link(print_seri * serial_p, char *host, int port, char *user, char *pass);
+bool del_link(print_seri * serial_p, char *host, int port);
+bool mod_link(print_seri * serial_p ,char *mhost, int mport, char *host, int port, char *user, char *pass);
 bool set_tty(print_seri * serial_p, const char *tty);
 bool spb_write_log(const char *w_log);
 bool spb_write_notify(print_seri * serial_p, const char *w_log, int prio);
@@ -465,17 +469,29 @@ md5sum(char *input)
 void *
 spb_links_thread(void *ptr)
 {
+  /*
+    slinks_status:
+    *  0 = Not connected
+    * -1 = Connection Failed
+    * -2 = SSL Handshake Failed
+    * -3 = Login Failed
+    * -4 = User is not link
+
+   */
+  
   slinks_t *slink = (slinks_t *) ptr;
   print_seri *serial_p = slink->serial_p;
 
   int i = slink->links_nr; // The links nr
+  serial_p->sslc[i] = new sslclient;
+
   int len;
   fd_set socks;
   char data[RECV_MAX];
 
   while(1){
-    if(!serial_p->slinks_status[i]){
-      serial_p->sslc[i] = new sslclient;
+    if(serial_p->slinks_status[i] < 1){
+      
       // If Not connected
       struct hostent *he;
       he = gethostbyname(serial_p->slinks_host[i]);
@@ -483,7 +499,7 @@ spb_links_thread(void *ptr)
 	{
 	  wtime();
 	  printf("Links connection to %s Failed\n", serial_p->slinks_host[i]);
-	  serial_p->slinks_status[i] = 0; sleep(15);
+	  serial_p->slinks_status[i] = -1; sleep(15);
 	  continue;
 	}
       
@@ -492,7 +508,7 @@ spb_links_thread(void *ptr)
 	  wtime();
 	  printf("Links ssl handshake to %s Failed\n", serial_p->slinks_host[i]);
 	  serial_p->sslc[i]->sslfree();
-	  serial_p->slinks_status[i] = 0; sleep(15);
+	  serial_p->slinks_status[i] = -2; sleep(15);
 	  continue;
 	}
 
@@ -509,9 +525,10 @@ spb_links_thread(void *ptr)
 	      if (strcmp(data, "Login Failed\n") == 0)
 		{
 		  wtime();
-		  printf("Login failed on link %s, Killing thread\n", serial_p->slinks_host[i]);
+		  printf("Login failed on link %s\n", serial_p->slinks_host[i]);
 		  serial_p->sslc[i]->sslfree();
-		  return 0;
+		  serial_p->slinks_status[i] = -3; sleep(15);
+		  continue;
 		}
 	      if (strcmp(data, "root\n") == 0)
 		{
@@ -555,7 +572,7 @@ spb_links_thread(void *ptr)
 	    {
 	      if (strncmp(data, "good\n",5) != 0){
 	      serial_p->sslc[i]->sslfree();
-	      serial_p->slinks_status[i] = 0; sleep(15);
+	      serial_p->slinks_status[i] = -4; sleep(15);
 	      continue;		
 	      }else{
 		wtime();
@@ -619,7 +636,7 @@ bool
 spb_links_send(print_seri * serial_p, int listnum, int linknum, const char * data, int len){
   int i, got_link=0;
   for(i=0; i < serial_p->slinks_nr; i++){
-    if(serial_p->slinks_status[i] && i != linknum){
+    if(serial_p->slinks_status[i] > 0 && i != linknum){
       serial_p->sslc[i]->send_data(data, len); got_link=1;
     }
   }
@@ -684,7 +701,7 @@ spb_inalize_links(print_seri * serial_p)
 
 	      serial_p->slinks_status[i] = 0; // Set link status not connected 
 	      pthread_t printr;
-	      pthread_create(&printr, NULL, &spb_links_thread, (void *)slink);
+	      pthread_create(&serial_p->slinks_thread[serial_p->slinks_nr], NULL, &spb_links_thread, (void *)slink);
 
 	      serial_p->slinks_nr++;
 	    }
@@ -1225,6 +1242,10 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	{
 	  char moduser[RECV_MAX], user[RECV_MAX], pass[RECV_MAX];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
 	  int user_type;
+	  moduser[0] = '\0';
+	  user[0] = '\0';
+	  pass[0] = '\0';
+
 	  sscanf(data, "moduser %d\n%[^\n]\n%[^\n]\n%[^\n]", &user_type, moduser, user, pass);
 	  if (strlen(pass) < 2)
 	    {
@@ -1425,14 +1446,97 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	}
 
       if (strncmp(data, "slinks ", 7) == 0)
+	{	  
+	  // Make sure the user is a link.
+	  if(user_type[socket_user_id[listnum]] == USER_LINK){  
+	    serial_p->server->send_data(listnum, "good\n", strlen("good\n"));}
+	  else{
+	    serial_p->server->send_data(listnum, "No link user\n", strlen("No link user\n"));
+	  }
+	}
+      if (strncmp(data, "addlink", 7) == 0)
 	{
-	  user_type[socket_user_id[listnum]] = USER_LINK;  // Mark the user as a link. 
-	  serial_p->server->send_data(listnum, "good\n", strlen("good\n"));
+	  char user[RECV_MAX], pass[RECV_MAX], host[RECV_MAX];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
+	  int port;
+	  host[0] = '\0';
+	  user[0] = '\0';
+	  pass[0] = '\0';
+
+	  sscanf(data, "addlink %d\n%[^\n]\n%[^\n]\n%[^\n]", &port, host, user, pass);
+	  if (add_link(serial_p, host, port, user, pass))
+	    {
+	      serial_p->server->send_data(listnum, "slinfo Link added!\n", strlen("slinfo Link added!\n"));
+	      goto send_linklist;
+	    }
+	  else
+	    {
+	      serial_p->server->send_data(listnum, "slinfo Failed to add link\n", strlen("slinfo Failed to add link\n"));
+	    }
+	}
+      if (strncmp(data, "modlink", 7) == 0)
+	{
+	  char modhost[RECV_MAX], host[RECV_MAX], user[RECV_MAX], pass[RECV_MAX];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
+	  int mport, port;
+	  modhost[0] = '\0';
+	  host[0] = '\0';
+	  user[0] = '\0';
+	  pass[0] = '\0';
+
+	  sscanf(data, "modlink %d %d\n%[^\n]\n%[^\n]\n%[^\n]\n%[^\n]", &mport, &port, modhost, host, user, pass);
+	  if (strlen(pass) < 2)
+	    {
+	      if (pass[0] == 3)
+		{
+		  pass[0] = '\0';
+		}
+	    }
+	  if (mod_link(serial_p, modhost, mport, host, port, user, pass))
+	    {
+	      serial_p->server->send_data(listnum, "slinfo Link modded!\n", strlen("slinfo Link modded!\n"));
+	      goto send_linklist;
+	    }
+	  else
+	    {
+	      serial_p->server->send_data(listnum, "slinfo Failed to mod link\n", strlen("slinfo Failed to mod link\n"));
+	    }
+
+	}
+      if (strncmp(data, "dellink", 7) == 0)
+	{
+	  char host[RECV_MAX];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
+	  int port;
+	  sscanf(data, "dellink %d\n%[^\n]", &port, host);
+	  if (del_link(serial_p, host, port))
+	    {
+	      serial_p->server->send_data(listnum, "slinfo Link deleted!\n", strlen("slinfo Link deleted!\n"));
+	      goto send_linklist;
+	    }
+	  else
+	    {
+	      serial_p->server->send_data(listnum, "slinfo Failed to delete link\n", strlen("slinfo Failed to delete link\n"));
+	    }
+	}
+      if (strncmp(data, "linklist", 8) == 0)
+	{
+	send_linklist:
+	  for (int i = 0; i < serial_p->slinks_nr; i++)
+	    {
+	      char send[MAX_LOGIN_TEXT * 4];
+	      sprintf(send, "linklist %d\n%" MAX_LOGIN_TEXT_S "s\n%" MAX_LOGIN_TEXT_S "s\n%d\n", serial_p->slinks_port[i], serial_p->slinks_host[i],serial_p->slinks_user[i],serial_p->slinks_status[i]);
+
+	      //printf(send, "userlist %s %d\n", users[i][1], user_type[i]);
+	      serial_p->server->send_data(listnum, send, strlen(send));
+	    }
+	  if(serial_p->slinks_nr < 1){
+	    char send[MAX_LOGIN_TEXT * 4];
+	    sprintf(send, "linklist 0\na\na\n50");
+	    serial_p->server->send_data(listnum, send, strlen(send));
+	    
+	  }
 	}
       
-
     }
-
+  
 }
 
 void
@@ -1763,6 +1867,227 @@ set_tty(print_seri * serial_p, const char *tty)
       return 0;
     }
 }
+
+
+bool
+add_link(print_seri * serial_p, char *host, int port, char *user, char *pass)
+{
+  config_setting_t *root, *setting, *links_c, *link_c;
+  int index;
+  
+  for (index = 0; index < serial_p->slinks_nr; index++)
+    {
+      if (users[index][1][0] == '\0')
+	{
+	  break;
+	}
+    }
+  
+
+  links_c = config_lookup(serial_p->server_cfg, "links");	// Pretty messy, but if you already got a "users" in the config, the config_root_setting will make SIGSEG
+  if (!links_c)
+    {
+      root = config_root_setting(serial_p->server_cfg);
+      links_c = config_setting_add(root, "users", CONFIG_TYPE_LIST);
+    }
+  
+  link_c = config_setting_add(links_c, "link", CONFIG_TYPE_GROUP);
+  setting = config_setting_add(link_c, "host", CONFIG_TYPE_STRING);
+  config_setting_set_string(setting, host);
+  setting = config_setting_add(link_c, "port", CONFIG_TYPE_INT);
+  config_setting_set_int(setting, port);
+  setting = config_setting_add(link_c, "user", CONFIG_TYPE_STRING);
+  config_setting_set_string(setting, user);
+  setting = config_setting_add(link_c, "pass", CONFIG_TYPE_STRING);
+  config_setting_set_string(setting, pass);
+
+
+  if (!config_write_file(serial_p->server_cfg, SERVER_CONFIG_URI))
+    {
+      printf("Unable to write server.cfg :/ do i have the right access? Bye!\n");
+    }
+
+  strncpy(serial_p->slinks_host[serial_p->slinks_nr], host, MAX_TEXT_BUFFER);
+  serial_p->slinks_port[serial_p->slinks_nr] = port;
+  strncpy(serial_p->slinks_user[serial_p->slinks_nr], user, MAX_LOGIN_TEXT);
+  strncpy(serial_p->slinks_pass[serial_p->slinks_nr], pass, MAX_LOGIN_TEXT);
+
+  //is_admin[userc] = is_admin_a;
+  //userc++;
+  //printf("Found link %s\n", host);
+
+  slinks_t *slink = new slinks_t;
+  slink->links_nr = serial_p->slinks_nr;
+  slink->serial_p = serial_p;
+
+  serial_p->slinks_status[serial_p->slinks_nr] = 0; // Set link status not connected 
+  pthread_create(&serial_p->slinks_thread[serial_p->slinks_nr], NULL, &spb_links_thread, (void *)slink);
+
+  serial_p->slinks_nr++;
+  return 1;
+}
+
+bool
+del_link(print_seri * serial_p, char *host, int port)
+{
+  config_setting_t *setting;
+  int status = 0;
+  setting = config_lookup(serial_p->server_cfg, "links");
+  if (setting != NULL)
+    {
+      int count = config_setting_length(setting);
+      for (int i = 0; i < count; ++i)
+	{
+	  config_setting_t *element = config_setting_get_elem(setting, i);
+	  /*
+	   * Only output the record if all of the expected fields are present. 
+	   */
+	  const char *host_c;
+	  int port_c;
+	  if (config_setting_lookup_string(element, "host", &host_c) && config_setting_lookup_int(element, "port", &port_c))
+	    {
+	      if (strcmp(host, host_c) == 0 && port == port_c)
+		{
+		  config_setting_remove_elem(setting, i);
+		  status++;
+		  break;
+		}
+	    }
+	}
+    }
+  else
+    {
+      printf("No users found in server.cfg while deleting\n");
+    }
+  for (int i = 0; i < serial_p->slinks_nr; i++)
+    {
+      if (strcmp(host, serial_p->slinks_host[i]) == 0 && serial_p->slinks_port[i] == port)
+	{
+	  serial_p->slinks_host[i][0] = '0';
+	  serial_p->slinks_port[i] = 0;
+	  serial_p->slinks_user[i][0] = '\0';
+	  serial_p->slinks_pass[i][0] = '\0';
+	  serial_p->slinks_status[i] = 0;
+	  pthread_cancel(serial_p->slinks_thread[i]);
+	  serial_p->slinks_nr--;
+	  status++;
+	}
+    }
+  if (status < 2)
+    return 0;
+
+  if (!config_write_file(serial_p->server_cfg, SERVER_CONFIG_URI))
+    {
+      printf("Unable to write server.cfg :/ do i have the right access? Bye!\n");
+      return 0;
+    }
+
+  return 1;
+}
+
+bool
+mod_link(print_seri * serial_p ,char *mhost, int mport, char *host, int port, char *user, char *pass)
+{
+  int index;
+  for (index = 0; index < serial_p->slinks_nr; index++)
+    {
+      if (strcmp(serial_p->slinks_host[index], mhost) == 0 && serial_p->slinks_port[index] == mport)
+	{
+	  break;
+	}
+    }
+
+  config_setting_t *setting;
+  setting = config_lookup(serial_p->server_cfg, "links");
+  if (setting != NULL)
+    {
+      int count = config_setting_length(setting);
+
+      for (int i = 0; i < count; ++i)
+	{
+	  config_setting_t *element = config_setting_get_elem(setting, i);
+	  config_setting_t *member;
+
+	  /*
+	   * Only output the record if all of the expected fields are present. 
+	   */
+	  const char *mhost_c;
+	  if (config_setting_lookup_string(element, "host", &mhost_c))
+	    {
+	      if (strcmp(mhost, mhost_c) == 0)
+		{
+		  if (strlen(host) > 0)
+		    {
+		      int tport; // Make sure the port is right
+		      if(port > 0)
+			tport = port;
+		      else
+			tport = mport;
+
+		      for (int ii = 0; ii < serial_p->slinks_nr; ii++)
+			{				// Check so we do not make any doublets
+			  if (strcmp(serial_p->slinks_host[ii], host) == 0 && serial_p->slinks_port[ii] == tport)
+			    return 0;
+			}
+
+		      strncpy(serial_p->slinks_host[index], host, MAX_LOGIN_TEXT);
+		      member = config_setting_get_member(element, "host");
+		      config_setting_set_string(member, host);
+		    }
+		  if (port > 0){
+		    char thost[MAX_LOGIN_TEXT]; // Make sure the port is right
+		    if(strlen(host) > 0)
+		      strcpy(thost, host);
+		    else
+		      strcpy(thost, mhost);
+		    
+		    for (int ii = 0; ii < serial_p->slinks_nr; ii++)
+		      {				// Check so we do not make any doublets
+			if (strcmp(serial_p->slinks_host[ii], host) == 0 && serial_p->slinks_port[ii] == port)
+			  return 0;
+		      }
+		    
+		    serial_p->slinks_port[index] = port;
+		    member = config_setting_get_member(element, "port");
+		    config_setting_set_int(member, port);
+		  }
+
+		  if (strlen(user) > 0)
+		    {
+		      strncpy(serial_p->slinks_user[index], user, MAX_LOGIN_TEXT);
+		      member = config_setting_get_member(element, "user");
+		      config_setting_set_string(member, user);
+		    }
+
+		  if (strlen(pass) > 0)
+		    {
+		      strncpy(serial_p->slinks_pass[index], pass, MAX_LOGIN_TEXT);
+		      member = config_setting_get_member(element, "pass");
+		      config_setting_set_string(member, pass);
+		    }
+
+		  goto mod_user_end;
+		}
+	    }
+	}
+    }
+
+mod_user_end:
+  if (!config_write_file(serial_p->server_cfg, SERVER_CONFIG_URI))
+    {
+      printf("Unable to write server.cfg :/ do i have the right access? Bye!\n");
+      return 0;
+    }
+
+  if(serial_p->slinks_status[index] > 0){
+  serial_p->sslc[index]->sslfree();
+  serial_p->slinks_status[index] = 0; // Set link status not connected 
+  }
+  // 
+  return 1;
+
+}
+
 
 void
 make_new_admin(config_t * server_cfg, char user_arg[2][MAX_LOGIN_TEXT])

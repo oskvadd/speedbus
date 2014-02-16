@@ -173,6 +173,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rserv_box3;
   GtkWidget *rserv_box4;
   GtkWidget *rserv_box5;
+  GtkWidget *rserv_box6;
 
 
   GtkWidget *rserv_users_box;
@@ -184,6 +185,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rserv_adduser_button;
   GtkWidget *rserv_deluser_button;
   GtkWidget *rserv_moduser_button;
+  GtkWidget *rserv_adm_button1;
 
 
   GtkWidget *rserv_entry_moduser_user;
@@ -219,6 +221,8 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rserv_separator1;
   GtkWidget *rserv_separator2;
   GtkWidget *rserv_separator3;
+  GtkWidget *rserv_separator4;
+
   GtkWidget *rserv_tty_update;
   GtkWidget *rserv_tty_box;
   GtkTreeModel *rserv_model_tty;
@@ -229,6 +233,57 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rserv_tty_list_units;
   GtkWidget *rserv_tty_open;
   GtkWidget *rserv_tty_close;
+  //
+
+  // rserver_setting_links_setup
+  GtkWidget *rserv_links_gui;
+  GtkWidget *rserv_links_box0;
+  GtkWidget *rserv_links_box1;
+  GtkWidget *rserv_links_box2;
+  GtkWidget *rserv_links_box3;
+  GtkWidget *rserv_links_box4;
+
+  GtkWidget *rserv_links_ubutton;
+  GtkWidget *rserv_links_abutton;
+  GtkWidget *rserv_links_mbutton;
+  GtkWidget *rserv_links_dbutton;
+
+  GtkWidget *rserv_links_separator1;
+  GtkWidget *rserv_links_separator2;
+  GtkWidget *rserv_links_separator3;
+
+  GtkWidget *rserv_links_status;
+
+  // mhost, host, port, user, pass
+  GtkWidget *rserv_links_bmhost;
+  GtkWidget *rserv_links_bmport;
+  GtkWidget *rserv_links_bhost;
+  GtkWidget *rserv_links_bport;
+  GtkWidget *rserv_links_buser;
+  GtkWidget *rserv_links_bpass;
+
+  GtkWidget *rserv_links_lmhost;
+  GtkWidget *rserv_links_emhost;
+  GtkWidget *rserv_links_lmport;
+  GtkWidget *rserv_links_emport;
+  GtkWidget *rserv_links_lhost;
+  GtkWidget *rserv_links_ehost;
+  GtkWidget *rserv_links_lport;
+  GtkWidget *rserv_links_eport;
+  GtkWidget *rserv_links_luser;
+  GtkWidget *rserv_links_euser;
+  GtkWidget *rserv_links_lpass;
+  GtkWidget *rserv_links_epass;
+
+
+  //
+
+  GtkWidget *rserv_links_list;
+  GtkTreeModel *rserv_links_tlist;
+  GtkListStore *rserv_links_slist;
+  GtkTreeIter rserv_links_iter;
+
+  
   //
 
   // rdev_editor
@@ -491,6 +546,58 @@ client_handler(void *ptr)
 	      gdk_threads_leave();
 
 	    }
+	  if (strncmp(data, "linklist", 8) == 0)
+	    {
+	      char host[MAX_LOGIN_TEXT+1], user[MAX_LOGIN_TEXT+1], status[100];
+	      int port, conn;
+	      char port_s[50];
+	      sscanf(data, "linklist %d\n%" MAX_LOGIN_TEXT_S "[^\n]\n%" MAX_LOGIN_TEXT_S "[^\n]\n%d", &port, host, user, &conn);
+	      if(conn == 50){
+		gdk_threads_enter();
+		gtk_list_store_append(rdata->rserv_links_slist, &rdata->rserv_links_iter);
+		gtk_list_store_set(rdata->rserv_links_slist, &rdata->rserv_links_iter, 0, "", 1, 0, 2, "", 3, "", -1);
+		rdata->rserv_links_tlist = GTK_TREE_MODEL(rdata->rserv_links_slist);
+		gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rserv_links_list), rdata->rserv_links_tlist);
+		gdk_threads_leave();
+		continue;
+	      }
+	      sprintf(port_s, "%d", port);
+	      // Connection status
+	      switch(conn){
+	      case 1:
+		strcpy(status, "Connected");
+		break;
+	      case -1:
+		strcpy(status, "Connection Failed");
+		break;
+	      case -2:
+		strcpy(status, "SSL Handshake Failed");
+		break;
+	      case -3:
+		strcpy(status, "Login Failed");
+		break;
+	      case -4:
+		strcpy(status, "User is not link");
+		break;
+	      default:
+		strcpy(status, "Not connected");
+	      }
+	      //
+	      gdk_threads_enter();
+	      gtk_list_store_append(rdata->rserv_links_slist, &rdata->rserv_links_iter);
+	      gtk_list_store_set(rdata->rserv_links_slist, &rdata->rserv_links_iter, 0, host, 1, port, 2, user, 3, status, -1);
+	      rdata->rserv_links_tlist = GTK_TREE_MODEL(rdata->rserv_links_slist);
+	      gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rserv_links_list), rdata->rserv_links_tlist);
+	      gdk_threads_leave();
+
+	    }
+	  if (strncmp(data, "slinfo ", 7) == 0)
+	    {
+	      data[RECV_MAX] = '\0';
+	      gdk_threads_enter();
+	      gtk_label_set_text(GTK_LABEL(rdata->rserv_links_status), data + 7);
+	      gdk_threads_leave();
+	    }
 	  if (strncmp(data, "sinfo ", 6) == 0)
 	    {
 	      data[RECV_MAX] = '\0';
@@ -538,8 +645,11 @@ client_handler(void *ptr)
 	    }
 	  if (strncmp(data, "udevlist ", 9) == 0)
 	    {
-	      if (rdata->open)
+	      if (rdata->open){
+		gdk_threads_enter();
 		speedbus_fill_devlist(rdata);
+		gdk_threads_leave();
+	      }
 	    }
 	  if (strncmp(data, "devec ", 6) == 0)
 	    {
@@ -880,11 +990,8 @@ speedbus_fill_devlist(gpointer data)
       gtk_list_store_append(store, &iter);
       gtk_list_store_set(store, &iter, COL_NAME, device_id[i], COL_AGE, device_addr[i], -1);
     }
-  model = GTK_TREE_MODEL(store);
-  gdk_threads_enter();	  
+  model = GTK_TREE_MODEL(store);	  
   gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->scan_list), model);
-  gdk_threads_leave();
-  usleep(200000);		// to prevent concurancy
 }
 
 
@@ -2704,6 +2811,273 @@ rdev_editor(GtkWidget * some, gpointer data)
   gtk_widget_show_all(rdata->rdeve_gui);
 }
 
+gboolean
+rserver_settings_links_add(GtkWidget * buffer, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  rdata->rserv_your_clear_counter = 0;
+  if (!((ProgressData *) rdata->share)->connected)
+    {
+      gtk_label_set_text(GTK_LABEL(rdata->rserv_status_label), "ERROR: Not connected");
+      return 0;
+    }
+  else
+    {
+      rdata->rserv_links_slist = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
+      char *host, *port, *user, *pass;
+      int port_i;
+      host = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_ehost));
+      port = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_eport));
+      user = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_euser));
+      pass = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_epass));
+     
+
+      if(sscanf(port, "%d", &port_i) < 1)
+	port_i = 0;
+     
+      char send_data[MAX_LOGIN_TEXT * 10];
+      sprintf(send_data, "addlink %d\n%s\n%s\n%s\n", port_i, host, user, pass);
+      rdata->sslc.send_data(send_data, strlen(send_data));
+     
+
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_emhost), "");
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_emport), "");
+
+ 
+    }
+
+}
+
+gboolean
+rserver_settings_links_mod(GtkWidget * buffer, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  rdata->rserv_your_clear_counter = 0;
+  if (!((ProgressData *) rdata->share)->connected)
+    {
+      gtk_label_set_text(GTK_LABEL(rdata->rserv_status_label), "ERROR: Not connected");
+      return 0;
+    }
+  else
+    {
+      rdata->rserv_links_slist = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
+      char *modhost, *modport, *host, *port, *user, *pass;
+      int modport_i, port_i;
+      modhost = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_emhost));
+      modport = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_emport));
+      host = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_ehost));
+      port = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_eport));
+      user = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_euser));
+      pass = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_epass));
+     
+
+      if(sscanf(modport, "%d", &modport_i) < 1)
+	modport_i = 0; 
+      if(sscanf(port, "%d", &port_i) < 1)
+	port_i = 0;
+     
+      char send_data[MAX_LOGIN_TEXT * 10];
+      sprintf(send_data, "modlink %d %d\n%s\n%s\n%s\n%s\n",  modport_i, port_i, modhost, host, user, pass);
+      rdata->sslc.send_data(send_data, strlen(send_data));
+
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_ehost), "");
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_eport), "");
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_euser), "");
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_epass), "");
+
+      
+    }
+}
+
+gboolean
+rserver_settings_links_del(GtkWidget * buffer, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  rdata->rserv_your_clear_counter = 0;
+  if (!((ProgressData *) rdata->share)->connected)
+    {
+      gtk_label_set_text(GTK_LABEL(rdata->rserv_status_label), "ERROR: Not connected");
+      return 0;
+    }
+  else
+    {
+      rdata->rserv_links_slist = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
+      char *host, *port;
+      int port_i;
+      host = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_emhost));
+      port = (char *)gtk_entry_get_text(GTK_ENTRY(rdata->rserv_links_emport));
+     
+      if(sscanf(port, "%d", &port_i) < 1)
+	port_i = 0;
+     
+      char send_data[MAX_LOGIN_TEXT * 10];
+      sprintf(send_data, "dellink %d\n%s\n", port_i, host);
+      rdata->sslc.send_data(send_data, strlen(send_data));
+
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_emhost), "");
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_emport), "");
+      
+    }
+
+}
+
+gboolean
+rserver_settings_links_update(GtkWidget * buffer, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  rdata->rserv_links_slist = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
+  rdata->sslc.send_data("linklist", 8);
+}
+
+void
+rserver_settings_links_list(GtkTreeView * treeview, GtkTreePath * path, GtkTreeViewColumn * col, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  GtkTreeModel *model;
+  GtkTreeIter iter;
+  model = gtk_tree_view_get_model(treeview);
+  if (gtk_tree_model_get_iter(model, &iter, path))
+    {
+      const char *mhost;
+      char port_s[20];
+      gtk_tree_model_get(model, &iter, 0, (gpointer) & mhost, -1);
+      int mport;
+      gtk_tree_model_get(model, &iter, 1, (gpointer) & mport, -1);
+      // Get addr...
+      sprintf(port_s, "%d", mport);
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_emhost), mhost);
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_links_emport), port_s);
+
+    }
+}
+
+
+void
+rserver_settings_links(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  rdata->rserv_links_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_position(GTK_WINDOW(rdata->rserv_links_gui), GTK_WIN_POS_CENTER);
+  //gtk_widget_set_size_request(rdata->rserv_links_gui, 500, 300);
+  gtk_window_set_resizable(GTK_WINDOW(rdata->rserv_links_gui), FALSE);
+  g_signal_connect(rdata->rserv_links_gui, "delete-event", G_CALLBACK(delete_event), rdata);
+  g_signal_connect(rdata->rserv_links_gui, "destroy", G_CALLBACK(destroy), rdata);
+
+  // Windows boxes
+  rdata->rserv_links_box0 = gtk_vbox_new(FALSE, 10);
+  rdata->rserv_links_box1 = gtk_hbox_new(FALSE, 10);
+  rdata->rserv_links_box2 = gtk_vbox_new(FALSE, 10);
+  rdata->rserv_links_box3 = gtk_vbox_new(FALSE, 10);
+  rdata->rserv_links_box4 = gtk_hbox_new(FALSE, 10);
+
+  //
+  rdata->rserv_links_bmhost = gtk_hbox_new(FALSE, 10);
+  rdata->rserv_links_bmport = gtk_hbox_new(FALSE, 10);
+  rdata->rserv_links_bhost = gtk_hbox_new(FALSE, 10);
+  rdata->rserv_links_bport = gtk_hbox_new(FALSE, 10);
+  rdata->rserv_links_buser = gtk_hbox_new(FALSE, 10);
+  rdata->rserv_links_bpass = gtk_hbox_new(FALSE, 10);
+
+  //
+  
+
+  // Links table
+  GtkCellRenderer *renderer;
+  rdata->rserv_links_list = gtk_tree_view_new();
+  rdata->rserv_links_slist = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rserv_links_list), -1, "Host", renderer, "text", 0, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rserv_links_list), -1, "Port", renderer, "text", 1, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rserv_links_list), -1, "Uname", renderer, "text", 2, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rserv_links_list), -1, "Status", renderer, "text", 3, NULL);
+  //
+  g_signal_connect(rdata->rserv_links_list, "row-activated", G_CALLBACK(rserver_settings_links_list), rdata);
+  //
+
+
+  /*
+  rdata->rserv_box0 = gtk_vbox_new(FALSE, 10);
+  rdata->rserv_box4 = gtk_vbox_new(FALSE, 10);
+  rdata->rserv_box3 = gtk_vbox_new(FALSE, 10);
+  */
+  //
+  rdata->rserv_links_ubutton = gtk_button_new_with_label("Update links");
+  rdata->rserv_links_abutton = gtk_button_new_with_label("Add link");
+  rdata->rserv_links_mbutton = gtk_button_new_with_label("Mod link");
+  rdata->rserv_links_dbutton = gtk_button_new_with_label("Del links");
+
+  rdata->rserv_links_separator1 = gtk_vseparator_new();
+  rdata->rserv_links_separator2 = gtk_hseparator_new();
+  rdata->rserv_links_separator3 = gtk_hseparator_new();
+
+  rdata->rserv_links_status = gtk_label_new("");
+
+  g_signal_connect(rdata->rserv_links_ubutton, "clicked", G_CALLBACK(rserver_settings_links_update), rdata);
+  g_signal_connect(rdata->rserv_links_abutton, "clicked", G_CALLBACK(rserver_settings_links_add), rdata);
+  g_signal_connect(rdata->rserv_links_mbutton, "clicked", G_CALLBACK(rserver_settings_links_mod), rdata);
+  g_signal_connect(rdata->rserv_links_dbutton, "clicked", G_CALLBACK(rserver_settings_links_del), rdata);
+
+  //
+
+  rdata->rserv_links_emhost = gtk_entry_new();
+  rdata->rserv_links_lmhost = gtk_label_new("Mod Host:\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bmhost), rdata->rserv_links_lmhost, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bmhost), rdata->rserv_links_emhost, FALSE, FALSE, 0);
+  rdata->rserv_links_emport = gtk_entry_new();
+  rdata->rserv_links_lmport = gtk_label_new("Mod Port:\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bmport), rdata->rserv_links_lmport, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bmport), rdata->rserv_links_emport, FALSE, FALSE, 0);
+  rdata->rserv_links_ehost = gtk_entry_new();
+  rdata->rserv_links_lhost = gtk_label_new("New Host:\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bhost), rdata->rserv_links_lhost, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bhost), rdata->rserv_links_ehost, FALSE, FALSE, 0);
+  rdata->rserv_links_eport = gtk_entry_new();
+  rdata->rserv_links_lport = gtk_label_new("New Port:\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bport), rdata->rserv_links_lport, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bport), rdata->rserv_links_eport, FALSE, FALSE, 0);
+  rdata->rserv_links_euser = gtk_entry_new();
+  rdata->rserv_links_luser = gtk_label_new("Username:\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_buser), rdata->rserv_links_luser, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_buser), rdata->rserv_links_euser, FALSE, FALSE, 0);
+  rdata->rserv_links_epass = gtk_entry_new();
+  rdata->rserv_links_lpass = gtk_label_new("Password:\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bpass), rdata->rserv_links_lpass, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_bpass), rdata->rserv_links_epass, FALSE, FALSE, 0);
+
+  //
+  gtk_container_add(GTK_CONTAINER(rdata->rserv_links_gui), rdata->rserv_links_box0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box0), rdata->rserv_links_box1, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box1), rdata->rserv_links_box2, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box2), rdata->rserv_links_ubutton, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box2), rdata->rserv_links_list, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box1), rdata->rserv_links_separator1, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box1), rdata->rserv_links_box3, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box3), rdata->rserv_links_bmhost, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box3), rdata->rserv_links_bmport, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box3), rdata->rserv_links_bhost, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box3), rdata->rserv_links_bport, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box3), rdata->rserv_links_buser, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box3), rdata->rserv_links_bpass, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box0), rdata->rserv_links_separator2, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box0), rdata->rserv_links_box4, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box4), rdata->rserv_links_abutton, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box4), rdata->rserv_links_mbutton, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box4), rdata->rserv_links_dbutton, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box0), rdata->rserv_links_separator3, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_links_box0), rdata->rserv_links_status, FALSE, FALSE, 0);
+
+
+  //
+
+  gtk_widget_show_all(rdata->rserv_links_gui);
+
+  rdata->sslc.send_data("linklist", 8);
+
+
+}
 
 void
 rserver_settings(GtkWidget * some, gpointer data)
@@ -2803,6 +3177,16 @@ rserver_settings(GtkWidget * some, gpointer data)
   //
   rdata->rserv_separator2 = gtk_hseparator_new();
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box5), rdata->rserv_separator2, FALSE, FALSE, 0);
+  // Misc buttons for administration.
+  rdata->rserv_box6 = gtk_hbox_new(FALSE, 2);
+  rdata->rserv_adm_button1 = gtk_button_new_with_label("Links setup.");
+  g_signal_connect(rdata->rserv_adm_button1, "clicked", G_CALLBACK(rserver_settings_links), rdata);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_box6), rdata->rserv_adm_button1, FALSE, FALSE, 0);
+  //
+  rdata->rserv_separator4 = gtk_hseparator_new();
+  //
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_box5), rdata->rserv_box6, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rserv_box5), rdata->rserv_separator4, FALSE, FALSE, 0);
   //
   rdata->rserv_entry_your_pass = gtk_entry_new();
   rdata->rserv_label_your_pass = gtk_label_new("your pass:\t\t");
@@ -2812,7 +3196,6 @@ rserver_settings(GtkWidget * some, gpointer data)
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box5), rdata->rserv_box_your_pass, FALSE, FALSE, 0);
   //
   rdata->rserv_separator3 = gtk_hseparator_new();
-  gtk_box_pack_start(GTK_BOX(rdata->rserv_box5), rdata->rserv_separator3, FALSE, FALSE, 0);
   //
   rdata->rserv_status_label = gtk_label_new("Your pass is cleared within 120sec of inactivity");
   gtk_box_pack_start(GTK_BOX(rdata->rserv_box5), rdata->rserv_status_label, FALSE, FALSE, 0);
