@@ -483,20 +483,27 @@ client_handler(void *ptr)
 	      char username[MAX_LOGIN_TEXT + 9];
 	      int is_admin;
 	      sscanf(data, "userlist %d\n%[^\n]", &is_admin, username);
+	      gdk_threads_enter();
 	      gtk_list_store_append(rdata->rserv_store_user, &rdata->rserv_iter);
 	      gtk_list_store_set(rdata->rserv_store_user, &rdata->rserv_iter, COL_NAME, username, COL_AGE, is_admin, -1);
 	      rdata->rserv_model_user = GTK_TREE_MODEL(rdata->rserv_store_user);
 	      gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rserv_users_box), rdata->rserv_model_user);
+	      gdk_threads_leave();
+
 	    }
 	  if (strncmp(data, "sinfo ", 6) == 0)
 	    {
 	      data[RECV_MAX] = '\0';
+	      gdk_threads_enter();
 	      gtk_label_set_text(GTK_LABEL(rdata->rserv_status_label), data + 6);
+	      gdk_threads_leave();
 	    }
 	  if (strncmp(data, "info ", 5) == 0)
 	    {
 	      data[RECV_MAX] = '\0';
+	      gdk_threads_enter();
 	      gtk_label_set_text(GTK_LABEL(rdata->label), data + 5);
+	      gdk_threads_leave();
 	    }
 	  if (strncmp(data, "ttylist ", 8) == 0)
 	    {
@@ -504,10 +511,12 @@ client_handler(void *ptr)
 		continue;
 	      char tty[RECV_MAX];
 	      sscanf(data, "ttylist %s\n", tty);
+	      gdk_threads_enter();
 	      gtk_list_store_append(rdata->rserv_store_tty, &rdata->rserv_iter);
 	      gtk_list_store_set(rdata->rserv_store_tty, &rdata->rserv_iter, COL_NAME, tty, -1);
 	      rdata->rserv_model_tty = GTK_TREE_MODEL(rdata->rserv_store_tty);
 	      gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rserv_tty_box), rdata->rserv_model_tty);
+	      gdk_threads_leave();
 	    }
 	  if (strncmp(data, "ctty ", 5) == 0)
 	    {
@@ -515,7 +524,9 @@ client_handler(void *ptr)
 		continue;
 	      char ctty[RECV_MAX];
 	      sscanf(data, "ctty %s\n", ctty);
+	      gdk_threads_enter();
 	      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_tty_entry), ctty);
+	      gdk_threads_leave();
 	    }
 	  if (strncmp(data, "devlistadd ", 11) == 0)
 	    {
@@ -532,16 +543,22 @@ client_handler(void *ptr)
 	    }
 	  if (strncmp(data, "devec ", 6) == 0)
 	    {
+	      gdk_threads_enter();
 	      gtk_text_buffer_set_text(rdata->rdeve_text_buffer, "\0\0", -1);
+	      gdk_threads_leave();
 	    }
 	  if (strncmp(data, "devei ", 6) == 0)
 	    {
+	      gdk_threads_enter();
 	      gtk_text_buffer_get_end_iter(rdata->rdeve_text_buffer, &rdata->rdeve_text_iter);
 	      gtk_text_buffer_insert(rdata->rdeve_text_buffer, &rdata->rdeve_text_iter, data + 6, strlen(data) - 6);
+	      gdk_threads_leave();		
 	    }
 	  if (strncmp(data, "deveinfo ", 9) == 0)
 	    {
+	      gdk_threads_enter();
 	      gtk_statusbar_push(GTK_STATUSBAR(rdata->rdeve_status_bar), 0, data + 9);
+	      gdk_threads_leave();
 	    }
 	  if (strncmp(data, "notifyc ", 8) == 0)
 	    {
@@ -567,11 +584,14 @@ client_handler(void *ptr)
 		  *tmp = '\0';
 		  struct tm *timeinfo = localtime((const time_t *)&date);
 		  strftime(time, 50, "%y-%m-%d %H:%M:%S", timeinfo);
+		  gdk_threads_enter();
 		  gtk_list_store_append(rdata->rnotify_list_list, &rdata->rnotify_list_iter);
 		  gtk_list_store_set(rdata->rnotify_list_list,
 		    &rdata->rnotify_list_iter, COL_NAME, time, COL_AGE, id, 2, priorty, 3, msg, -1);
 		  rdata->rnotify_list_tree = GTK_TREE_MODEL(rdata->rnotify_list_list);
 		  gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rnotify_list), rdata->rnotify_list_tree);
+		  gdk_threads_leave();
+
 		}
 	    }
 	  if (strncmp(data, "camec ", 6) == 0)
@@ -604,7 +624,10 @@ client_handler(void *ptr)
 	      if(sscanf(data, "camadd %d.%d %s\n", &server, &id, name)){
 		char tmp[MAX_BUFFER];
 		sprintf(tmp, "%d.%d: %s", server, id, name);
+		gdk_threads_enter();
 		gtk_combo_box_append_text(GTK_COMBO_BOX(rdata->rsurve_combobox1_list), tmp);
+		gdk_threads_leave();
+			  
 	      }
 	    }
 
@@ -858,7 +881,9 @@ speedbus_fill_devlist(gpointer data)
       gtk_list_store_set(store, &iter, COL_NAME, device_id[i], COL_AGE, device_addr[i], -1);
     }
   model = GTK_TREE_MODEL(store);
+  gdk_threads_enter();	  
   gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->scan_list), model);
+  gdk_threads_leave();
   usleep(200000);		// to prevent concurancy
 }
 
