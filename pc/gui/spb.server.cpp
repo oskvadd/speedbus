@@ -1324,7 +1324,6 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	      *nlptr = '\0';
 	      char send[(MAX_LOGIN_TEXT * 2) + 1 + 9];
 	      sprintf(send, "ttylist %s\n", ttyt);
-	      printf(send, "ttylist %s\n", ttyt);
 	      serial_p->server->send_data(listnum, send, strlen(send));
 	    }
 	}
@@ -1751,12 +1750,13 @@ mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, int user
 		{
 		  if (strlen(user_n) > 0)
 		    {
-		      for (int i = 0; i < MAX_USERS; i++)
-			{				// Check so we do not make any doublets
-			  if (strcmp(users[i][1], user_n) == 0)
-			    return 0;
-			}
-
+		      if(strcmp(user, user_n) != 0){ // Only if you want to change the username.
+			for (int i = 0; i < MAX_USERS; i++)
+			  {				// Check so we do not make any doublets
+			    if (strcmp(users[i][1], user_n) == 0)
+			      return 0;
+			  }
+		      }
 		      strncpy(user_s, user_n, MAX_LOGIN_TEXT);
 		      strncpy(users[index][1], user_s, MAX_LOGIN_TEXT);
 		      member = config_setting_get_member(element, "user");
