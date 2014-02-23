@@ -109,6 +109,21 @@ class spb
       }
     }
   }
+
+  public function spb_getvar_async($devid, $var){
+    $out = "getvarasync $devid $var\n";
+    fwrite($this->fp, $out);
+    while($recv = fread($this->fp, 128)){
+     if(strpos($recv, "good") !== FALSE){
+	return 1;
+      }
+      if(strpos($recv, "info Cant send") !== FALSE || strpos($recv, "info Error when") !== FALSE){
+	return 0;
+      }
+    }
+  }
+
+
 }
 $spb = new spb("127.0.0.1", "root", "toor");
 if(!$spb->spb_errc()){
@@ -116,6 +131,14 @@ if(!$spb->spb_errc()){
 }
 
 switch($argv[1]){
+case "getvar": 
+if($spb->spb_getvar_async($argv[2], $argv[3])){
+print("Succefully executed the event!\n");
+}else{
+print("Error executing the event, check event and devid nr!\n");
+}
+break;
+
 case "evexec":
 if($spb->spb_event_exec($argv[2], $argv[3], $argv[4])){
 print("Succefully executed the event!\n");
@@ -123,6 +146,7 @@ print("Succefully executed the event!\n");
 print("Error executing the event, check event and devid nr!\n");
 }
 break;
+
 case "ping": 
 while(1){
 $out = "ping " . microtime(true) . "\n";

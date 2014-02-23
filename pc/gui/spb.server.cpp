@@ -1,5 +1,3 @@
-
-
 #include <execinfo.h>
 #include <signal.h>
 #include "ssl.socket.h"
@@ -28,6 +26,7 @@
 #define MAX_NOTIFY_STACK 10
 #define MAX_NOTIFY_SIZE 200	// Maximum size of the notify message
 #define MAX_SURV_MONS 20        // Maximum numbers of surv monitors
+#define MAX_GETVARS 20        // Maximum numbers of variables in getvars async list
 #define SERVER_LOG_FILE "/var/log/spbserver.log"
 #define SERVER_CONFIG_FILE "server.cfg"
 #define SERVER_CONFIG_DIR "/etc/spbserver/"
@@ -93,6 +92,12 @@ typedef struct _print_seri
   // Surv resp
   int surv_resp;
   surv_t *surve;
+
+  // getvarsasync
+  int getvars_devid[MAX_GETVARS];
+  int getvars_varid[MAX_GETVARS];
+  int getvars_listnum[MAX_GETVARS];
+  //
 
 } print_seri;
 
@@ -178,6 +183,26 @@ get_vars_load(void *data, char *p_data, int counter)
 				    [i],
 				    serial_p->backe->event_data1
 				    [i][ii][iiii + 1], (unsigned char)p_data[serial_p->backe->event_data2[i][ii][iiii + 1] + 6]);
+				  
+				  // getvarsasync
+				  for(int gvi = 0; gvi < MAX_GETVARS; gvi++){
+				    if(serial_p->getvars_devid[gvi] == serial_p->backe->device_id[i] &&
+				       serial_p->getvars_varid[gvi] == serial_p->backe->event_data1
+				       [i][ii][iiii + 1]){
+				      char tmp_send[RECV_MAX];
+				      sprintf(tmp_send, "getvarasync %d %d %d\n", serial_p->getvars_devid[gvi], 
+					      serial_p->getvars_varid[gvi], backend_get_variable(serial_p->backe,
+												 i,
+												 serial_p->getvars_varid[gvi]));
+				      serial_p->server->send_data(serial_p->getvars_listnum[gvi], tmp_send, strlen(tmp_send));
+				      serial_p->getvars_devid[gvi] = 0;
+				      serial_p->getvars_varid[gvi] = 0;
+				      serial_p->getvars_listnum[gvi] = 0;
+				      break;
+				    } 
+				  }
+				  //
+				  
 				}
 			    }
 			}
@@ -1018,35 +1043,52 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 			      int count = config_setting_length(cfg_e);
 			      for (int i2 = 0; i2 < count; ++i2)
 				{
-				  int evenr;
+				  int evenr, eevnr;
 				  const char *descr;
 				  const char *type;
 
 				  config_setting_t * cfg_ee = config_setting_get_elem(cfg_e, i2);
 				  if (!(config_setting_lookup_string(cfg_ee, "type", &type))
-				    || !(config_setting_lookup_int(cfg_ee, "event", &evenr)))
+				      || !(config_setting_lookup_int(cfg_ee, "event", &evenr)))
 				    continue;
-				  if (strcmp(type, "send") != 0)
-				    continue;
-				  if (config_setting_lookup_string(cfg_ee, "descr", &descr))
-				    {
-				      char tmpstr[150];
-				      if (strlen(descr) >= 150)
-					strncpy(tmpstr, descr, 150);
-				      else
-					strcpy(tmpstr, descr);
-
-				      sprintf(tmpeve, "eveadd %d %d %s\n", serial_p->device_id[i], evenr, tmpstr);
-				      //printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, tmpstr);
-				      //printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, descr);
-				      serial_p->server->send_data(listnum, tmpeve, strlen(tmpeve));
-				    }
-				  else
-				    {
-				      sprintf(tmpeve, "eveadd %d %d\n", serial_p->device_id[i], evenr);
-				      //printf("eveadd %d %d\n", serial_p->device_id[i], evenr);
-				      serial_p->server->send_data(listnum, tmpeve, strlen(tmpeve));
-				    }
+				  if (strcmp(type, "send") == 0){
+				    if (config_setting_lookup_string(cfg_ee, "descr", &descr))
+				      {
+					char tmpstr[150];
+					if (strlen(descr) >= 150)
+					  strncpy(tmpstr, descr, 150);
+					else
+					  strcpy(tmpstr, descr);
+					
+					sprintf(tmpeve, "eveadd %d %d %s\n", serial_p->device_id[i], evenr, tmpstr);
+					//printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, tmpstr);
+					//printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, descr);
+					serial_p->server->send_data(listnum, tmpeve, strlen(tmpeve));
+				      }
+				    else
+				      {
+					sprintf(tmpeve, "eveadd %d %d\n", serial_p->device_id[i], evenr);
+					//printf("eveadd %d %d\n", serial_p->device_id[i], evenr);
+					serial_p->server->send_data(listnum, tmpeve, strlen(tmpeve));
+				      }
+				  }
+				  if (strcmp(type, "getvars") == 0){
+				    if (config_setting_lookup_string(cfg_ee, "descr", &descr)
+					&& config_setting_lookup_int(cfg_ee, "eevent", &eevnr))
+				      {
+					char tmpstr[150];
+					if (strlen(descr) >= 150)
+					  strncpy(tmpstr, descr, 150);
+					else
+					  strcpy(tmpstr, descr);
+					
+					sprintf(tmpeve, "getvadd %d %d %d %s\n", serial_p->device_id[i], evenr, eevnr, tmpstr);
+					//printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, tmpstr);
+					//printf("eveadd %d %d %s\n", serial_p->device_id[i], evenr, descr);
+					serial_p->server->send_data(listnum, tmpeve, strlen(tmpeve));
+				      }
+				  }
+				  
 				}
 			    }
 			}
@@ -1081,6 +1123,9 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  // Send command to links upstream
 	  int u_link = spb_links_send(serial_p, listnum, linknum, data, len);
 	  //
+	  // If it comes from a link, then get_vars_load
+	  get_vars_load(serial_p, data + 5, len - 5);	  
+	  //
 	  if (!serial_port.IsOpen() && !u_link && linknum < 0)
 	    {
 	      serial_p->server->send_data(listnum,
@@ -1104,11 +1149,20 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       // Event executions, output things on the bus based on the conf files, like "execute event 123"
       if (strncmp(data, "evexec", 6) == 0)
 	{
-	  if (!serial_port.IsOpen())
+	  // Send command to links upstream
+	  int u_link = spb_links_send(serial_p, listnum, linknum, data, len);
+
+	  if (!serial_port.IsOpen() && !u_link && linknum < 0)
 	    {
 	      serial_p->server->send_data(listnum,
 		"info Cant send, serial port is down\n", strlen("info Cant send, serial port is down\n"));
+	      return 0;
 	    }
+
+	  if(!serial_port.IsOpen()){
+	    serial_p->server->send_data(listnum, "good\n", strlen("good\n"));	    
+	    return 1;
+	  }
 	  //      printf("Received send with %d chars: \n", len-5);  
 	  int devid, event;
 	  sscanf(data, "evexec %d %d ", &devid, &event);
@@ -1211,6 +1265,46 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	    spb_links_send(serial_p, -1, -1, tmp, strlen(tmp));
 	  }
     	}
+      if (strncmp(data, "getvarasync", 11) == 0)
+	{
+	  // Send command to links upstream
+	  //spb_links_send(serial_p, listnum, linknum, data, len);
+	  //
+	  int devid, varid;
+	  if(sscanf(data, "getvarasync %d %d\n", &devid, &varid) > 1){
+	    // check so the value do not already exists.
+	    for(int xi = 0; xi < MAX_GETVARS; xi++){
+	      if(serial_p->getvars_devid[xi] == devid && serial_p->getvars_varid[xi] == varid)
+		break; // end here if value already exists in getvars.
+		
+	      if(xi+1 >= MAX_GETVARS){
+		// check to see if theres any free place to put the value in.
+		for(int i = 0; i < MAX_GETVARS; i++){
+		  if(serial_p->getvars_devid[i] == 0 && serial_p->getvars_varid[i] == 0){
+		    serial_p->getvars_devid[i] = devid;
+		    serial_p->getvars_varid[i] = varid;
+		    serial_p->getvars_listnum[i] = listnum;
+		    
+		    break;
+		  }
+		  // if everything is full, push everything forward, and add the new value.
+		  if(i+1 >= MAX_GETVARS){
+		    for(int ri = 1; ri < MAX_GETVARS; ri++){
+		      serial_p->getvars_devid[ri-1] = serial_p->getvars_devid[ri];
+		      serial_p->getvars_varid[ri-1] = serial_p->getvars_varid[ri];
+		      serial_p->getvars_listnum[ri-1] = serial_p->getvars_listnum[ri];
+		    }
+		    serial_p->getvars_devid[MAX_GETVARS-1] = devid;
+		    serial_p->getvars_varid[MAX_GETVARS-1] = varid;
+		    serial_p->getvars_listnum[MAX_GETVARS-1] = listnum;
+		  }
+		}
+	      }
+	    }
+	  }
+
+	  serial_p->server->send_data(listnum, "good\n", strlen("good\n"));
+	}
       if (strncmp(data, "camadd", 6) == 0 ||
 	  strncmp(data, "camec ", 6) == 0 ||
 	  strncmp(data, "camei ", 6) == 0 ||
@@ -2238,6 +2332,12 @@ main(int argc, char *argv[])
 
       print_seri serial_p;
       serial_p.server_cfg = &server_cfg;
+      
+      // Inalize getvars
+      for(int i=0; i < MAX_GETVARS; i++){
+	  serial_p.getvars_devid[i] = 0;
+	  serial_p.getvars_varid[i] = 0;
+	}   
 
       if (argc > 2)
 	{
@@ -2329,7 +2429,7 @@ main(int argc, char *argv[])
       printf("Surv loaded\n");
       spb_inalize_links(&serial_p);
       wtime();
-      printf("Links loaded\n");
+      printf("Links loaded\n");      
       
       spb_write_notify(&serial_p, "Server Started!", 3);
       //device_add(&serial_p,0,0,16432);
