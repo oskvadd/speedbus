@@ -4,7 +4,7 @@ build:
 	mkdir build
 build/main.cfg: main.cfg
 	cp main.cfg build/main.cfg
-build/spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp http_post.cpp build/usb.hid.o ../protocoll/speedblib.cpp build/ssl.socket.o
+build/spbserver: ssl.socket.cpp spb.server.cpp spb.backend.cpp http_post.cpp build build/usb.hid.o ../protocoll/speedblib.cpp build/ssl.socket.o
 	gcc -rdynamic -ggdb -I "/usr/local/ssl/include/" -o build/spbserver spb.server.cpp build/ssl.socket.o build/usb.hid.o -lserial `pkg-config --cflags --libs libconfig libusb-1.0 libssl  libcrypto` -lpthread -lmysqlclient
 build/ssl.socket.o: ssl.socket.cpp
 	g++ -ggdb -I "/usr/local/ssl/include/" -c -o build/ssl.socket.o ssl.socket.cpp
