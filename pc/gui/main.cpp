@@ -33,6 +33,8 @@
 
 // Pre declared functions
 static void rspeed_gui(gpointer * data);
+static void spb_ac_load(void *data, char *p_data, int counter);
+void rsac_screen_show(GtkWidget * some, gpointer data);
 //
 
 enum
@@ -158,6 +160,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rdev_is_admin_button;
   GtkWidget *rdev_show_notify;
   GtkWidget *rdev_surve_screen_button;
+  GtkWidget *rdev_spbac_screen_button;
 
 
   GtkWidget *rdev_dev_edit_button;
@@ -355,7 +358,6 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rsurve_box3;
   GtkWidget *rsurve_box4;
     
-
   GtkWidget *rsurve_screen; 
   GtkWidget *rsurve_separator1; 
   GtkWidget *rsurve_separator2; 
@@ -366,10 +368,83 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rsurve_button2;
   GtkWidget *rsurve_combobox1;
   GtkWidget *rsurve_combobox1_list;
-
   int rsurve_camid;
   int rsurve_serverid;
   int rsurve_utimeout; 
+
+
+  /// rac - access controll
+  GtkWidget *rac_fend_box1;
+  GtkWidget *rac_fend_box2;
+  GtkWidget *rac_fend_box3;
+  GtkWidget *rac_fend_box4;
+  GtkWidget *rac_fend_button1;
+  GtkWidget *rac_fend_entry1;
+  GtkWidget *rac_fend_button2;  
+  GtkWidget *rac_fend_button3;
+  GtkWidget *rac_fend_button4;  
+  GtkWidget *rac_fend_button5;
+  GtkWidget *rac_fend_separator1;
+  GtkWidget *rac_fend_label1;
+
+  int rac_type;
+  int rac_rfid_max;
+  int rac_rfidlen;
+
+  /// racl - gettag list
+  GtkWidget *racl_gui;
+  GtkWidget *racl_box1;
+  GtkWidget *racl_box2;
+  GtkWidget *racl_box3;
+  GtkWidget *racl_box4;
+  GtkWidget *racl_box5;
+  GtkWidget *racl_box6;
+
+  // Access box list
+  GtkWidget *racl_ac_list;
+  GtkTreeModel *racl_ac_list_tree;
+  GtkListStore *racl_ac_list_list;
+  GtkTreeIter racl_ac_list_iter;
+  GtkWidget *racl_ac_list_box;
+  GtkWidget *racl_entry_actagid;
+  GtkWidget *racl_label_actagid;
+  GtkWidget *racl_button1;
+  GtkWidget *racl_button2;
+  GtkWidget *racl_button3;
+
+  char racl_addr1;
+  char racl_addr2;
+  int racl_gui_isopen;
+  
+
+  
+  /// srac - access controll config editor
+  GtkWidget *rsac_gui;
+  GtkWidget *rsac_box1;
+  GtkWidget *rsac_box2;
+  GtkWidget *rsac_box3;
+  GtkWidget *rsac_box4;
+  GtkWidget *rsac_box5;
+  GtkWidget *rsac_box6;
+  GtkWidget *rsac_box7;
+  // Access box list
+  GtkWidget *rsac_ac_list;
+  GtkTreeModel *rsac_ac_list_tree;
+  GtkListStore *rsac_ac_list_list;
+  GtkTreeIter rsac_ac_list_iter;
+  GtkWidget *rsac_ac_list_box;
+  GtkWidget *rsac_entry_acname;
+  GtkWidget *rsac_label_acname;
+  GtkWidget *rsac_entry_actagid;
+  GtkWidget *rsac_label_actagid;
+  GtkWidget *rsac_entry_ackeypad;
+  GtkWidget *rsac_label_ackeypad;
+  GtkWidget *rsac_button1;
+  GtkWidget *rsac_button2;
+  GtkWidget *rsac_button3;
+
+  int rsac_gui_isopen;
+ 
   gboolean rsurve_fresh_update;
   gboolean rsurve_rtv_stop;
 
@@ -453,6 +528,7 @@ exec_package(void *ptr, char *data, int counter)
   if ((unsigned char)data[0] == addr1 && (unsigned char)data[1] == addr2)
     {
       get_vars_load(rdata, data, counter);
+      spb_ac_load(rdata, data, counter);
       switch ((unsigned char)data[6])
 	{
 	case 0:
@@ -909,7 +985,9 @@ delete_event(GtkWidget * widget, GdkEvent * event, gpointer data)
    */
   gboolean *gb;
   gb = (gboolean *) data;
+  if(gb != NULL)
   *gb = 0;
+
   gtk_widget_hide(GTK_WIDGET(widget));
   return TRUE;
 }
@@ -966,6 +1044,7 @@ destroy(GtkWidget * widget, gpointer data)
 {
   gboolean *gb;
   gb = (gboolean *) data;
+  if(gb != NULL)
   *gb = 0;
   gtk_widget_hide(GTK_WIDGET(widget));
 }
@@ -1169,9 +1248,346 @@ get_vars_load(void *data, char *p_data, int counter)
 		}
 	    }
 	}
+   }
+}
+
+static void
+spb_ac_load(void *data, char *p_data, int counter)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  
+  if(rdata->rac_type == 1 || rdata->rac_type == 3){
+    if((unsigned char)p_data[6] == 0x0A){
+      unsigned long long rfid = 0;
+      int f_count = counter-10;
+      for(int i=0; i<f_count; i++){
+	rfid |= (unsigned char)p_data[7+i];
+	if(i+1<f_count)
+	  rfid <<= 8;
+      }
+      char rfid_s[50];
+      sprintf(rfid_s, "%llu", rfid);
+      
+      config_t cfg;
+      config_init(&cfg);
+      config_setting_t *setting, *tmp;
+      const char *ac_name, *keypad;
+      long long tagid;
+
+      if(config_read_file(&cfg, "main.spbac")){
+	setting = config_lookup(&cfg, "spbac");
+	if(setting != NULL){
+	  int count = config_setting_length(setting);
+	  for (int i = 0; i < count; ++i)
+	    {
+	      tmp = config_setting_get_elem(setting, i);
+	      if (config_setting_lookup_string(tmp, "access_name", &ac_name)
+		  && config_setting_lookup_int64(tmp, "tagid", &tagid))
+		{
+		  if(rfid == tagid)
+		    break;
+		}
+	    }
+	}
+      }
+      
+      gdk_threads_enter();
+      gtk_entry_set_text(GTK_ENTRY(rdata->rac_fend_entry1), rfid_s);
+      gtk_label_set_text(GTK_LABEL(rdata->rac_fend_label1), ac_name);
+      gdk_threads_leave();
+      config_destroy(&cfg);
+      
+    }
+
+    if((unsigned char)p_data[6] == 0x0D){
+      unsigned long long rfid = 0;
+      config_t cfg;
+      config_init(&cfg);
+      config_setting_t *setting, *tmp;
+
+      int f_count = counter-10;
+      for(int i=0; i<f_count; i++){
+	rfid |= (unsigned char)p_data[7+i];
+	if(i+1<f_count)
+	  rfid <<= 8;
+      }
+
+      if(rdata->racl_gui_isopen){
+      GtkTreeIter iter; 
+      long long levent;
+      bool it = gtk_tree_model_get_iter_first(GTK_TREE_MODEL(rdata->racl_ac_list_list), &iter);
+      while(it){
+	gtk_tree_model_get(rdata->racl_ac_list_tree, &iter, 1, (gpointer) & levent, -1);
+	if(levent == rfid) // The rfid already in the list
+	  return;
+	it = gtk_tree_model_iter_next(rdata->racl_ac_list_tree, &iter);
+      }
+      
+      if(config_read_file(&cfg, "main.spbac")){
+	setting = config_lookup(&cfg, "spbac");
+	if(setting != NULL){
+	  const char *ac_name, *keypad;
+	  long long tagid;
+	  int count = config_setting_length(setting);
+	  for (int i = 0; i < count; ++i)
+	    {
+	      tmp = config_setting_get_elem(setting, i);
+	      if (config_setting_lookup_string(tmp, "access_name", &ac_name)
+		  && config_setting_lookup_int64(tmp, "tagid", &tagid) 
+		  && config_setting_lookup_string(tmp, "keypad", &keypad))
+		{
+		  if(tagid != rfid)
+		    continue;
+
+		  gdk_threads_enter();
+		  gtk_list_store_append(rdata->racl_ac_list_list, &rdata->racl_ac_list_iter);
+		  gtk_list_store_set(rdata->racl_ac_list_list, &rdata->racl_ac_list_iter, 0, ac_name, 1, rfid, 2, keypad, -1);
+		  rdata->racl_ac_list_tree = GTK_TREE_MODEL(rdata->racl_ac_list_list);
+		  gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->racl_ac_list), rdata->racl_ac_list_tree);
+		  gdk_threads_leave();
+		  config_destroy(&cfg);
+		  return;
+ 
+		}
+	    }
+	  
+	}
+      }
+      config_destroy(&cfg);
+      
+      gdk_threads_enter();
+      gtk_list_store_append(rdata->racl_ac_list_list, &rdata->racl_ac_list_iter);
+      gtk_list_store_set(rdata->racl_ac_list_list, &rdata->racl_ac_list_iter, 0, "", 1, rfid, 2, "", -1);
+      rdata->racl_ac_list_tree = GTK_TREE_MODEL(rdata->racl_ac_list_list);
+      gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->racl_ac_list), rdata->racl_ac_list_tree);
+      gdk_threads_leave();
+ 
+      }
+    }
+  }
+}
+static void
+spb_ac_addrfid(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  unsigned long long rfid;
+  const char *entry_s;
+  entry_s = gtk_entry_get_text(GTK_ENTRY(rdata->rac_fend_entry1));
+  if(sscanf(entry_s, "%llu", &rfid)){
+    int len = 8 + rdata->rac_rfidlen;
+    char getdevs[50] = { rdata->addr1, rdata->addr2, addr1, addr2, 0x03, 0x01, 
+			 0x0B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };    
+    int il = rdata->rac_rfidlen-1;
+    for(int i=0; i < rdata->rac_rfidlen; i++){
+      unsigned long long rrfid;
+      rrfid = rfid >> (8*i);
+      getdevs[7+il] = rrfid & 0xFF;
+      il--;
+    }
+    m_send(rdata, getdevs, len);
     }
 }
 
+static void
+spb_ac_rmrfid(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  unsigned long long rfid;
+  const char *entry_s;
+  entry_s = gtk_entry_get_text(GTK_ENTRY(rdata->rac_fend_entry1));
+  if(sscanf(entry_s, "%llu", &rfid)){
+    int len = 8 + rdata->rac_rfidlen;
+    char getdevs[50] = { rdata->addr1, rdata->addr2, addr1, addr2, 0x03, 0x01, 
+			 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };    
+    int il = rdata->rac_rfidlen-1;
+    for(int i=0; i < rdata->rac_rfidlen; i++){
+      unsigned long long rrfid;
+      rrfid = rfid >> (8*i);
+      getdevs[7+il] = rrfid & 0xFF;
+      il--;
+    }
+    m_send(rdata, getdevs, len);
+    }
+}
+
+
+static void
+spb_ac_openspbac(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  if(!rdata->rsac_gui_isopen)
+    rsac_screen_show(NULL , rdata);
+  gtk_entry_set_text(GTK_ENTRY(rdata->rsac_entry_actagid), gtk_entry_get_text(GTK_ENTRY(rdata->rac_fend_entry1)));
+}
+
+static void
+spb_ac_getrfid(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  int len = 8;
+  char getdevs[50] = { rdata->addr1, rdata->addr2, addr1, addr2, 0x03, 0x01, 
+		       0x0A, 0x00 };
+  m_send(rdata, getdevs, len);
+}
+
+static void
+racl_update(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  
+  gtk_list_store_clear(rdata->racl_ac_list_list);
+  int len = 8;
+  char getdevs[50] = { rdata->racl_addr1, rdata->racl_addr2, addr1, addr2, 0x03, 0x01, 
+		       0x0D, 0x00 };
+  m_send(rdata, getdevs, len);
+}
+  
+static void
+racl_addrfid(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  unsigned long long rfid;
+  const char *entry_s;
+  entry_s = gtk_entry_get_text(GTK_ENTRY(rdata->racl_entry_actagid));
+  if(sscanf(entry_s, "%llu", &rfid)){
+    int len = 8 + rdata->rac_rfidlen;
+    char getdevs[50] = { rdata->racl_addr1, rdata->racl_addr2, addr1, addr2, 0x03, 0x01, 
+			 0x0B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };    
+    int il = rdata->rac_rfidlen-1;
+    for(int i=0; i < rdata->rac_rfidlen; i++){
+      unsigned long long rrfid;
+      rrfid = rfid >> (8*i);
+      getdevs[7+il] = rrfid & 0xFF;
+      il--;
+    }
+    m_send(rdata, getdevs, len);
+  }
+  usleep(100000);
+}
+
+static void
+racl_rmrfid(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  unsigned long long rfid;
+  const char *entry_s;
+  entry_s = gtk_entry_get_text(GTK_ENTRY(rdata->racl_entry_actagid));
+  if(sscanf(entry_s, "%llu", &rfid)){
+    int len = 8 + rdata->rac_rfidlen;
+    char getdevs[50] = { rdata->racl_addr1, rdata->racl_addr2, addr1, addr2, 0x03, 0x01, 
+			 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };    
+    int il = rdata->rac_rfidlen-1;
+    for(int i=0; i < rdata->rac_rfidlen; i++){
+      unsigned long long rrfid;
+      rrfid = rfid >> (8*i);
+      getdevs[7+il] = rrfid & 0xFF;
+      il--;
+    }
+    m_send(rdata, getdevs, len);
+  }
+  usleep(100000);
+  
+}
+
+gboolean
+racl_gettag_getrow(GtkTreeView * treeview, GtkTreePath * path, GtkTreeViewColumn * col, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  GtkTreeModel *model;
+  GtkTreeIter iter;
+  long long levent;
+  char tagid[50];
+
+
+  model = gtk_tree_view_get_model(treeview);
+  if (gtk_tree_model_get_iter(model, &iter, path))
+    {
+      gtk_tree_model_get(model, &iter, 1, (gpointer) & levent, -1);
+      sprintf(tagid, "%lld", levent);
+      gtk_entry_set_text(GTK_ENTRY(rdata->racl_entry_actagid), tagid);
+   }
+
+}
+
+static void
+spb_ac_gettags(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  rdata->racl_addr1 = rdata->addr1;
+  rdata->racl_addr2 = rdata->addr2;
+
+  rdata->racl_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_position(GTK_WINDOW(rdata->racl_gui), GTK_WIN_POS_CENTER);
+  gtk_window_set_resizable(GTK_WINDOW(rdata->racl_gui), TRUE);
+  gtk_window_set_title(GTK_WINDOW(rdata->racl_gui), "Speedbus gettag list.");
+  //gtk_widget_set_size_request(rdata->rsac_gui, 350, 250);
+  g_signal_connect(rdata->racl_gui, "delete-event", G_CALLBACK(delete_event), &rdata->racl_gui_isopen);
+  g_signal_connect(rdata->racl_gui, "destroy", G_CALLBACK(destroy), &rdata->racl_gui_isopen);
+  //
+  rdata->racl_gui_isopen = 1;
+  // Gui
+  rdata->racl_box1 = gtk_vbox_new(FALSE, 10);
+  rdata->racl_box2 = gtk_hbox_new(FALSE, 10);
+  rdata->racl_box3 = gtk_vbox_new(FALSE, 10);
+  rdata->racl_box4 = gtk_hbox_new(FALSE, 10);
+  rdata->racl_box5 = gtk_hbox_new(FALSE, 10);
+  rdata->racl_box6 = gtk_hbox_new(FALSE, 10);
+
+  gtk_container_add(GTK_CONTAINER(rdata->racl_gui), rdata->racl_box1);
+  // Add Userlist
+  GtkCellRenderer *renderer;
+  rdata->racl_ac_list = gtk_tree_view_new();
+  rdata->racl_ac_list_list = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_UINT64, G_TYPE_STRING);
+
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->racl_ac_list), -1, "Access name", renderer, "text", 0, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->racl_ac_list), -1, "Tagg key", renderer, "text", 1, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->racl_ac_list), -1, "Keypad nr", renderer, "text", 2, NULL);
+  rdata->racl_ac_list_box = addScrollBarToTreeView(rdata->racl_ac_list);
+
+  gtk_widget_set_size_request(rdata->racl_ac_list, -1, 250);
+
+  rdata->racl_entry_actagid = gtk_entry_new();
+  rdata->racl_label_actagid = gtk_label_new("Tag id:\t\t\t\t");
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box5), rdata->racl_label_actagid, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box5), rdata->racl_entry_actagid, FALSE, FALSE, 0);
+
+  rdata->racl_button1 = gtk_button_new_with_label("Add to unit");
+  rdata->racl_button2 = gtk_button_new_with_label("Remove from unit");
+  rdata->racl_button3 = gtk_button_new_with_label("Update list");
+
+
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box6), rdata->racl_button1, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box6), rdata->racl_button2, FALSE, FALSE, 0);
+
+
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box1), rdata->racl_box2, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box2), rdata->racl_ac_list_box, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box2), rdata->racl_box3, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box3), rdata->racl_box4, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box3), rdata->racl_box5, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box3), rdata->racl_box6, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->racl_box3), rdata->racl_button3, FALSE, FALSE, 0);
+
+
+  // Functions
+  g_signal_connect(rdata->racl_ac_list, "row-activated", G_CALLBACK(racl_gettag_getrow), rdata);
+  g_signal_connect(rdata->racl_button1, "clicked", G_CALLBACK(racl_addrfid), rdata);
+  g_signal_connect(rdata->racl_button2, "clicked", G_CALLBACK(racl_rmrfid), rdata);
+  g_signal_connect(rdata->racl_button3, "clicked", G_CALLBACK(racl_update), rdata);
+ 
+  gtk_widget_show_all(rdata->racl_gui);
+
+
+  int len = 8;
+  char getdevs[50] = { rdata->racl_addr1, rdata->racl_addr2, addr1, addr2, 0x03, 0x01, 
+		       0x0D, 0x00 };
+  m_send(rdata, getdevs, len);
+
+}
 
 static void
 spb_device_event(GtkWidget * some, gpointer data)
@@ -1256,12 +1672,73 @@ load_device(gpointer data, int devid)
       fprintf(stderr, "No 'name' setting in configuration file.\n");
     }
   gtk_box_pack_start(GTK_BOX(rdata->box3), rdata->label1, FALSE, FALSE, 0);
+
+
+  // Speedbus access controll interface -->
+  int pre_type = rdata->rac_type;
+  
+  rdata->rac_type=0;
+  int spb_ac = 0;
+  int spb_ac_type, spb_ac_rfid_max, spb_ac_rfidlen;
+  if(config_lookup_int(&cfg, "SPBAC_type", &spb_ac_type) &&
+     config_lookup_int(&cfg, "SPBAC_RFID_MAX", &spb_ac_rfid_max) &&
+     config_lookup_int(&cfg, "SPBAC_RFIDLEN", &spb_ac_rfidlen)){
+
+    rdata->rac_type=spb_ac_type;
+    rdata->rac_rfid_max=spb_ac_rfid_max;
+    rdata->rac_rfidlen=spb_ac_rfidlen;
+
+    rdata->rac_fend_box1 = gtk_vbox_new(FALSE, 0);
+    //rdata->rac_fend_box2 = gtk_hbox_new(FALSE, 0);
+    rdata->rac_fend_box3 = gtk_hbox_new(FALSE, 0);
+    rdata->rac_fend_box4 = gtk_hbox_new(FALSE, 0);
+
+    if(spb_ac_type == 1 || spb_ac_type == 3){
+    rdata->rac_fend_button1 = gtk_button_new_with_label("Get next rfid.");
+    rdata->rac_fend_entry1 = gtk_entry_new();
+    gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box1), rdata->rac_fend_entry1, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box1), rdata->rac_fend_button1, FALSE, TRUE, 0);
+    g_signal_connect(rdata->rac_fend_button1, "clicked", G_CALLBACK(spb_ac_getrfid), rdata);
+
+    rdata->rac_fend_button2 = gtk_button_new_with_label("Add rfid.");
+    rdata->rac_fend_button3 = gtk_button_new_with_label("Remove rfid.");
+    rdata->rac_fend_button5 = gtk_button_new_with_label("Get tag list.");
+    rdata->rac_fend_button4 = gtk_button_new_with_label("Open in SPBAC.");
+
+    rdata->rac_fend_separator1 = gtk_hseparator_new();
+    rdata->rac_fend_label1 = gtk_label_new("");
+
+    gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box3), rdata->rac_fend_button2, FALSE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box3), rdata->rac_fend_button3, FALSE, TRUE, 0);
+    g_signal_connect(rdata->rac_fend_button2, "clicked", G_CALLBACK(spb_ac_addrfid), rdata);
+    g_signal_connect(rdata->rac_fend_button3, "clicked", G_CALLBACK(spb_ac_rmrfid), rdata);
+    g_signal_connect(rdata->rac_fend_button4, "clicked", G_CALLBACK(spb_ac_openspbac), rdata);
+    g_signal_connect(rdata->rac_fend_button5, "clicked", G_CALLBACK(spb_ac_gettags), rdata);
+
+    }
+
+    gtk_box_pack_start(GTK_BOX(rdata->box3), rdata->rac_fend_box1, FALSE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box1), rdata->rac_fend_box3, FALSE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box1), rdata->rac_fend_button4, FALSE, TRUE, 0);
+   gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box1), rdata->rac_fend_button5, FALSE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box1), rdata->rac_fend_separator1, FALSE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(rdata->rac_fend_box1), rdata->rac_fend_label1, FALSE, TRUE, 0);
+    gtk_widget_show_all(rdata->rac_fend_box1);
+
+    spb_ac = 1;
+  }
+  // <--
+
+  if(rdata->rsac_gui_isopen && !spb_ac && (pre_type == 1 || pre_type == 3)){
+    gtk_widget_set_sensitive(rdata->rsac_button3, FALSE);
+  }
+
   /*
    * Load widgets and events 
    */
 
   setting = config_lookup(&cfg, "spb.frontend");
-  if (setting != NULL)
+  if (setting != NULL && !spb_ac) 
     {
       int count = config_setting_length(setting);
 
@@ -1531,6 +2008,9 @@ rserver_settings_users_box(GtkTreeView * treeview, GtkTreePath * path, GtkTreeVi
       // Get addr...
       gtk_entry_set_text(GTK_ENTRY(rdata->rserv_entry_moduser_user), username);
       gtk_entry_set_text(GTK_ENTRY(rdata->rserv_entry_user), "");
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_entry_pass), "");
+      gtk_entry_set_text(GTK_ENTRY(rdata->rserv_entry_pass_c), "");
+
       switch (user_type){
       case 2:
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(rdata->rserv_user_type_radio1), TRUE);
@@ -2684,9 +3164,9 @@ rdeve_event_edit(GtkWidget * buffer, gpointer data)
   rdata->rdevee_load_type_hardcode = 0;
   rdata->rdevee_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_position(GTK_WINDOW(rdata->rdevee_gui), GTK_WIN_POS_CENTER);
-  //gtk_window_set_default_size(GTK_WINDOW(rdata->rdevee_gui), 600, 250);
-  g_signal_connect(rdata->rdevee_gui, "delete-event", G_CALLBACK(delete_event), rdata);
-  g_signal_connect(rdata->rdevee_gui, "destroy", G_CALLBACK(destroy), rdata);
+  gtk_widget_set_size_request(rdata->rdevee_gui, 600, 450);
+  g_signal_connect(rdata->rdevee_gui, "delete-event", G_CALLBACK(delete_event), NULL);
+  g_signal_connect(rdata->rdevee_gui, "destroy", G_CALLBACK(destroy), NULL);
 
   rdata->rdevee_box1 = gtk_vbox_new(FALSE, 10);
   rdata->rdevee_box2 = gtk_hbox_new(FALSE, 10);
@@ -2694,9 +3174,7 @@ rdeve_event_edit(GtkWidget * buffer, gpointer data)
   rdata->rdevee_box4 = gtk_hbox_new(FALSE, 10);
   rdata->rdevee_ebox = gtk_vbox_new(FALSE, 10);
   rdata->rdevee_ebox1 = gtk_vbox_new(FALSE, 10);
-  //gtk_widget_set_size_request(rdata->rdevee_box3, 600, 250);
-
-  gtk_container_add(GTK_CONTAINER(rdata->rdevee_gui), rdata->rdevee_box4);
+  gtk_widget_set_size_request(rdata->rdevee_box3, 600, 250);
   rdata->rdevee_load_event_label = gtk_label_new("Event number: ");
   //rdata->rdevee_load_event_entry = gtk_entry_new();
   //rdata->rdevee_load_event_button = gtk_button_new_with_label("Load event");
@@ -2713,10 +3191,13 @@ rdeve_event_edit(GtkWidget * buffer, gpointer data)
   gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rdevee_list), -1, "Type", renderer, "text", 0, NULL);
   renderer = gtk_cell_renderer_text_new();
   gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rdevee_list), -1, "Id", renderer, "text", 1, NULL);
+
   rdata->rdevee_list_box = addScrollBarToTreeView(rdata->rdevee_list);
   
   //
 
+
+  gtk_container_add(GTK_CONTAINER(rdata->rdevee_gui), rdata->rdevee_box4);
 
   gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_load_event_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rdevee_box2), rdata->rdevee_save_event_button, FALSE, FALSE, 0); 
@@ -2757,8 +3238,8 @@ rdev_editor(GtkWidget * some, gpointer data)
   rdata->rdeve_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_position(GTK_WINDOW(rdata->rdeve_gui), GTK_WIN_POS_CENTER);
   //gtk_window_set_default_size(GTK_WINDOW(rdata->rdeve_gui), 600, 750);
-  g_signal_connect(rdata->rdeve_gui, "delete-event", G_CALLBACK(delete_event), rdata);
-  g_signal_connect(rdata->rdeve_gui, "destroy", G_CALLBACK(destroy), rdata);
+  g_signal_connect(rdata->rdeve_gui, "delete-event", G_CALLBACK(delete_event), NULL);
+  g_signal_connect(rdata->rdeve_gui, "destroy", G_CALLBACK(destroy), NULL);
 
   rdata->rdeve_box1 = gtk_vbox_new(FALSE, 2);
   rdata->rdeve_box2 = gtk_hbox_new(FALSE, 10);
@@ -2960,8 +3441,8 @@ rserver_settings_links(GtkWidget * some, gpointer data)
   gtk_window_set_position(GTK_WINDOW(rdata->rserv_links_gui), GTK_WIN_POS_CENTER);
   //gtk_widget_set_size_request(rdata->rserv_links_gui, 500, 300);
   gtk_window_set_resizable(GTK_WINDOW(rdata->rserv_links_gui), FALSE);
-  g_signal_connect(rdata->rserv_links_gui, "delete-event", G_CALLBACK(delete_event), rdata);
-  g_signal_connect(rdata->rserv_links_gui, "destroy", G_CALLBACK(destroy), rdata);
+  g_signal_connect(rdata->rserv_links_gui, "delete-event", G_CALLBACK(delete_event), NULL);
+  g_signal_connect(rdata->rserv_links_gui, "destroy", G_CALLBACK(destroy), NULL);
 
   // Windows boxes
   rdata->rserv_links_box0 = gtk_vbox_new(FALSE, 10);
@@ -3358,8 +3839,8 @@ rnotify_show(GtkWidget * some, gpointer data)
   gtk_window_set_position(GTK_WINDOW(rdata->rnotify_gui), GTK_WIN_POS_CENTER);
   gtk_window_set_resizable(GTK_WINDOW(rdata->rnotify_gui), FALSE);
   gtk_window_set_title(GTK_WINDOW(rdata->rnotify_gui), "Notification list");
-  g_signal_connect(rdata->rnotify_gui, "delete-event", G_CALLBACK(delete_event), &rdata->open);
-  g_signal_connect(rdata->rnotify_gui, "destroy", G_CALLBACK(destroy), &rdata->open);
+  g_signal_connect(rdata->rnotify_gui, "delete-event", G_CALLBACK(delete_event), NULL);
+  g_signal_connect(rdata->rnotify_gui, "destroy", G_CALLBACK(destroy), NULL);
   GtkCellRenderer *renderer;
   rdata->rnotify_list = gtk_tree_view_new();
   rdata->rnotify_list_list = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_STRING);
@@ -3458,8 +3939,8 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
   gtk_window_set_position(GTK_WINDOW(rdata->rsurve_gui), GTK_WIN_POS_CENTER);
   gtk_window_set_resizable(GTK_WINDOW(rdata->rsurve_gui), TRUE);
   gtk_window_set_title(GTK_WINDOW(rdata->rsurve_gui), "Surveillance Screen");
-  g_signal_connect(rdata->rsurve_gui, "delete-event", G_CALLBACK(delete_event), &rdata->open);
-  g_signal_connect(rdata->rsurve_gui, "destroy", G_CALLBACK(destroy), &rdata->open);
+  g_signal_connect(rdata->rsurve_gui, "delete-event", G_CALLBACK(delete_event), NULL);
+  g_signal_connect(rdata->rsurve_gui, "destroy", G_CALLBACK(destroy), NULL);
   // Screen
   rdata->rsurve_box1 = gtk_vbox_new(FALSE, 10);
   rdata->rsurve_screen = gtk_image_new_from_file ("spg1.jpg");
@@ -3523,6 +4004,280 @@ rsurve_screen_show(GtkWidget * some, gpointer data)
 
 }
 
+gboolean
+rsac_screen_getrow(GtkTreeView * treeview, GtkTreePath * path, GtkTreeViewColumn * col, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  GtkTreeModel *model;
+  GtkTreeIter iter;
+  long long levent;
+  const char *acname, *keypad;
+  char tagid[50];
+
+
+  model = gtk_tree_view_get_model(treeview);
+  if (gtk_tree_model_get_iter(model, &iter, path))
+    {
+      gtk_tree_model_get(model, &iter, 0, (gpointer) & acname, -1);
+      gtk_tree_model_get(model, &iter, 1, (gpointer) & levent, -1);
+      gtk_tree_model_get(model, &iter, 2, (gpointer) & keypad, -1);
+      sprintf(tagid, "%lld", levent);
+      gtk_entry_set_text(GTK_ENTRY(rdata->rsac_entry_acname), acname);
+      gtk_entry_set_text(GTK_ENTRY(rdata->rsac_entry_actagid), tagid);
+      gtk_entry_set_text(GTK_ENTRY(rdata->rsac_entry_ackeypad), keypad);
+   }
+
+}
+
+void
+rsac_config_load(void *data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  
+  config_t cfg;
+  config_init(&cfg);
+  config_setting_t *setting, *tmp;
+  gtk_list_store_clear(rdata->rsac_ac_list_list);
+  if(config_read_file(&cfg, "main.spbac")){
+    setting = config_lookup(&cfg, "spbac");
+    if(setting != NULL){
+      const char *ac_name, *keypad;
+      long long tagid;
+      int count = config_setting_length(setting);
+      for (int i = 0; i < count; ++i)
+	{
+	  tmp = config_setting_get_elem(setting, i);
+	  if (config_setting_lookup_string(tmp, "access_name", &ac_name)
+	      && config_setting_lookup_int64(tmp, "tagid", &tagid) 
+	      && config_setting_lookup_string(tmp, "keypad", &keypad))
+	    {
+	      gtk_list_store_append(rdata->rsac_ac_list_list, &rdata->rsac_ac_list_iter);
+	      gtk_list_store_set(rdata->rsac_ac_list_list, &rdata->rsac_ac_list_iter, 0, ac_name, 1, tagid, 2, keypad, -1);
+	      rdata->rsac_ac_list_tree = GTK_TREE_MODEL(rdata->rsac_ac_list_list);
+	      gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rsac_ac_list), rdata->rsac_ac_list_tree);
+	    }
+	}
+    }
+  }
+    config_destroy(&cfg);
+}
+
+void
+rsac_config_add(GtkWidget * some, gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  
+  const char *name = gtk_entry_get_text(GTK_ENTRY(rdata->rsac_entry_acname));
+  if(strlen(name) < 1)
+    return;
+
+  config_t cfg;
+  config_init(&cfg);
+  config_setting_t *setting, *tmp, *tmp2;
+  if(config_read_file(&cfg, "main.spbac")){
+    setting = config_lookup(&cfg, "spbac");
+    if(setting != NULL){
+      const char *ac_name, *keypad;
+      long long tagid;
+      int count = config_setting_length(setting);
+      for (int i = 0; i < count; ++i)
+	{
+	  tmp = config_setting_get_elem(setting, i);
+	  if (config_setting_lookup_string(tmp, "access_name", &ac_name)
+	      && config_setting_lookup_int64(tmp, "tagid", &tagid) 
+	      && config_setting_lookup_string(tmp, "keypad", &keypad))
+	    {
+	      if(strcmp(ac_name, name) == 0){
+		// If the acname is already added, then we just modify tagid and keypad.
+		int is_mod = 0;
+		const char *s_tagid = gtk_entry_get_text(GTK_ENTRY(rdata->rsac_entry_actagid));
+		long long tagid;
+		const char *keypad = gtk_entry_get_text(GTK_ENTRY(rdata->rsac_entry_ackeypad));
+		
+		if(strlen(s_tagid) > 0 && sscanf(s_tagid, "%lld", &tagid) > 0){
+		  tmp2 = config_setting_get_member(tmp, "tagid");
+		  config_setting_set_int64(tmp2, tagid);
+		  is_mod = 1;
+		}
+		
+		if(strlen(keypad) > 0){
+		  tmp2 = config_setting_get_member(tmp, "keypad");
+		  config_setting_set_string(tmp2, keypad);
+		  is_mod = 1;
+		}
+
+		if(is_mod){
+		  config_write_file(&cfg, "main.spbac");
+		  rsac_config_load(rdata);
+		  return;
+		}
+		
+	      }
+	    }
+	}
+    }
+    
+    config_setting_t *elem, *nelem;
+    elem = config_setting_add(setting, NULL, CONFIG_TYPE_GROUP);
+
+    long long tagid;
+    
+    const char *acname = gtk_entry_get_text(GTK_ENTRY(rdata->rsac_entry_acname));
+    if(strlen(acname) > 0){
+    nelem = config_setting_add(elem, "access_name", CONFIG_TYPE_STRING);
+    config_setting_set_string(nelem, acname);
+
+    const char *actagid = gtk_entry_get_text(GTK_ENTRY(rdata->rsac_entry_actagid));    
+    long long tagid;
+    if(sscanf(actagid, "%lld", &tagid) > 0){
+    nelem = config_setting_add(elem, "tagid", CONFIG_TYPE_INT64);
+    config_setting_set_int64(nelem, tagid);
+    }
+    
+    const char *ackeypad = gtk_entry_get_text(GTK_ENTRY(rdata->rsac_entry_ackeypad));
+    nelem = config_setting_add(elem, "keypad", CONFIG_TYPE_STRING);
+    config_setting_set_string(nelem, ackeypad);
+    
+    config_write_file(&cfg, "main.spbac");
+    rsac_config_load(rdata);
+    return;
+    }
+  }
+
+}
+
+
+void
+rsac_config_remove(GtkWidget * some, gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  const char *name = gtk_entry_get_text(GTK_ENTRY(rdata->rsac_entry_acname));
+  if(strlen(name) < 1)
+    return;
+  
+  config_t cfg;
+  config_init(&cfg);
+  config_setting_t *setting, *tmp;
+  if(config_read_file(&cfg, "main.spbac")){
+    setting = config_lookup(&cfg, "spbac");
+    if(setting != NULL){
+      const char *ac_name;
+      int count = config_setting_length(setting);
+      for (int i = 0; i < count; ++i)
+	{
+	  tmp = config_setting_get_elem(setting, i);
+	  if (config_setting_lookup_string(tmp, "access_name", &ac_name))
+	    {
+	      if(strcmp(ac_name, name) == 0){
+		config_setting_remove_elem(setting, i);
+		config_write_file(&cfg, "main.spbac");
+		rsac_config_load(rdata);
+		return;
+	      }
+		
+	    }
+	}
+    }
+  }
+}
+
+void
+rsac_get_rfid(GtkWidget * some, gpointer data){
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  gtk_entry_set_text(GTK_ENTRY(rdata->rac_fend_entry1), gtk_entry_get_text(GTK_ENTRY(rdata->rsac_entry_actagid)));
+  rdata->rsac_gui_isopen = 0;
+  gtk_widget_destroy(GTK_WIDGET(rdata->rsac_gui));
+}
+
+
+// Speedbus access controll file editor
+
+void
+rsac_screen_show(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  rdata->rsac_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_position(GTK_WINDOW(rdata->rsac_gui), GTK_WIN_POS_CENTER);
+  gtk_window_set_resizable(GTK_WINDOW(rdata->rsac_gui), TRUE);
+  gtk_window_set_title(GTK_WINDOW(rdata->rsac_gui), "Speedbus access controll interface.");
+  //gtk_widget_set_size_request(rdata->rsac_gui, 350, 250);
+  g_signal_connect(rdata->rsac_gui, "delete-event", G_CALLBACK(delete_event), &rdata->rsac_gui_isopen);
+  g_signal_connect(rdata->rsac_gui, "destroy", G_CALLBACK(destroy), &rdata->rsac_gui_isopen);
+  //
+  rdata->rsac_gui_isopen = 1;
+  // Gui
+  rdata->rsac_box1 = gtk_vbox_new(FALSE, 10);
+  rdata->rsac_box2 = gtk_hbox_new(FALSE, 10);
+  rdata->rsac_box3 = gtk_vbox_new(FALSE, 10);
+  rdata->rsac_box4 = gtk_hbox_new(FALSE, 10);
+  rdata->rsac_box5 = gtk_hbox_new(FALSE, 10);
+  rdata->rsac_box6 = gtk_hbox_new(FALSE, 10);
+  rdata->rsac_box7 = gtk_hbox_new(FALSE, 10);
+
+  gtk_container_add(GTK_CONTAINER(rdata->rsac_gui), rdata->rsac_box1);
+  // Add Userlist
+  GtkCellRenderer *renderer;
+  rdata->rsac_ac_list = gtk_tree_view_new();
+  rdata->rsac_ac_list_list = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_UINT64, G_TYPE_STRING);
+
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rsac_ac_list), -1, "Access name", renderer, "text", 0, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rsac_ac_list), -1, "Tagg key", renderer, "text", 1, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rsac_ac_list), -1, "Keypad nr", renderer, "text", 2, NULL);
+  rdata->rsac_ac_list_box = addScrollBarToTreeView(rdata->rsac_ac_list);
+
+  rsac_config_load(rdata);
+
+  gtk_widget_set_size_request(rdata->rsac_ac_list, -1, 250);
+
+  rdata->rsac_entry_acname = gtk_entry_new();
+  rdata->rsac_label_acname = gtk_label_new("Access name:\t\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box4), rdata->rsac_label_acname, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box4), rdata->rsac_entry_acname, FALSE, FALSE, 0);
+
+  rdata->rsac_entry_actagid = gtk_entry_new();
+  rdata->rsac_label_actagid = gtk_label_new("Tag id:\t\t\t\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box5), rdata->rsac_label_actagid, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box5), rdata->rsac_entry_actagid, FALSE, FALSE, 0);
+
+  rdata->rsac_entry_ackeypad = gtk_entry_new();
+  rdata->rsac_label_ackeypad = gtk_label_new("Keypad nr:\t\t\t");
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box6), rdata->rsac_label_ackeypad, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box6), rdata->rsac_entry_ackeypad, FALSE, FALSE, 0);
+
+  rdata->rsac_button1 = gtk_button_new_with_label("Add/Mod to aclist");
+  rdata->rsac_button2 = gtk_button_new_with_label("Remove from aclist");
+  rdata->rsac_button3 = gtk_button_new_with_label("Get rfid to unit.");
+  if(rdata->rac_type != 1 && rdata->rac_type != 3)
+    gtk_widget_set_sensitive(rdata->rsac_button3, FALSE);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box7), rdata->rsac_button1, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box7), rdata->rsac_button2, FALSE, FALSE, 0);
+
+
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box1), rdata->rsac_box2, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box2), rdata->rsac_ac_list_box, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box2), rdata->rsac_box3, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box3), rdata->rsac_box4, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box3), rdata->rsac_box5, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box3), rdata->rsac_box6, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box3), rdata->rsac_box7, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rsac_box3), rdata->rsac_button3, FALSE, FALSE, 0);
+
+
+  // Functions
+  g_signal_connect(rdata->rsac_ac_list, "row-activated", G_CALLBACK(rsac_screen_getrow), rdata);
+  g_signal_connect(rdata->rsac_button1, "clicked", G_CALLBACK(rsac_config_add), rdata);
+  g_signal_connect(rdata->rsac_button2, "clicked", G_CALLBACK(rsac_config_remove), rdata);
+  g_signal_connect(rdata->rsac_button3, "clicked", G_CALLBACK(rsac_get_rfid), rdata);
+ 
+
+  gtk_widget_show_all(rdata->rsac_gui);
+
+}
+
+
 // Real SpeedBusGUI
 
 void
@@ -3540,7 +4295,8 @@ rspeed_gui(gpointer * data)
   rdata->scan_lock = 0;
   device_num = 0;
   rdata->box3 = gtk_vbox_new(FALSE, 10);
-
+  rdata->rac_type=0; // MAke sure that rac_type is zeroed.
+  rdata->rsac_gui_isopen = 0;
   // Start the device backend AFTER the serial has been opened
   rdata->backe = init_backend();
 
@@ -3573,6 +4329,8 @@ rspeed_gui(gpointer * data)
     rdata->rdev_is_admin_button = gtk_button_new_with_label("Settings");
   rdata->rdev_show_notify = gtk_button_new_with_label("Notifications");
   rdata->rdev_surve_screen_button = gtk_button_new_with_label("Surveillance Screen");
+  rdata->rdev_spbac_screen_button = gtk_button_new_with_label("Access Editor");
+
   gtk_container_add(GTK_CONTAINER(rdata->window), rdata->box2);
   gtk_box_pack_start(GTK_BOX(rdata->box2), rdata->box1, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box2), rdata->separator1, FALSE, TRUE, 5);
@@ -3589,6 +4347,7 @@ rspeed_gui(gpointer * data)
   gtk_box_pack_start(GTK_BOX(rdata->box5), rdata->rdev_show_notify, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->box5, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->rdev_surve_screen_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->rdev_spbac_screen_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->label, FALSE, FALSE, 0);
   // Signals
   g_signal_connect(rdata->scan_list, "row-activated", G_CALLBACK(view_onRowActivated), rdata);
@@ -3600,6 +4359,8 @@ rspeed_gui(gpointer * data)
     g_signal_connect(rdata->rdev_is_admin_button, "clicked", G_CALLBACK(rserver_settings), rdata);
   g_signal_connect(rdata->rdev_show_notify, "clicked", G_CALLBACK(rnotify_show), rdata);
   g_signal_connect(rdata->rdev_surve_screen_button, "clicked", G_CALLBACK(rsurve_screen_show), rdata);
+  g_signal_connect(rdata->rdev_spbac_screen_button, "clicked", G_CALLBACK(rsac_screen_show), rdata);
+
   //
   gtk_widget_show(rdata->box5);
   gtk_widget_show(rdata->box4);
@@ -3610,6 +4371,7 @@ rspeed_gui(gpointer * data)
     gtk_widget_show(rdata->rdev_is_admin_button);
   gtk_widget_show(rdata->rdev_show_notify);
   gtk_widget_show(rdata->rdev_surve_screen_button);
+  gtk_widget_show(rdata->rdev_spbac_screen_button);
   gtk_widget_show(rdata->box2);
   gtk_widget_show(rdata->box1);
   gtk_widget_show(rdata->label);

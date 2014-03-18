@@ -1,0 +1,30 @@
+Yeah, well, im sitting here witha a RFID reader, and figure spb need a 
+gui interface for access control.
+
+So, for the first part i need an easy system for distributing the 
+access lists to all the diffrent tag readers, keypads, osv. Maybe i 
+will have like three diffrent keypads with tag readers, then i will 
+need to be able to control wich tag will open what osv.
+
+So well, now the gui is BETA done, so you can use it to store rfid:s
+in main.spbac, and add them to units. Also, you can get the list of
+rfid:s on the devices. 
+
+The system works so that you recive all the rfid:s to the main.spbac,
+where you can store them with names. When you want to add a key to a 
+unit, you simply open the gui(wich loads main.spbac), and add them
+from there. 
+
+CURRENTLY Only Type 1 works, only support for rfid only units.
+
+To identify a SPBAC, the config file simply holds lines that says:
+
+SPBAC=true
+// 1: RFID
+// 2: Keypad
+// 3: Keypad & RFID
+SPBAC_type=1;		// Type
+SPBAC_RFID_MAX=50;	// Max nr off RFID:s
+SPBAC_RFIDLEN=3;	// The number of bytes in the RFID string.
+
+ 
