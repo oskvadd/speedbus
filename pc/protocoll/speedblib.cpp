@@ -239,11 +239,10 @@ void    send(char * data, int len){
 
 void    send_response(char addr_1, char addr_2){
   int len = 8;
-  char getdevs[20] = {0x00,0x00,addr1,addr2,0x03,0x01,0x00,0x00};
+  char getdevs[20] = {0x00,0x00,addr1,addr2,0x03,0x00,0x00,0x00};
   getdevs[0] = addr_1;
   getdevs[1] = addr_2;
   send(getdevs, len);
-
 }
 
 bool speed_open_tty(char * tty){

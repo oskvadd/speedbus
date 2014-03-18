@@ -328,7 +328,7 @@ print_ser_backend(void *ptr)
       // Keep reading data from serial port and print it to the screen.
       //
       if (got_resp)
-	usleep(500000);
+	usleep(20000);
       else
 	usleep(5000);
 
@@ -2418,6 +2418,7 @@ main(int argc, char *argv[])
 	      printf("Scaning done, found %d units\n", serial_p.device_num);
 	    }
 	}
+      
 
       wtime();
       printf("Starting SPB server with %d users\n", userc);
