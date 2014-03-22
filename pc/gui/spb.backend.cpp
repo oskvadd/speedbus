@@ -128,6 +128,10 @@ backend_exec_ops(main_backend * backe, int array_num, int var_num, int var_val, 
 	{			// ceck so the device id is the same
 	  if (var_num == backe->var_ops[i][1])
 	    {			// check so the variable num is the same
+	      int svar_num = backe->var_ops[i][4];
+	      if(svar_num <= 255 || svar_num > (255 + MAX_VARIABLE))
+		svar_num = 0;
+
 	      switch (backe->var_ops[i][3])
 		{
 		case 0:	// Shift down with second arg
@@ -166,6 +170,31 @@ backend_exec_ops(main_backend * backe, int array_num, int var_num, int var_val, 
 		  var_val -= get_variable_gui(backe->rdata, backe->var_ops[i][4], from_gui);
 		  break;
 #endif
+		case 9:	// Shift down with second arg
+		  var_val >>= (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  break;
+		case 10:
+		  // Subtract with second arg
+		  var_val -= (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  break;
+		case 11:
+		  // Add with second arg
+		  var_val += (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  break;
+		case 12:
+		  // Shift up
+		  var_val <<= (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  break;
+		case 13:
+		  // And
+		  var_val &= (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  break;
+		case 14:
+		  // Or
+		  var_val |= (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  printf("Var var_val: %d\nvar_num: %d\nsvar_num: %d\nsvar_val: %d\n", var_val, var_num, svar_num, backe->event_variable[array_num][svar_num - 257]);
+		  break;
+
 		}
 	    }
 	}
