@@ -1216,7 +1216,9 @@ get_vars_load(void *data, char *p_data, int counter)
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
   for (int i = 0; i < device_num; i++)
     {
-      if (device_id[i] == rdata->c_devid)
+      int addr1, addr2;
+      sscanf(device_addr[i], "%d.%d", &addr1, &addr2);
+      if ((unsigned char)p_data[2] == addr1 && (unsigned char)p_data[3] == addr2 && device_id[i] == rdata->c_devid)
 	{			// Device id is found in the MAIN device list
 	  for (int ii = 0; ii < MAX_EVENT; ii++)
 	    {
@@ -1230,6 +1232,12 @@ get_vars_load(void *data, char *p_data, int counter)
 			  if ((iii + 1) == count)
 			    {
 			      count = (unsigned char)rdata->backe->event_data1[i][ii][0];
+			      for (int iiii = 0; iiii < count; iiii++) // Make sure that the backend variables got set, before start interfering with the gui.
+				{
+				  backend_set_variable(rdata->backe, device_id[i], rdata->backe->event_data1[i][ii][iiii + 1],
+						       (unsigned char)p_data[rdata->backe->event_data2[i][ii][iiii + 1] + 6]);
+				}
+			      
 			      for (int iiii = 0; iiii < count; iiii++)
 				{
 				  set_variable_gui
