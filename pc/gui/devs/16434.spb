@@ -1,0 +1,6 @@
+name="Test ytterdörr";
+source_width=20;
+
+SPBAC_type=1;
+SPBAC_RFID_MAX=50;
+SPBAC_RFIDLEN=4;
