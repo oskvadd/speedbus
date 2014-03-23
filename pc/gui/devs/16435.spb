@@ -12,13 +12,15 @@ spb =
 		row   = 0; 
 		},{
 		type  = "label";
-		label = "Temp: %d°C";
-		var1  = 264
+		label = "Temp: %d.%d°C";
+		var1  = 264;
+		var2  = 259;
 		row   = 1;
 		},{
 		type  = "label";
-		label = "Luftfukt : %d%%";
+		label = "Luftfukt : %d.%d%%";
 		var1  =	262;
+		var2  = 257;
 		row   = 2;
 		}
 //		,{
@@ -41,8 +43,8 @@ spb =
 	       { event = 2;
                type = "getvars";  	
                data = (0x0A);
-               var_num = (262,261,264,263);
-               at_byte = (1,2,3,4);}
+               var_num = (262,261,264,263,257,258,259,260);
+               at_byte = (1,2,3,4,1,2,3,4);}
 
 //	     { event = 9;
 //               type = "send";
@@ -88,13 +90,63 @@ spb =
             { variable = 262;
               type = 14;
               second_arg = 261;},
+            { variable = 262;
+              type = 16;
+              second_arg = 10;},
 
+            { variable = 264;
+              type = 19; 
+	      second_arg = 0;},
             { variable = 264;
               type = 4;
               second_arg = 8;},
             { variable = 264;
               type = 14;
-              second_arg = 263;}
+              second_arg = 263;},
+            { variable = 264;
+              type = 16;
+              second_arg = 10;},
+
+
+            { variable = 257;
+              type = 4;
+              second_arg = 8;},
+            { variable = 257;
+              type = 14;
+              second_arg = 258;},
+            { variable = 257;
+              type = 21;
+              second_arg = 10;},
+
+
+            { variable = 259;
+              type = 19; 
+	      second_arg = 0;},
+            { variable = 259;
+              type = 4;
+              second_arg = 8;},
+            { variable = 259;
+              type = 14;
+              second_arg = 260;},
+            { variable = 259;
+              type = 21;
+              second_arg = 10;},
+	    { variable = 259;
+              type = 22;
+	      second_arg = 0;}
+	      
+
+
+/*
+            { variable = 257;
+              type = 15;
+              second_arg = 10;},
+            { variable = 257;
+              type = 10;
+              second_arg = 264;}
+*/
+
+
 
 
 

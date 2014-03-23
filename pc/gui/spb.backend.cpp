@@ -192,8 +192,48 @@ backend_exec_ops(main_backend * backe, int array_num, int var_num, int var_val, 
 		case 14:
 		  // Or
 		  var_val |= (unsigned char)backe->event_variable[array_num][svar_num - 257];
-		  printf("Var var_val: %d\nvar_num: %d\nsvar_num: %d\nsvar_val: %d\n", var_val, var_num, svar_num, backe->event_variable[array_num][svar_num - 257]);
 		  break;
+		case 15:
+		  // Multiply
+		  var_val *= backe->var_ops[i][4];
+		  break;
+		case 16:
+		  // Divide
+		  var_val /= backe->var_ops[i][4];
+		  break;
+		case 17:
+		  // Multiply
+		  var_val *= (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  break;
+		case 18:
+		  // Divide
+		  var_val /= (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  break;
+		case 19:
+		  // 16bit below zero, for AM2302 devices. (If the most significant bit is 1, then the value is below zero)
+		  if(var_val & 0b1000000000000000)
+		    var_val = (var_val & 0xFF) * -1;
+		  break;
+		case 20:
+		  // Divide, get reminder second arg = variable
+		  var_val %= (unsigned char)backe->event_variable[array_num][svar_num - 257];
+		  break;
+		case 21:
+		  // Divide with second arg, get reminder
+		  var_val %= backe->var_ops[i][4];
+		  break;
+		case 22:
+		  // Make sure var_val is above 0, if varval = -12 then convert to 12
+		  if(var_val < 0)
+		    var_val *= -1;
+		  break;
+		case 23:
+		  // Make sure var_val is below 0, if varval = 12 then convert to -12
+		  if(var_val > 0)
+		    var_val *= -1;
+		  break;
+
+
 
 		}
 	    }
@@ -342,7 +382,7 @@ backend_load_var_ops(main_backend * backe, config_t * cfg, char *cname, int opt_
 	      (book, "variable", &variable))
 	    || !(config_setting_lookup_int(book, "type", &type)) || !(config_setting_lookup_int(book, "second_arg", &second_arg)))
 	    {
-	      printf("You seems to have missed 'variable','device_id','type' or 'second_arg' at event nr %d, in file %s\n", i, cname);
+	      printf("You seems to have missed 'variable','device_id','type' or 'second_arg' at operation nr %d, in file %s\n", i, cname);
 	      continue;
 	    }
 	  int var_opsc = backe->var_opsc++;

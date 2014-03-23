@@ -1198,14 +1198,18 @@ set_variable_gui(void *data, int var_id, int v_data)
 	  rdata->spb_widget_vars[widget_id][1] +
 	  257, 0), get_variable_gui(rdata,
 	  rdata->spb_widget_vars[widget_id][2] + 257, 0), get_variable_gui(rdata, rdata->spb_widget_vars[widget_id][3] + 257, 0));
+      gdk_threads_enter();
       gtk_label_set_text(GTK_LABEL(rdata->spb_widgets[widget_id]), print);
+      gdk_threads_leave();
     }
   if (strcmp(rdata->spb_widget_variable_type[var_id], "scale") == 0)
     {
       GtkAdjustment *adj;
+      gdk_threads_enter();
       adj = gtk_range_get_adjustment(GTK_RANGE(rdata->spb_widgets[widget_id]));
       gtk_adjustment_set_value(adj, get_variable_gui(rdata, var_id + 257, 0));
       gtk_range_set_adjustment(GTK_RANGE(rdata->spb_widgets[widget_id]), adj);
+      gdk_threads_leave();
     }
 
 }
@@ -1234,6 +1238,7 @@ get_vars_load(void *data, char *p_data, int counter)
 			      count = (unsigned char)rdata->backe->event_data1[i][ii][0];
 			      for (int iiii = 0; iiii < count; iiii++) // Make sure that the backend variables got set, before start interfering with the gui.
 				{
+				  if(rdata->backe->event_data2[i][ii][iiii + 1] != 0)
 				  backend_set_variable(rdata->backe, device_id[i], rdata->backe->event_data1[i][ii][iiii + 1],
 						       (unsigned char)p_data[rdata->backe->event_data2[i][ii][iiii + 1] + 6]);
 				}
@@ -1242,8 +1247,8 @@ get_vars_load(void *data, char *p_data, int counter)
 				{
 				  set_variable_gui
 				    (rdata,
-				    rdata->backe->event_data1
-				    [i][ii][iiii + 1], (unsigned char)p_data[rdata->backe->event_data2[i][ii][iiii + 1] + 6]);
+				     rdata->backe->event_data1
+				     [i][ii][iiii + 1], (unsigned char)p_data[rdata->backe->event_data2[i][ii][iiii + 1] + 6]);
 				}
 
 			    }
