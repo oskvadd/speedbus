@@ -3748,7 +3748,6 @@ rdev_gui(GtkWidget * some, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
   // Fetch the speedlib config details from the specific unit
-  set_variable_gui(rdata, 260, 123);
   rdata->got_rec = 0;
   for (int i = 0; i <= 10; i++)
     {
