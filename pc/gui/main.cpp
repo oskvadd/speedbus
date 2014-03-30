@@ -1630,6 +1630,7 @@ load_device(gpointer data, int devid)
   config_init(&cfg);
   // Clear vars
   memset(rdata->spb_widget_vars_data, 0x00, MAX_VARIABLE);
+  memset(rdata->spb_widget_variable_type, 0x00, MAX_VARIABLE * MAX_BUFFER);
   //
   gtk_widget_show(rdata->devbutton);
   //
