@@ -1637,7 +1637,8 @@ runselect(print_seri * serial_p)
 {
   if (FD_ISSET(serial_p->server->listen_sock, &serial_p->server->socks))
     {
-      int listnum = serial_p->server->addclient();
+      serial_p->server->addclient();
+      return;
     }
 
   for (int listnum = 0; listnum < MAX_LISTEN; listnum++)
@@ -1947,6 +1948,7 @@ set_tty(print_seri * serial_p, const char *tty)
 	  else
 	    {
 	      //printf("Error, unable to find serial port, Bye!\n");
+	      pclose(pipe);
 	      return 0;
 	      //exit;
 	    }
