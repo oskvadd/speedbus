@@ -98,6 +98,7 @@ typedef struct _rspeed_gui_rep
   gboolean box3_set;
   GtkWidget *box4;
   GtkWidget *box5;
+  GtkWidget *box6;
 
   // Things related to box3
   GtkWidget *label1;
@@ -139,6 +140,10 @@ typedef struct _rspeed_gui_rep
   int timer;
   short scan_counter;
   GtkWidget *scan_button;
+  GtkWidget *main_addevid_label;
+  GtkWidget *main_addevid_button;
+  GtkWidget *main_addevid_entry;
+
   gboolean scan_lock;
 
   // rdev gui window
@@ -525,6 +530,8 @@ exec_package(void *ptr, char *data, int counter)
 	  std::cerr << "'";
 	}
     }
+
+  printf("%d.%d - %d.%d\n", (unsigned char)data[0], (unsigned char)data[1], addr1, addr2);
   if ((unsigned char)data[0] == addr1 && (unsigned char)data[1] == addr2)
     {
       get_vars_load(rdata, data, counter);
@@ -535,6 +542,7 @@ exec_package(void *ptr, char *data, int counter)
 	  got_resp = 1;
 	  break;
 	case 1:
+	  got_resp = 1;
 	  if (counter < 11)
 	    {			// If counter is less than 11, there is a usual 0x01, "ping" package,return
 	      break;
@@ -546,6 +554,10 @@ exec_package(void *ptr, char *data, int counter)
 	      devid += data[i + 7];
 	    }
 	  device_add(rdata, data[2], data[3], devid);
+	  gdk_threads_enter();
+	  speedbus_fill_devlist(rdata);
+	  gdk_threads_leave();
+		
 	  rdata->got_rec = (unsigned char)data[6];
 	  break;
 	case 3:
@@ -564,7 +576,6 @@ exec_package(void *ptr, char *data, int counter)
       switch ((unsigned char)data[6])
 	{
 	case 3:
-	  rdata->got_rec = (unsigned char)data[6];
 	  switch ((unsigned char)data[7])
 	    {
 	    case 1:
@@ -600,11 +611,6 @@ client_handler(void *ptr)
 	{
 	  if (strncmp(data, "send ", 5) == 0)
 	    {
-	      if (data[5] != data[6] != 0xFF)
-		{
-		  data[5] = addr1;
-		  data[6] = addr2;
-		}
 	      exec_package(rdata, data + 5, len - 5);
 	    }
 	  if (strncmp(data, "userlist", 8) == 0)
@@ -938,8 +944,6 @@ tty_to_combo(GtkWidget * combo)
 static bool
 open_tty_button(GtkWidget * widget, gpointer data)
 {
-  addr1 = 20;
-  addr2 = 20;
   ProgressData *pdata = (ProgressData *) data;
   pdata->serial_mode = 1;
 
@@ -1133,6 +1137,36 @@ speedbus_pbar_scanning(gpointer data)
   gtk_progress_bar_set_text(GTK_PROGRESS_BAR(rdata->pbar), hej);
   gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(rdata->pbar), new_val);
   return 1;
+}
+
+
+static void
+speedbus_addevid(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+ 
+  unsigned int devid; 
+  if(sscanf(gtk_entry_get_text(GTK_ENTRY(rdata->main_addevid_entry)), "%u", &devid) < 1)
+    return;
+
+  got_resp = 0;
+  for(int i=0; i < 4; i++){
+    if(got_resp){
+      gtk_label_set_text(GTK_LABEL(rdata->label), "Found device!");
+      return;
+    }
+    int len = 12;
+    char getdevs[50] = { 0xFF, 0xFF, addr1, addr2, 0x03, 0x00,
+			 0x01, (devid>>24) & 0xFF, (devid>>16) & 0xFF, (devid>>8) & 0xFF, devid & 0xFF, 0x00
+    };
+    m_send(rdata, getdevs, len);
+    if(i+1 >= 4){
+      gtk_label_set_text(GTK_LABEL(rdata->label), "No response from device.");
+      return;
+    }
+    usleep(500000);
+  }
 }
 
 
@@ -1942,7 +1976,7 @@ rdev_stamp(GtkWidget * some, gpointer data)
   gtk_label_set_text(GTK_LABEL(rdata->rdev_stamp_label), tmp);
   //std::cout << "Address: " << getaddr1 << "." << getaddr2 << "\n";
   got_resp = 0;
-  for (int i = 0; i <= 5; i++)
+  for (int i = 0; i <= 6; i++)
     {
       if (i > 5)
 	{
@@ -1950,9 +1984,9 @@ rdev_stamp(GtkWidget * some, gpointer data)
 	  gtk_label_set_text(GTK_LABEL(rdata->rdev_stamp_label), tmp);
 	  break;
 	}
-      int len = 11;
-      char getdevs[50] = { rdata->addr1, rdata->addr2, addr1, addr2, 0x03, 0x00,
-	0x03, 0x01, getaddr1, getaddr2, 0x00
+      int len = 15;
+      char getdevs[50] = { 0xFF, 0xFF, addr1, addr2, 0x03, 0x00,
+			   0x03, (rdata->c_devid>>24) & 0xFF, (rdata->c_devid>>16) & 0xFF, (rdata->c_devid>>8) & 0xFF, rdata->c_devid & 0xFF, 0x01, getaddr1, getaddr2, 0x00
       };
       m_send(rdata, getdevs, len);
       usleep(500000);
@@ -1978,6 +2012,7 @@ rdev_stamp(GtkWidget * some, gpointer data)
 	      goto rdev_stamp_done;
 	    }
 	}
+      continue;
     rdev_stamp_done:
       rdata->addr1 = getaddr1;
       rdata->addr2 = getaddr2;
@@ -3758,9 +3793,9 @@ rdev_gui(GtkWidget * some, gpointer data)
 	  gtk_label_set_text(GTK_LABEL(rdata->label), "No respone...");
 	  return;
 	}
-      int len = 8;
-      char getdevs[20] = { rdata->addr1, rdata->addr2, addr1, addr2, 0x03, 0x00,
-	0x03, 0x00
+      int len = 12;
+      char getdevs[20] = { 0xFF, 0xFF, addr1, addr2, 0x03, 0x00,
+			   0x03, (rdata->c_devid>>24) & 0xFF, (rdata->c_devid>>16) & 0xFF, (rdata->c_devid>>8) & 0xFF, rdata->c_devid & 0xFF, 0x00
       };
       m_send(rdata, getdevs, len);
       usleep(500000);
@@ -3800,9 +3835,9 @@ rdev_gui(GtkWidget * some, gpointer data)
   gtk_box_pack_start(GTK_BOX(rdata->rdev_box1), rdata->rdev_stamp_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rdev_box2), rdata->rdev_stamp_label, FALSE, FALSE, 0);
   char tmp[30];
-  sprintf(tmp, "%d", (int)rdata->addr1);
+  sprintf(tmp, "%u", (unsigned char)rdata->addr1);
   gtk_entry_set_text(GTK_ENTRY(rdata->rdev_addr_tbox1), tmp);
-  sprintf(tmp, "%d", (int)rdata->addr2);
+  sprintf(tmp, "%u", (unsigned char)rdata->addr2);
   gtk_entry_set_text(GTK_ENTRY(rdata->rdev_addr_tbox2), tmp);
 
   gtk_widget_show(rdata->rdev_gui);
@@ -4323,15 +4358,26 @@ rspeed_gui(gpointer * data)
 
 
   rdata->scan_button = gtk_button_new_with_label("Scan");
+  
+  rdata->main_addevid_button = gtk_button_new_with_label("Add devid");
+  rdata->main_addevid_label = gtk_label_new("Devid: ");
+  rdata->main_addevid_entry = gtk_entry_new();
+  
+
   g_signal_connect(rdata->scan_button, "clicked", G_CALLBACK(speedbus_unit_scan), rdata);
+  g_signal_connect(rdata->main_addevid_button, "clicked", G_CALLBACK(speedbus_addevid), rdata);
+
   rdata->label = gtk_label_new("Linked to bus!");
   rdata->box1 = gtk_vbox_new(FALSE, 1);
   rdata->box2 = gtk_hbox_new(FALSE, 10);
   rdata->box3 = gtk_vbox_new(FALSE, 10);	// Just allocate this temporaryly, because the folowing destroy, wants somthing to destroy... just to make things work
   rdata->box4 = gtk_hbox_new(FALSE, 10);
   rdata->box5 = gtk_hbox_new(FALSE, 10);
+  rdata->box6 = gtk_hbox_new(FALSE, 0);
+
 
   rdata->separator1 = gtk_hseparator_new();
+
   rdata->pbar = gtk_progress_bar_new();
   rdata->scan_list = new_scan_list();
   rdata->debug_button = gtk_button_new_with_label("Debug");
@@ -4346,9 +4392,13 @@ rspeed_gui(gpointer * data)
 
   gtk_container_add(GTK_CONTAINER(rdata->window), rdata->box2);
   gtk_box_pack_start(GTK_BOX(rdata->box2), rdata->box1, FALSE, FALSE, 0);
-  gtk_box_pack_start(GTK_BOX(rdata->box2), rdata->separator1, FALSE, TRUE, 5);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->scan_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->pbar, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box1),  rdata->separator1, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->box6, FALSE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box6), rdata->main_addevid_label, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box6), rdata->main_addevid_entry, FALSE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->main_addevid_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->scan_list, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box4), rdata->debug_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box4), rdata->devbutton, TRUE, TRUE, 0);
@@ -4375,6 +4425,12 @@ rspeed_gui(gpointer * data)
   g_signal_connect(rdata->rdev_spbac_screen_button, "clicked", G_CALLBACK(rsac_screen_show), rdata);
 
   //
+  gtk_widget_show(rdata->main_addevid_label);
+  gtk_widget_show(rdata->main_addevid_button);
+  gtk_widget_show(rdata->main_addevid_entry);
+  gtk_widget_show(rdata->box6);
+  gtk_widget_show(rdata->separator1);
+
   gtk_widget_show(rdata->box5);
   gtk_widget_show(rdata->box4);
   gtk_widget_show(rdata->debug_button);
@@ -4812,6 +4868,9 @@ main(int argc, char *argv[])
   int auto_login = 0;
   pdata->share = NULL;
   config_init(&pdata->main_cfg);
+  addr1 = 20;
+  addr2 = 20;
+
   if (!config_read_file(&pdata->main_cfg, "main.cfg"))
     {
       memset(tmp, 0x00, 50);
