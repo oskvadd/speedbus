@@ -15,13 +15,17 @@ function strtohex($string)
 class spb
 {
   public $fp;
+  public $devlist;
+  public $evelist;
+  public $gtvlist;
   private $is_root;
-  private $devlist;
   private $status;
   
   public function __construct($host,$username,$password, $port = 306)
   {
     $this->devlist = array();
+    $this->evelist = array();
+    $this->gtvlist = array();
     if(isset($password)){
       $this->spb_connect($host,$username,$password , $port); 
     }
@@ -57,10 +61,33 @@ class spb
       if(strpos($recv, "devlistadd") !== FALSE){
 	$develem = array();
 	sscanf($recv, "devlistadd %s %s", $dev_addr, $dev_id);
-	$develem[0] = $dev_addr;
-	$develem[1] = $dev_id;
+	$develem["addr"] = $dev_addr;
+	$develem["devid"] = $dev_id;
 	array_push($this->devlist, $develem);
       }
+
+      if(strpos($recv, "eveadd") !== FALSE){
+	$eveelem = array();
+	$argc = sscanf($recv, "eveadd %d %d %[^\n]", $eve_devid, $eve_nr, $eve_dscr);
+	$eveelem["devid"] = $eve_devid;
+	$eveelem["evenr"] = $eve_nr;
+	if($argc > 2){
+	$eveelem["dscr"] = $eve_dscr;
+	}
+	array_push($this->evelist, $eveelem);
+      }
+
+      if(strpos($recv, "getvadd") !== FALSE){
+	$gtvelem = array();
+	$argc = sscanf($recv, "getvadd %d %d %d %[^\n]", $gtv_devid, $gtv_evenr, $gtv_varnr, $gtv_dscr);
+	$gtvelem["devid"] = $gtv_devid;
+	$gtvelem["evenr"] = $gtv_evenr;
+	$gtvelem["varnr"] = $gtv_varnr;
+	$gtvelem["dscr"] = $gtv_dscr;
+	array_push($this->gtvlist, $gtvelem);
+      	
+      }
+
       if(strpos($recv, "udevlist") !== FALSE){
 	break;
       }
@@ -114,8 +141,9 @@ class spb
     $out = "getvarasync $devid $var\n";
     fwrite($this->fp, $out);
     while($recv = fread($this->fp, 128)){
-     if(strpos($recv, "good") !== FALSE){
-	return 1;
+     if(strpos($recv, "getvarasync") !== FALSE){
+     	print($recv);
+     	return 1;
       }
       if(strpos($recv, "info Cant send") !== FALSE || strpos($recv, "info Error when") !== FALSE){
 	return 0;
@@ -125,7 +153,7 @@ class spb
 
 
 }
-$spb = new spb("127.0.0.1", "root", "toor");
+$spb = new spb("speedbus.org", "root", "toor");
 if(!$spb->spb_errc()){
   die($spb->spb_errcm() . "\n");
 }
@@ -162,5 +190,8 @@ sleep(1);
 }
 break;
 }
-//print_r($devlist);
+print_r($spb->devlist);
+print_r($spb->evelist);
+print_r($spb->gtvlist);
+
 ?>
