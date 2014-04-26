@@ -78,6 +78,11 @@ typedef struct _ProgressData
   bool save_con;
   gboolean is_admin;
 
+  char host[MAX_TEXT_BUFFER];
+  char user[MAX_TEXT_BUFFER];
+  char pass[MAX_TEXT_BUFFER];
+
+
 } ProgressData;
 
 typedef struct _rspeed_gui_rep
@@ -531,7 +536,6 @@ exec_package(void *ptr, char *data, int counter)
 	}
     }
 
-  printf("%d.%d - %d.%d\n", (unsigned char)data[0], (unsigned char)data[1], addr1, addr2);
   if ((unsigned char)data[0] == addr1 && (unsigned char)data[1] == addr2)
     {
       get_vars_load(rdata, data, counter);
@@ -826,15 +830,57 @@ client_handler(void *ptr)
 	}
       else if (len == 0)
 	{
-	  printf("Connection seems to have died %d :/\n", len);
-	  gdk_threads_enter();
-	  gtk_widget_show(((ProgressData *) rdata->share)->window);
-	  gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "Disconnected");
+	  // Try reconnect in bacground
+	  struct hostent *he;
+	  char login[400];
+	  he = gethostbyname(((ProgressData *) rdata->share)->host);
+	  sprintf(login, "\n%.*s\n%.*s\n", 199, ((ProgressData *) rdata->share)->user, 199, ((ProgressData *) rdata->share)->pass);
 	  ((ProgressData *) rdata->share)->sslc.sslfree();
-	  ((ProgressData *) rdata->share)->connected = 0;
-	  gtk_button_set_label(GTK_BUTTON(((ProgressData *) rdata->share)->connect_button), "Connect to server");
-	  gdk_threads_leave();
-	  return 0;
+	  int do_retry = 0;
+	chdo_reconnect:
+	  if (!((ProgressData *) rdata->share)->sslc.sslsocket(inet_ntoa(*(struct in_addr *)he->h_addr), 306)){
+	    printf("Connection seems to have died %d :/\n", len);
+	    gdk_threads_enter();
+	    gtk_widget_show(((ProgressData *) rdata->share)->window);
+	    gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "Disconnected");
+	    ((ProgressData *) rdata->share)->sslc.sslfree();
+	    ((ProgressData *) rdata->share)->connected = 0;
+	    gtk_button_set_label(GTK_BUTTON(((ProgressData *) rdata->share)->connect_button), "Connect to server");
+	    gdk_threads_leave();
+	    return 0;
+	  }
+	  if (((ProgressData *) rdata->share)->sslc.send_data(login, strlen(login)))
+	    {
+	      char data[RECV_MAX];
+	      int len;
+	      if (len = ((ProgressData *) rdata->share)->sslc.recv_data(data))
+		{
+		  if (strcmp(data, "Login Failed\n") == 0)
+		    {
+		      ((ProgressData *) rdata->share)->sslc.sslfree();
+		      return 0;
+		    }
+		  if (strcmp(data, "root\n") == 0)
+		    {
+		      ((ProgressData *) rdata->share)->is_admin = 1;
+		      printf("Got admin!\n");
+		    }
+		  if (strcmp(data, "user\n") == 0)
+		    {
+		      ((ProgressData *) rdata->share)->is_admin = 0;
+		      printf("I am not admin :/\n");
+		    }
+		}
+	      else
+		{
+		  if (do_retry < 1)
+		    {
+		      do_retry++;
+		      goto chdo_reconnect;
+		    }
+		  ((ProgressData *) rdata->share)->sslc.sslfree();
+		}
+	    }
 	}
     }
 }
@@ -4689,6 +4735,10 @@ connect_to_server(GtkWidget * button, gpointer data)
   usr = (char *)gtk_entry_get_text(GTK_ENTRY(pdata->login_name));
   pwd = (char *)gtk_entry_get_text(GTK_ENTRY(pdata->login_pwd));
   adr = (char *)gtk_entry_get_text(GTK_ENTRY(pdata->server_adress));
+  strncpy(pdata->host, adr, MAX_STR(adr));
+  strncpy(pdata->user, adr, MAX_STR(pwd));
+  strncpy(pdata->pass, adr, MAX_STR(usr));
+
   he = gethostbyname(adr);
   sprintf(login, "\n%.*s\n%.*s\n", 199, usr, 199, pwd);
 
