@@ -190,8 +190,8 @@ sleep(1);
 }
 break;
 }
-print_r($spb->devlist);
-print_r($spb->evelist);
-print_r($spb->gtvlist);
+//print_r($spb->devlist);
+//print_r($spb->evelist);
+//print_r($spb->gtvlist);
 
 ?>
