@@ -352,6 +352,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rdevee_elem_label[MAX_WIDGETS];
   ///
   /// rnotify_show
+  int rnotify_open;
   GtkWidget *rnotify_gui;
   GtkWidget *rnotify_box1;
   GtkWidget *rnotify_list;
@@ -765,6 +766,10 @@ client_handler(void *ptr)
 	    }
 	  if (strncmp(data, "notifya ", 8) == 0)
 	    {
+	      
+	      if(!rdata->rnotify_open)
+		continue;
+	      
 	      int date, id, priorty;
 	      char msg[200], time[50];
 	      if (len < 210 && sscanf(data, "notifya %d %d %d", &date, &id, &priorty) == 3)
@@ -787,7 +792,6 @@ client_handler(void *ptr)
 		  rdata->rnotify_list_tree = GTK_TREE_MODEL(rdata->rnotify_list_list);
 		  gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rnotify_list), rdata->rnotify_list_tree);
 		  gdk_threads_leave();
-
 		}
 	    }
 	  if (strncmp(data, "camec ", 6) == 0)
@@ -849,6 +853,12 @@ client_handler(void *ptr)
 	    gdk_threads_leave();
 	    return 0;
 	  }
+	  if (!((ProgressData *) rdata->share)->sslc.loadssl())
+	    {
+	      gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "SSL Handshake Failed");
+	      ((ProgressData *) rdata->share)->sslc.sslfree();
+	      return 0;
+	    }
 	  if (((ProgressData *) rdata->share)->sslc.send_data(login, strlen(login)))
 	    {
 	      char data[RECV_MAX];
@@ -3929,12 +3939,14 @@ rnotify_show(GtkWidget * some, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
 
+  rdata->rnotify_open = 1;
+
   rdata->rnotify_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_position(GTK_WINDOW(rdata->rnotify_gui), GTK_WIN_POS_CENTER);
   gtk_window_set_resizable(GTK_WINDOW(rdata->rnotify_gui), FALSE);
   gtk_window_set_title(GTK_WINDOW(rdata->rnotify_gui), "Notification list");
-  g_signal_connect(rdata->rnotify_gui, "delete-event", G_CALLBACK(delete_event), NULL);
-  g_signal_connect(rdata->rnotify_gui, "destroy", G_CALLBACK(destroy), NULL);
+  g_signal_connect(rdata->rnotify_gui, "delete-event", G_CALLBACK(delete_event), &rdata->rnotify_open);
+  g_signal_connect(rdata->rnotify_gui, "destroy", G_CALLBACK(destroy), &rdata->rnotify_open);
   GtkCellRenderer *renderer;
   rdata->rnotify_list = gtk_tree_view_new();
   rdata->rnotify_list_list = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_STRING);
@@ -4391,6 +4403,7 @@ rspeed_gui(gpointer * data)
   rdata->box3 = gtk_vbox_new(FALSE, 10);
   rdata->rac_type=0; // MAke sure that rac_type is zeroed.
   rdata->rsac_gui_isopen = 0;
+  rdata->rnotify_open = 0;
   // Start the device backend AFTER the serial has been opened
   rdata->backe = init_backend();
 
