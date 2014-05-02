@@ -104,6 +104,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *box4;
   GtkWidget *box5;
   GtkWidget *box6;
+  GtkWidget *box7;
 
   // Things related to box3
   GtkWidget *label1;
@@ -147,6 +148,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *scan_button;
   GtkWidget *main_addevid_label;
   GtkWidget *main_addevid_button;
+  GtkWidget *main_deldevid_button;
   GtkWidget *main_addevid_entry;
 
   gboolean scan_lock;
@@ -1193,6 +1195,20 @@ speedbus_pbar_scanning(gpointer data)
   gtk_progress_bar_set_text(GTK_PROGRESS_BAR(rdata->pbar), hej);
   gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(rdata->pbar), new_val);
   return 1;
+}
+
+
+static void
+speedbus_deldevid(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+ 
+  unsigned int devid; 
+  if(sscanf(gtk_entry_get_text(GTK_ENTRY(rdata->main_addevid_entry)), "%u", &devid) < 1)
+    return;
+  
+
 }
 
 
@@ -4419,12 +4435,15 @@ rspeed_gui(gpointer * data)
   rdata->scan_button = gtk_button_new_with_label("Scan");
   
   rdata->main_addevid_button = gtk_button_new_with_label("Add devid");
+  rdata->main_deldevid_button = gtk_button_new_with_label("Del devid");
+
   rdata->main_addevid_label = gtk_label_new("Devid: ");
   rdata->main_addevid_entry = gtk_entry_new();
   
 
   g_signal_connect(rdata->scan_button, "clicked", G_CALLBACK(speedbus_unit_scan), rdata);
   g_signal_connect(rdata->main_addevid_button, "clicked", G_CALLBACK(speedbus_addevid), rdata);
+  g_signal_connect(rdata->main_addevid_button, "clicked", G_CALLBACK(speedbus_deldevid), rdata);
 
   rdata->label = gtk_label_new("Linked to bus!");
   rdata->box1 = gtk_vbox_new(FALSE, 1);
@@ -4433,6 +4452,7 @@ rspeed_gui(gpointer * data)
   rdata->box4 = gtk_hbox_new(FALSE, 10);
   rdata->box5 = gtk_hbox_new(FALSE, 10);
   rdata->box6 = gtk_hbox_new(FALSE, 0);
+  rdata->box7 = gtk_hbox_new(FALSE, 0);
 
 
   rdata->separator1 = gtk_hseparator_new();
@@ -4457,7 +4477,10 @@ rspeed_gui(gpointer * data)
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->box6, FALSE, TRUE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box6), rdata->main_addevid_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box6), rdata->main_addevid_entry, FALSE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->main_addevid_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box7), rdata->main_addevid_button, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box7), rdata->main_deldevid_button, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->box7, FALSE, FALSE, 0);
+
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->scan_list, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box4), rdata->debug_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box4), rdata->devbutton, TRUE, TRUE, 0);
@@ -4486,8 +4509,11 @@ rspeed_gui(gpointer * data)
   //
   gtk_widget_show(rdata->main_addevid_label);
   gtk_widget_show(rdata->main_addevid_button);
+  gtk_widget_show(rdata->main_deldevid_button);
   gtk_widget_show(rdata->main_addevid_entry);
   gtk_widget_show(rdata->box6);
+  gtk_widget_show(rdata->box7);
+
   gtk_widget_show(rdata->separator1);
 
   gtk_widget_show(rdata->box5);
