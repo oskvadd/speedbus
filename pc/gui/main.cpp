@@ -732,6 +732,14 @@ client_handler(void *ptr)
 	      sscanf(data, "devlistadd %d.%d %d\n", &addr1, &addr2, &devid);
 	      device_add(rdata, addr1, addr2, devid);
 	    }
+	  if (strncmp(data, "devlistdel ", 11) == 0)
+	    {
+	      if (strlen(data) > RECV_MAX)
+		continue;
+	      int devid;
+	      sscanf(data, "devlistdel %d\n", &devid);
+	      device_rm(rdata, devid);
+	    }
 	  if (strncmp(data, "udevlist ", 9) == 0)
 	    {
 	      if (rdata->open){
@@ -1203,12 +1211,12 @@ speedbus_deldevid(GtkWidget * some, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
 
- 
-  unsigned int devid; 
-  if(sscanf(gtk_entry_get_text(GTK_ENTRY(rdata->main_addevid_entry)), "%u", &devid) < 1)
+  int devid; 
+  char send_data[MAX_BUFFER];
+  if(sscanf(gtk_entry_get_text(GTK_ENTRY(rdata->main_addevid_entry)), "%d", &devid) < 0)
     return;
-  
-
+  sprintf(send_data, "devlistdel %d\n", devid);
+  rdata->sslc.send_data(send_data, strlen(send_data));
 }
 
 
@@ -4443,7 +4451,7 @@ rspeed_gui(gpointer * data)
 
   g_signal_connect(rdata->scan_button, "clicked", G_CALLBACK(speedbus_unit_scan), rdata);
   g_signal_connect(rdata->main_addevid_button, "clicked", G_CALLBACK(speedbus_addevid), rdata);
-  g_signal_connect(rdata->main_addevid_button, "clicked", G_CALLBACK(speedbus_deldevid), rdata);
+  g_signal_connect(rdata->main_deldevid_button, "clicked", G_CALLBACK(speedbus_deldevid), rdata);
 
   rdata->label = gtk_label_new("Linked to bus!");
   rdata->box1 = gtk_vbox_new(FALSE, 1);

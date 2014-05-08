@@ -314,6 +314,27 @@ device_add_end:
   return;
 }
 
+int
+device_rm(print_seri * serial_p, int devid)
+{
+  // Remove from backend
+  device_rm((void *)NULL, devid);
+  //
+
+  int dev_hop = 0;
+  for (int i = 0; i < serial_p->device_num; i++)
+    {
+      if (serial_p->device_id[i] == devid)
+	dev_hop++;
+      if(dev_hop > 0)
+	strncpy(serial_p->device_addr[i], serial_p->device_addr[i+dev_hop], 8);
+    }
+  serial_p->device_num -= dev_hop;
+  
+  device_file_update(serial_p);
+  return dev_hop;
+}
+
 void *
 print_ser_backend(void *ptr)
 {
@@ -1304,6 +1325,33 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  }
 
 	  serial_p->server->send_data(listnum, "good\n", strlen("good\n"));
+	}
+      if (strncmp(data, "devlistdel", 10) == 0)
+	{
+	  // Send command to links upstream
+	  //spb_links_send(serial_p, listnum, linknum, data, len);
+	  //
+	  int devid;
+	  if(sscanf(data, "devlistdel %d\n", &devid) > 0 && devid > 0){
+	    if(device_rm(serial_p, devid) > 0)
+	    serial_p->server->send_data(listnum,
+					"info Device removed!\n", strlen("info Device removed!\n"));
+	    else
+	    serial_p->server->send_data(listnum,
+					"info Device id not found!\n", strlen("info Device id not found!\n"));  
+	    //
+	    char send_data[MAX_BUFFER];
+	    sprintf(send_data, "devlistdel %d\n", devid);
+
+	    for (int i = 0; i < MAX_LISTEN; i++)
+	      {
+		if (serial_p->server->session_open[i])
+		  {
+		    serial_p->server->send_data(i, send_data, strlen(send_data));	    
+		    serial_p->server->send_data(i, "udevlist \n", strlen("udevlist \n"));	    
+		  }
+	      }
+	  }
 	}
       if (strncmp(data, "camadd", 6) == 0 ||
 	  strncmp(data, "camec ", 6) == 0 ||
