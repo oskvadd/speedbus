@@ -326,8 +326,10 @@ device_rm(print_seri * serial_p, int devid)
     {
       if (serial_p->device_id[i] == devid)
 	dev_hop++;
-      if(dev_hop > 0)
+      if(dev_hop > 0){
 	strncpy(serial_p->device_addr[i], serial_p->device_addr[i+dev_hop], 8);
+	serial_p->device_id[i] = serial_p->device_id[i+dev_hop];
+      }
     }
   serial_p->device_num -= dev_hop;
   
@@ -1329,7 +1331,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       if (strncmp(data, "devlistdel", 10) == 0)
 	{
 	  // Send command to links upstream
-	  //spb_links_send(serial_p, listnum, linknum, data, len);
+	  spb_links_send(serial_p, listnum, linknum, data, len);
 	  //
 	  int devid;
 	  if(sscanf(data, "devlistdel %d\n", &devid) > 0 && devid > 0){

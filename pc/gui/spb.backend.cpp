@@ -52,8 +52,10 @@ device_rm(void *data, int devid)
     {
       if (device_id[i] == devid)
 	dev_hop++;
-      if(dev_hop > 0)
+      if(dev_hop > 0){
 	strncpy(device_addr[i], device_addr[i+dev_hop], 8);
+      	device_id[i] = device_id[i+dev_hop];
+      }
     }
   device_num -= dev_hop;
 }
