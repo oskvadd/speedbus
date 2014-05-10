@@ -277,7 +277,7 @@ device_file_init(print_seri * serial_p)
 	  if (sscanf(line, "%d %s\n", &devid, addr) == 2)
 	    {
 	      sscanf(addr, "%d.%d", &addr1, &addr2);
-	      device_add((void *)NULL, addr1, addr2, devid);
+	      device_add(serial_p->backe, addr1, addr2, devid);
 	      serial_p->device_id[serial_p->device_num] = devid;
 	      strcpy(serial_p->device_addr[serial_p->device_num], addr);
 	      serial_p->device_num++;
@@ -291,7 +291,7 @@ void
 device_add(print_seri * serial_p, char addr1, char addr2, int devid)
 {
   // Device add for the backend
-  device_add((void *)NULL, addr1, addr2, devid);
+  device_add(serial_p->backe, addr1, addr2, devid);
   //
   char name[7];
   sprintf(name, "%d.%d", (unsigned char)addr1, (unsigned char)addr2);
@@ -2309,6 +2309,7 @@ main(int argc, char *argv[])
     {
       users[i][1][0] = '\0';
     }
+
 
 
   int port;
