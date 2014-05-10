@@ -52,6 +52,19 @@ device_add_end:
   return;
 }
 
+void
+device_rm(void *data, int devid)
+{
+  int dev_hop = 0;
+  for (int i = 0; i < device_num; i++)
+    {
+      if (device_id[i] == devid)
+	dev_hop++;
+      if(dev_hop > 0)
+	strncpy(device_addr[i], device_addr[i+dev_hop], 8);
+    }
+  device_num -= dev_hop;
+}
 
 main_backend *
 init_backend()

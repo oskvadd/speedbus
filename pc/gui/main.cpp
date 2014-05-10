@@ -78,6 +78,11 @@ typedef struct _ProgressData
   bool save_con;
   gboolean is_admin;
 
+  char host[MAX_TEXT_BUFFER];
+  char user[MAX_TEXT_BUFFER];
+  char pass[MAX_TEXT_BUFFER];
+
+
 } ProgressData;
 
 typedef struct _rspeed_gui_rep
@@ -99,6 +104,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *box4;
   GtkWidget *box5;
   GtkWidget *box6;
+  GtkWidget *box7;
 
   // Things related to box3
   GtkWidget *label1;
@@ -142,6 +148,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *scan_button;
   GtkWidget *main_addevid_label;
   GtkWidget *main_addevid_button;
+  GtkWidget *main_deldevid_button;
   GtkWidget *main_addevid_entry;
 
   gboolean scan_lock;
@@ -347,6 +354,7 @@ typedef struct _rspeed_gui_rep
   GtkWidget *rdevee_elem_label[MAX_WIDGETS];
   ///
   /// rnotify_show
+  int rnotify_open;
   GtkWidget *rnotify_gui;
   GtkWidget *rnotify_box1;
   GtkWidget *rnotify_list;
@@ -531,7 +539,6 @@ exec_package(void *ptr, char *data, int counter)
 	}
     }
 
-  printf("%d.%d - %d.%d\n", (unsigned char)data[0], (unsigned char)data[1], addr1, addr2);
   if ((unsigned char)data[0] == addr1 && (unsigned char)data[1] == addr2)
     {
       get_vars_load(rdata, data, counter);
@@ -725,6 +732,14 @@ client_handler(void *ptr)
 	      sscanf(data, "devlistadd %d.%d %d\n", &addr1, &addr2, &devid);
 	      device_add(rdata, addr1, addr2, devid);
 	    }
+	  if (strncmp(data, "devlistdel ", 11) == 0)
+	    {
+	      if (strlen(data) > RECV_MAX)
+		continue;
+	      int devid;
+	      sscanf(data, "devlistdel %d\n", &devid);
+	      device_rm(rdata, devid);
+	    }
 	  if (strncmp(data, "udevlist ", 9) == 0)
 	    {
 	      if (rdata->open){
@@ -761,6 +776,10 @@ client_handler(void *ptr)
 	    }
 	  if (strncmp(data, "notifya ", 8) == 0)
 	    {
+	      
+	      if(!rdata->rnotify_open)
+		continue;
+	      
 	      int date, id, priorty;
 	      char msg[200], time[50];
 	      if (len < 210 && sscanf(data, "notifya %d %d %d", &date, &id, &priorty) == 3)
@@ -783,7 +802,6 @@ client_handler(void *ptr)
 		  rdata->rnotify_list_tree = GTK_TREE_MODEL(rdata->rnotify_list_list);
 		  gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rnotify_list), rdata->rnotify_list_tree);
 		  gdk_threads_leave();
-
 		}
 	    }
 	  if (strncmp(data, "camec ", 6) == 0)
@@ -826,15 +844,63 @@ client_handler(void *ptr)
 	}
       else if (len == 0)
 	{
-	  printf("Connection seems to have died %d :/\n", len);
-	  gdk_threads_enter();
-	  gtk_widget_show(((ProgressData *) rdata->share)->window);
-	  gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "Disconnected");
+	  // Try reconnect in bacground
+	  struct hostent *he;
+	  char login[400];
+	  he = gethostbyname(((ProgressData *) rdata->share)->host);
+	  sprintf(login, "\n%.*s\n%.*s\n", 199, ((ProgressData *) rdata->share)->user, 199, ((ProgressData *) rdata->share)->pass);
 	  ((ProgressData *) rdata->share)->sslc.sslfree();
-	  ((ProgressData *) rdata->share)->connected = 0;
-	  gtk_button_set_label(GTK_BUTTON(((ProgressData *) rdata->share)->connect_button), "Connect to server");
-	  gdk_threads_leave();
-	  return 0;
+	  int do_retry = 0;
+	chdo_reconnect:
+	  if (!((ProgressData *) rdata->share)->sslc.sslsocket(inet_ntoa(*(struct in_addr *)he->h_addr), 306)){
+	    printf("Connection seems to have died %d :/\n", len);
+	    gdk_threads_enter();
+	    gtk_widget_show(((ProgressData *) rdata->share)->window);
+	    gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "Disconnected");
+	    ((ProgressData *) rdata->share)->sslc.sslfree();
+	    ((ProgressData *) rdata->share)->connected = 0;
+	    gtk_button_set_label(GTK_BUTTON(((ProgressData *) rdata->share)->connect_button), "Connect to server");
+	    gdk_threads_leave();
+	    return 0;
+	  }
+	  if (!((ProgressData *) rdata->share)->sslc.loadssl())
+	    {
+	      gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "SSL Handshake Failed");
+	      ((ProgressData *) rdata->share)->sslc.sslfree();
+	      return 0;
+	    }
+	  if (((ProgressData *) rdata->share)->sslc.send_data(login, strlen(login)))
+	    {
+	      char data[RECV_MAX];
+	      int len;
+	      if (len = ((ProgressData *) rdata->share)->sslc.recv_data(data))
+		{
+		  if (strcmp(data, "Login Failed\n") == 0)
+		    {
+		      ((ProgressData *) rdata->share)->sslc.sslfree();
+		      return 0;
+		    }
+		  if (strcmp(data, "root\n") == 0)
+		    {
+		      ((ProgressData *) rdata->share)->is_admin = 1;
+		      printf("Got admin!\n");
+		    }
+		  if (strcmp(data, "user\n") == 0)
+		    {
+		      ((ProgressData *) rdata->share)->is_admin = 0;
+		      printf("I am not admin :/\n");
+		    }
+		}
+	      else
+		{
+		  if (do_retry < 1)
+		    {
+		      do_retry++;
+		      goto chdo_reconnect;
+		    }
+		  ((ProgressData *) rdata->share)->sslc.sslfree();
+		}
+	    }
 	}
     }
 }
@@ -1137,6 +1203,20 @@ speedbus_pbar_scanning(gpointer data)
   gtk_progress_bar_set_text(GTK_PROGRESS_BAR(rdata->pbar), hej);
   gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(rdata->pbar), new_val);
   return 1;
+}
+
+
+static void
+speedbus_deldevid(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  int devid; 
+  char send_data[MAX_BUFFER];
+  if(sscanf(gtk_entry_get_text(GTK_ENTRY(rdata->main_addevid_entry)), "%d", &devid) < 0)
+    return;
+  sprintf(send_data, "devlistdel %d\n", devid);
+  rdata->sslc.send_data(send_data, strlen(send_data));
 }
 
 
@@ -3883,12 +3963,14 @@ rnotify_show(GtkWidget * some, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
 
+  rdata->rnotify_open = 1;
+
   rdata->rnotify_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_position(GTK_WINDOW(rdata->rnotify_gui), GTK_WIN_POS_CENTER);
   gtk_window_set_resizable(GTK_WINDOW(rdata->rnotify_gui), FALSE);
   gtk_window_set_title(GTK_WINDOW(rdata->rnotify_gui), "Notification list");
-  g_signal_connect(rdata->rnotify_gui, "delete-event", G_CALLBACK(delete_event), NULL);
-  g_signal_connect(rdata->rnotify_gui, "destroy", G_CALLBACK(destroy), NULL);
+  g_signal_connect(rdata->rnotify_gui, "delete-event", G_CALLBACK(delete_event), &rdata->rnotify_open);
+  g_signal_connect(rdata->rnotify_gui, "destroy", G_CALLBACK(destroy), &rdata->rnotify_open);
   GtkCellRenderer *renderer;
   rdata->rnotify_list = gtk_tree_view_new();
   rdata->rnotify_list_list = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_STRING);
@@ -4345,6 +4427,7 @@ rspeed_gui(gpointer * data)
   rdata->box3 = gtk_vbox_new(FALSE, 10);
   rdata->rac_type=0; // MAke sure that rac_type is zeroed.
   rdata->rsac_gui_isopen = 0;
+  rdata->rnotify_open = 0;
   // Start the device backend AFTER the serial has been opened
   rdata->backe = init_backend();
 
@@ -4360,12 +4443,15 @@ rspeed_gui(gpointer * data)
   rdata->scan_button = gtk_button_new_with_label("Scan");
   
   rdata->main_addevid_button = gtk_button_new_with_label("Add devid");
+  rdata->main_deldevid_button = gtk_button_new_with_label("Del devid");
+
   rdata->main_addevid_label = gtk_label_new("Devid: ");
   rdata->main_addevid_entry = gtk_entry_new();
   
 
   g_signal_connect(rdata->scan_button, "clicked", G_CALLBACK(speedbus_unit_scan), rdata);
   g_signal_connect(rdata->main_addevid_button, "clicked", G_CALLBACK(speedbus_addevid), rdata);
+  g_signal_connect(rdata->main_deldevid_button, "clicked", G_CALLBACK(speedbus_deldevid), rdata);
 
   rdata->label = gtk_label_new("Linked to bus!");
   rdata->box1 = gtk_vbox_new(FALSE, 1);
@@ -4374,6 +4460,7 @@ rspeed_gui(gpointer * data)
   rdata->box4 = gtk_hbox_new(FALSE, 10);
   rdata->box5 = gtk_hbox_new(FALSE, 10);
   rdata->box6 = gtk_hbox_new(FALSE, 0);
+  rdata->box7 = gtk_hbox_new(FALSE, 0);
 
 
   rdata->separator1 = gtk_hseparator_new();
@@ -4398,7 +4485,10 @@ rspeed_gui(gpointer * data)
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->box6, FALSE, TRUE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box6), rdata->main_addevid_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box6), rdata->main_addevid_entry, FALSE, TRUE, 0);
-  gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->main_addevid_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box7), rdata->main_addevid_button, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box7), rdata->main_deldevid_button, TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->box7, FALSE, FALSE, 0);
+
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->scan_list, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box4), rdata->debug_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box4), rdata->devbutton, TRUE, TRUE, 0);
@@ -4427,8 +4517,11 @@ rspeed_gui(gpointer * data)
   //
   gtk_widget_show(rdata->main_addevid_label);
   gtk_widget_show(rdata->main_addevid_button);
+  gtk_widget_show(rdata->main_deldevid_button);
   gtk_widget_show(rdata->main_addevid_entry);
   gtk_widget_show(rdata->box6);
+  gtk_widget_show(rdata->box7);
+
   gtk_widget_show(rdata->separator1);
 
   gtk_widget_show(rdata->box5);
@@ -4689,6 +4782,10 @@ connect_to_server(GtkWidget * button, gpointer data)
   usr = (char *)gtk_entry_get_text(GTK_ENTRY(pdata->login_name));
   pwd = (char *)gtk_entry_get_text(GTK_ENTRY(pdata->login_pwd));
   adr = (char *)gtk_entry_get_text(GTK_ENTRY(pdata->server_adress));
+  strncpy(pdata->host, adr, MAX_STR(adr));
+  strncpy(pdata->user, adr, MAX_STR(pwd));
+  strncpy(pdata->pass, adr, MAX_STR(usr));
+
   he = gethostbyname(adr);
   sprintf(login, "\n%.*s\n%.*s\n", 199, usr, 199, pwd);
 
