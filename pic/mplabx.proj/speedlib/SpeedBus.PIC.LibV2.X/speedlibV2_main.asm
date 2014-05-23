@@ -48,24 +48,17 @@
 #define SPEEDLIB_RESPONSE_DELAY 9
 
 radix dec
-; IMPORTANT, do NOT change any of the varables down here, to a new bank, because
-; the banksel instructions are configured, as all the varables bellow are in the
-; same bank. As they should be.
-#define     USER_VARIABLE_SPACE         0x67    ; 0x65 but added two, just in case
-	cblock  0x20
+
+#define     USER_VARIABLE_SPACE     0x20
+#define     USER_NO_BANK_SPACE      0x67
+
+; Remember that d1, d2, d3, d4 is stored i the same bank as cblock, 0xA0 = bank nr1.
+	cblock  0xA0
 	     d1      		; Define three file registers for the
       	 d2      		; delay loop
 	     d3
 	     d4
-	     tmp_W
-	     tmp_STATUS
-	     tmp_PCLATH
-	     d1_tmp
-	     d2_tmp
-	     d3_tmp
 	     rand
-	     loop1          ; Loop mem 1
-	     loop2          ; Loop mem 2
 	     rc_listen              ; |X-------|b7 = NoNE
                                 ; |-X------|b6 = NoNE
                                 ; |--X-----|b5 = This bit is used as the old "rc_gotflag", sets to 1, if it "got a flag".
@@ -90,14 +83,6 @@ radix dec
                                 ; |-----X--|b2 = NoNe
                                 ; |------X-|b1 = Set this bit 1 if adress is stamped.
                                 ; |-------X|b0 = On, Off this bit, if you want to make the device check the adress on startup.
-	     speedlib_main          ; |X-------|b7 = NoNE
-                                ; |-X------|b6 = NoNE
-                                ; |--X-----|b5 = NoNE
-                                ; |---X----|b4 = NoNE
-                                ; |----X---|b3 = NoNe
-                                ; |-----X--|b2 = If this bit got set, the cewd will send a response package when returning to restore
-                                ; |------X-|b1 = This bit should be set, if the device has sent an package, that should be responde to
-                                ; |-------X|b0 = This bit, is SET when an interupt has occured. If you set this to zero before youre rutine, and check the bit after, you will se if an interupt has ocurred, during the routine. And, fore example with AD decorders, you can rerun the routine, and calculate a new value.
 	     crc0
 	     crc1
 	     crcloop
@@ -110,6 +95,25 @@ radix dec
 	     rcframe, rc1, rc2, rc3, rc4, rc5, rc6, rc7, rc8, rc9, rc10 ; Current package limit, 20B
 	     rc11, rc12, rc13, rc14, rc15, rc16, rc17, rc18, rc19, rc20
 	endc
+
+    ; Bank independent memmory.
+	cblock  0x70
+	     tmp_W
+	     tmp_STATUS
+	     d1_tmp
+	     d2_tmp
+	     d3_tmp
+	     speedlib_main          ; |X-------|b7 = NoNE    ;;-> speedlib_main is stored because of b0 and b1
+                                ; |-X------|b6 = NoNE
+                                ; |--X-----|b5 = NoNE
+                                ; |---X----|b4 = NoNE
+                                ; |----X---|b3 = NoNe
+                                ; |-----X--|b2 = If this bit got set, the cewd will send a response package when returning to restore
+                                ; |------X-|b1 = This bit should be set, if the device has sent an package, that should be responde to
+                                ; |-------X|b0 = This bit, is SET when an interupt has occured. If you set this to zero before youre rutine, and check the bit after, you will se if an interupt has ocurred, during the routine. And, fore example with AD decorders, you can rerun the routine, and calculate a new value.
+
+    endc
+
         ;; EEPROM
         ;; 0x00 ; addr1
         ;; 0x01 ; addr2
@@ -119,6 +123,7 @@ radix dec
 
 init_speedlib:
 #ifndef FSR
+    banksel FSR1H
     clrf    FSR1H
 #endif
 
@@ -188,20 +193,16 @@ init_speedlib:
 
 
 intserv:
-
-    banksel speedlib_main
     bsf     speedlib_main,0     ;; Set this bit to one, when an interupt ocurres
-
 
     btfss	speedlib_main,1     ;; Waiting for response STATE? Jump direct to recend_no_broadcast
     goto    intserv_norm
     banksel PIR1
     btfsc 	PIR1,RCIF           ;; Check if the recived data bit is set
 	goto	rec                 ;; Jump to recive data rutine if the PIR1 bit is 1
-    goto    restore
+    goto    restore             ;; In waiting for response state, all other interupt than rec, will be droped.
 
 intserv_norm:
-    banksel tmp_W
 	movwf	tmp_W               ;; Register BKP before the interup code exec
 	movf	STATUS,W
 	clrf	STATUS
