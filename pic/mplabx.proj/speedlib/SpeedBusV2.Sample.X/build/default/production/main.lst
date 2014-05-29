@@ -1,0 +1,2832 @@
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Warning[205]: Found directive in column 1. (List)
+                      00001 List      P=16f690              ; list directive to define processor
+Warning[205]: Found directive in column 1. (radix)
+                      00002 radix     dec           ; Default use ordinary decimal in syntax
+                      00003 
+                      00004 #include "p16f690.inc"
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ;  MPASM PIC16F690 processor include
+                      00005 ; 
+                      00006 ;  (c) Copyright 1999-2013 Microchip Technology, All rights reserved
+                      00007 ;==========================================================================
+                      00008 
+                      00756         LIST
+                      00005 
+                      00006 ; CONFIG
+2007   30D4           00007  __CONFIG _INTOSCIO & _WDTE_OFF & _PWRTE_OFF & _MCLRE_OFF & _CP_OFF & _CPD_OFF & _BOREN_OFF & _IESO_OFF 
+                            & _FCMEN_OFF
+                      00008 ;;
+                      00009 ;;;    _FCMEN_OFF           ; -- fail safe clock monitor enable off
+                      00010 ;;;    _IESO_OFF            ; -- int/ext switch over enable off
+                      00011 ;;;    _BOR_ON              ; default, brown out reset on
+                      00012 ;;;    _CPD_OFF             ; default, data eeprom protection off
+                      00013 ;;;    _CP_OFF              ; default, program code protection off
+                      00014 ;;;    _MCLR_OFF            ; -- use MCLR pin as digital input
+                      00015 ;;;    _PWRTE_OFF           ; default, power up timer off
+                      00016 ;;;    _WDT_OFF             ; -- watch dog timer off
+                      00017 ;;;    _INTOSCIO            ; -- internal osc, RA6 and RA7 I/O
+                      00018 ;;
+                      00019 
+                      00020 ; IMPORTATNT! All the speedlib pre definitions, MUST be definde before the include
+                      00021 #define ARC_16F             1
+                      00022 ;#define REC_CUSTOM_JUMP     custom_command_handler
+                      00023 ;#define CUSTOM_INTERRUPT   c_intserv
+                      00024 #define DEV_ID3             64
+                      00025 #define DEV_ID4             51
+                      00026 #define WRITE_EEPROM        write_eeprom
+                      00027 #define READ_EEPROM         read_eeprom
+                      00028 #include "../SpeedBus.PIC.LibV2.X/speedlibV2_main.asm"
+                      00001 ; Well, so this is v2 of the speedbus PIC library. Because i did not want to brake a whole lot of code,
+                      00002 ; when writing on some new changes, i wrote a new version of the speedbus library.
+                      00003 ;
+                      00004 ; The new library will have som new futures, like storing STATUS registers and etc in the
+                      00005 ; bank independent memmory. Instead of the old buggy memmory handling.
+                      00006 ; And the biggest change will be the move from the old main bank (0), to a bank chosen
+                      00007 ; bye you. And will probebly make you able to have mouch more memmory to use.
+                      00008 ;
+                      00009 ; Suport for the old library will be limited. i will make an pilot commit on this one,
+                      00010 ; so i can look over the canges later.
+                      00011 ;
+                      00012 ; 140519 18:58
+                      00013 
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00014 
+                      00015 #ifndef OUTREG
+                      00016 #define OUTREG PORTB
+                      00017 #endif
+                      00018 #ifndef OUTNUM
+                      00019 #define OUTNUM 4
+                      00020 #endif
+                      00021 
+                      00022 
+                      00023 #ifndef DEV_ID1
+                      00024 #define DEV_ID1 0
+                      00025 #endif
+                      00026 #ifndef DEV_ID2
+                      00027 #define DEV_ID2 0
+                      00028 #endif
+                      00029 #ifndef DEV_ID3
+                      00030 #define DEV_ID3 0
+                      00031 #endif
+                      00032 #ifndef DEV_ID4
+                      00033 #define DEV_ID4 0
+                      00034 #endif
+                      00035 
+                      00036 #ifndef FSR
+                      00037 #define FSR FSR1L
+                      00038 #endif
+                      00039 
+                      00040 #ifndef INDF
+                      00041 #define INDF INDF1
+                      00042 #endif
+                      00043 
+                      00044 #ifndef EEDAT
+                      00045 #define EEDAT EEDATA
+                      00046 #endif
+                      00047 
+                      00048 #define SPEEDLIB_RESPONSE_DELAY 9
+                      00049 
+Warning[205]: Found directive in column 1. (radix)
+                      00050 radix dec
+                      00051 
+                      00052 #define     USER_VARIABLE_SPACE     0x20
+                      00053 #define     USER_NO_BANK_SPACE      0x67
+                      00054 
+                      00055 ; Remember that d1, d2, d3, d4 is stored i the same bank as cblock, 0xA0 = bank nr1.
+                      00056         cblock  0xA0
+  000000A0            00057              d1                 ; Define three file registers for the
+  000000A1            00058          d2                     ; delay loop. Make sure all these(d1,d2,d3) is in the same bank
+  000000A2            00059              d3
+  000000A3            00060              d4
+  000000A4            00061              rand
+  000000A5            00062              rc_listen              ; |X-------|b7 = NoNE
+                      00063                                 ; |-X------|b6 = NoNE
+                      00064                                 ; |--X-----|b5 = This bit is used as the old "rc_gotflag", sets to 1, if
+                             it "got a flag".
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00065                                 ; |---X----|b4 = This bit specifies, that when reciving an 0x01, destion
+                            ated for ME, do not send a "is ocupied package". This is good if you want to "search for units"
+                      00066                                 ; |----X---|b3 = This bit got set if the device recive a usual response 
+                            package (0x00)
+                      00067                                 ; |-----X--|b2 = This is an internal function for the recsave rutine, so
+                             the cewd know that following byte is escaped.
+                      00068                                 ; |------X-|b1 = If you set this bit to 1 the cewd will handle the byte 
+                            as loopback, and if it dosent match the byte in rc_nocoll
+                      00069                                 ; |-------X|b0 = If you set this bit to one, when the device recives a "
+                            is ocupied" pack, itn will uncheck this bit.
+                      00070                                 ;                If this bit is zero, the device will send a "i am ocupi
+                            ed" pack.
+  000000A6            00071              rc_counter         ; RC framelen
+  000000A7            00072              rc_nocoll          ; Use this to confim that no collission has ocurred
+  000000A8            00073              rc_add_byte        ; recsave_add temporary argument
+  000000A9            00074          rsp_adress1    ; The response adress at the bus
+  000000AA            00075              rsp_adress2        ; The response adress at the bus
+  000000AB            00076              adress1            ; The adress at the bus
+  000000AC            00077              adress2            ; The adress at the bus
+  000000AD            00078              speedlib_config        ; |X-------|b7 = NoNE
+                      00079                                 ; |-X------|b6 = NoNE
+                      00080                                 ; |--X-----|b5 = NoNE
+                      00081                                 ; |---X----|b4 = NoNE
+                      00082                                 ; |----X---|b3 = NoNe
+                      00083                                 ; |-----X--|b2 = NoNe
+                      00084                                 ; |------X-|b1 = Set this bit 1 if adress is stamped.
+                      00085                                 ; |-------X|b0 = On, Off this bit, if you want to make the device check 
+                            the adress on startup.
+  000000AE            00086              crc0
+  000000AF            00087              crc1
+  000000B0            00088              crcloop
+  000000B1            00089              crctmp
+  000000B2            00090              framelen           ; TX framelen
+  000000B3            00091              txtmp              ; temporary before sending
+  000000B4            00092              txreturn           ; Hardcoded return, if nessesary(in interupts)
+                      00093          ;; IMPORTANT - Make sure that txframe and its 20bytes is in the same register,
+                      00094          ;; and that rcframe and its 20bytes is in the same registers.
+  000000B5            00095              txframe, tx1, tx2, tx3, tx4, tx5, tx6, tx7, tx8, tx9, tx10 ; Current package limit, 20B
+  000000C0            00096              tx11, tx12, tx13, tx14, tx15, tx16, tx17, tx18, tx19, tx20
+  000000CA            00097              rcframe, rc1, rc2, rc3, rc4, rc5, rc6, rc7, rc8, rc9, rc10 ; Current package limit, 20B
+  000000D5            00098              rc11, rc12, rc13, rc14, rc15, rc16, rc17, rc18, rc19, rc20
+                      00099         endc
+                      00100 
+                      00101     ; Bank independent memmory.
+                      00102         cblock  0x70
+  00000070            00103              tmp_W
+  00000071            00104              tmp_STATUS
+  00000072            00105              d1_tmp
+  00000073            00106              d2_tmp
+  00000074            00107              d3_tmp
+  00000075            00108              speedlib_main          ; |X-------|b7 = NoNE    ;;-> speedlib_main is stored because of b0 
+                            and b1
+                      00109                                 ; |-X------|b6 = NoNE
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00110                                 ; |--X-----|b5 = NoNE
+                      00111                                 ; |---X----|b4 = NoNE
+                      00112                                 ; |----X---|b3 = NoNe
+                      00113                                 ; |-----X--|b2 = If this bit got set, the cewd will send a response pack
+                            age when returning to restore
+                      00114                                 ; |------X-|b1 = This bit should be set, if the device has sent an packa
+                            ge, that should be responde to
+                      00115                                 ; |-------X|b0 = This bit, is SET when an interupt has occured. If you s
+                            et this to zero before youre rutine, and check the bit after, you will se if an interupt has ocu
+                      00116 
+                      00117     endc
+                      00118 
+                      00119         ;; EEPROM
+                      00120         ;; 0x00 ; addr1
+                      00121         ;; 0x01 ; addr2
+                      00122         ;; 0x02 ; Speedbus configuration register
+                      00123 
+                      00124 .code_page0_ CODE
+                      00125 
+0000                  00126 init_speedlib:
+                      00127 #ifndef FSR
+                      00128     banksel FSR1H
+                      00129     clrf    FSR1H
+                      00130 #endif
+                      00131 
+                      00132 
+                      00133     ;; Preset some values
+0000   1283 1303      00134     banksel speedlib_main
+0002   1175           00135     bcf     speedlib_main,2
+0003   10F5           00136     bcf     speedlib_main,1
+0004   1283 1303      00137     banksel OUTREG
+0006   1206           00138     bcf     OUTREG,OUTNUM
+0007   1683 1303      00139     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0009   10A5           00140     bcf     rc_listen,1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000A   1225           00141     bcf     rc_listen,4
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000B   12A5           00142     bcf     rc_listen,5         ;; Clear got flag
+000C   1683 1303      00143     banksel txreturn
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000E   10B4           00144     bcf     txreturn, 1
+                      00145 
+                      00146 #ifdef  READ_EEPROM
+                      00147     ;; Take adress from eeprom, if it is set.
+000F   3000           00148     movlw   0
+0010   2???           00149     call    READ_EEPROM
+0011   1683 1303      00150     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0013   00AB           00151     movwf   adress1
+0014   3001           00152     movlw   1
+0015   2???           00153     call    READ_EEPROM
+0016   1683 1303      00154     banksel adress2
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0018   00AC           00155     movwf   adress2
+0019   3002           00156     movlw   2
+001A   2???           00157     call    READ_EEPROM
+001B   1683 1303      00158     banksel speedlib_config
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+001D   00AD           00159     movwf   speedlib_config
+                      00160 #endif
+                      00161 
+                      00162     ;; If adress is 255.255, change to 0.0
+001E   30FF           00163     movlw       0xFF
+001F   1683 1303      00164     banksel     adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0021   022B           00165     subwf       adress1,W
+0022   1D03           00166     btfss       STATUS,Z
+0023   0008           00167     return
+0024   30FF           00168     movlw       0xFF
+0025   1683 1303      00169     banksel     adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0027   022C           00170     subwf       adress2,W
+0028   1D03           00171     btfss       STATUS,Z
+0029   0008           00172     return
+                      00173 
+002A   1683 1303      00174     banksel     adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+002C   01AB           00175     clrf        adress1
+002D   1683 1303      00176     banksel     adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+002F   01AC           00177     clrf        adress2
+                      00178 
+                      00179 #ifdef  WRITE_EEPROM
+0030   3000           00180     movlw   0
+0031   1683 1303      00181     banksel rc_nocoll
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0033   00A7           00182     movwf   rc_nocoll
+0034   1683 1303      00183     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0036   082B           00184     movf    adress1,W
+0037   2???           00185     call    WRITE_EEPROM
+0038   1683 1303      00186     banksel rc_nocoll
+003A   3001           00187     movlw   1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+003B   00A7           00188     movwf   rc_nocoll
+003C   1683 1303      00189     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+003E   082C           00190     movf    adress2,W
+003F   2???           00191     call    WRITE_EEPROM
+                      00192 #endif
+                      00193 
+                      00194     ;; Because the dreprecated version of the fucked up "checkaddr" function,
+                      00195     ;; i removed the code. In wait for the new system.
+                      00196     ;;
+                      00197     ;; Handle response, needs testing.
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00198 
+0040   0008           00199     return
+                      00200 
+                      00201 
+0041                  00202 intserv:
+0041   1475           00203     bsf     speedlib_main,0     ;; Set this bit to one, when an interupt ocurres
+                      00204 
+0042   1CF5           00205     btfss       speedlib_main,1     ;; Waiting for response STATE? Jump direct to recend_no_broadcast
+0043   2???           00206     goto    intserv_norm
+0044   1283 1303      00207     banksel PIR1
+0046   1A8C           00208     btfsc       PIR1,RCIF           ;; Check if the recived data bit is set
+0047   2???           00209         goto    rec                 ;; Jump to recive data rutine if the PIR1 bit is 1
+0048   2???           00210     goto    restore             ;; In waiting for response state, all other interupt than rec, will be d
+                            roped.
+                      00211 
+0049                  00212 intserv_norm:
+0049   00F0           00213         movwf   tmp_W               ;; Register BKP before the interup code exec
+004A   0803           00214         movf    STATUS,W
+004B   0183           00215         clrf    STATUS
+004C   00F1           00216         movwf   tmp_STATUS
+004D   1683 1303      00217     banksel d1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+004F   0820           00218         movf    d1,W
+0050   00F2           00219         movwf   d1_tmp
+0051   1683 1303      00220     banksel d2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0053   0821           00221         movf    d2,W
+0054   00F3           00222         movwf   d2_tmp
+0055   1683 1303      00223     banksel d3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0057   0822           00224         movf    d3,W
+0058   00F4           00225         movwf   d3_tmp
+                      00226 #ifdef  CUSTOM_INTERRUPT
+                      00227     goto    CUSTOM_INTERRUPT
+                      00228 ci_restore:
+                      00229 #endif
+                      00230 
+0059   1283 1303      00231     banksel PIR1
+005B   1A8C           00232         btfsc   PIR1,RCIF           ;; Check if the recived data bit is set
+005C   2???           00233         goto    rec                 ;; Jump to recive data rutine if the PIR1 bit is 1
+                      00234 
+                      00235 
+005D                  00236 restore:
+005D   18F5           00237     btfsc       speedlib_main,1     ;; Waiting for response STATE? Dont
+005E   0009           00238     retfie                      ;; restore saved, nothing is saved
+                      00239 
+                      00240                                 ;;; If:  Send back a response package, to confirm that the package has b
+                            een recived
+                      00241 ;;  btfss   speedlib_main,2
+                      00242 ;;  goto    restore_norm
+                      00243 ;;  bcf     speedlib_main,2
+                      00244 ;;  call    func_send_response
+                      00245                                 ;;;
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00246 
+005F                  00247 restore_norm:
+005F   0872           00248         movf    d1_tmp,W
+0060   1683 1303      00249     banksel d1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0062   00A0           00250         movwf   d1
+0063   0873           00251         movf    d2_tmp,W
+0064   1683 1303      00252     banksel d2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0066   00A1           00253         movwf   d2
+0067   0874           00254         movf    d3_tmp,W
+0068   1683 1303      00255     banksel d3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+006A   00A2           00256         movwf   d3      
+006B   0871           00257         movf    tmp_STATUS,W
+006C   0083           00258         movwf   STATUS
+006D   0870           00259     movf    tmp_W, W
+006E   0009           00260         retfie  
+                      00261 
+006F                  00262 rec:
+006F   1683 1303      00263     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0071   1CA5           00264         btfss   rc_listen,1         ;; If rc_listen is set to NOT drop the loopback package, jump direct
+                            ly to the rec_start
+0072   2???           00265         goto    rec_start               
+                      00266 
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0073   10A5           00267         bcf     rc_listen,1         ;; Start this rutine with checking that the recived bit NOT was send
+                             from this own device
+0074   1683 1303      00268         banksel rc_nocoll
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0076   0827           00269     movf        rc_nocoll,W
+0077   1283 1303      00270     banksel RCREG
+0079   021A           00271         subwf   RCREG,W
+007A   1D03           00272         btfss   STATUS,Z
+007B   2???           00273         goto    rec_oops_coll           ;; Anyway, if the rc_listen,1  is 1, and it do not match RCREG, 
+                            we may be detected an collission
+007C   2???           00274         goto    restore
+                      00275 
+007D                  00276 rec_oops_coll:
+007D   1683 1303      00277     banksel txreturn
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+007F   14B4           00278         bsf     txreturn,1
+0080   2???           00279         goto    restore
+                      00280         
+0081                  00281 rec_start:
+0081   1283 1303      00282     banksel RCREG
+0083   307E           00283         movlw   0x7e
+0084   021A           00284         subwf   RCREG,W
+0085   1903           00285         btfsc   STATUS,Z
+0086   2???           00286         goto    recx                ;; Jump if this is a flag bit
+0087   1683 1303      00287     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0089   1AA5           00288         btfsc   rc_listen,5
+008A   2???           00289         goto    recsave             ;; Jump if the flag bit is set
+008B   2???           00290         goto    restore
+                      00291 
+008C                  00292 recx:
+008C   1683 1303      00293     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+008E   1AA5           00294         btfsc   rc_listen,5
+008F   2???           00295         goto    recend              ;; If this may be end flag, check the package, finalize, check crc
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0090   16A5           00296         bsf     rc_listen,5         ;; Else set the gotflag, and start recording package!
+0091   1683 1303      00297         banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0093   01A6           00298     clrf        rc_counter          ;; Clear the counter :)
+0094   2???           00299         goto    restore
+                      00300 
+0095                  00301 recsave:
+0095   1283 1303      00302     banksel RCREG
+0097   307D           00303         movlw   0x7d
+0098   021A           00304         subwf   RCREG,W
+0099   1903           00305         btfsc   STATUS,Z
+009A   2???           00306         goto    recsave_set         ;; Set bit in the rc_listen to aktivate escape routines when the nex
+                            t byte is recived
+009B   1683 1303      00307         banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+009D   1925           00308     btfsc   rc_listen,2
+009E   2???           00309         goto    recsave_unescape
+                      00310 
+009F   1283 1303      00311     banksel RCREG
+00A1   081A           00312         movf    RCREG,W
+00A2   2???           00313         goto    recsave_add
+                      00314 
+00A3                  00315 recsave_set:
+00A3   1683 1303      00316     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00A5   1525           00317         bsf     rc_listen,2
+00A6   2???           00318         goto    restore
+                      00319 
+00A7                  00320 recsave_unescape:
+00A7   1683 1303      00321     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00A9   1125           00322         bcf     rc_listen,2
+00AA   305E           00323         movlw   0x5e
+00AB   1283 1303      00324     banksel RCREG
+00AD   021A           00325         subwf   RCREG,W
+00AE   1903           00326         btfsc   STATUS,Z
+00AF   2???           00327         goto    recsave_unescape_1
+00B0   305D           00328         movlw   0x5d
+00B1   021A           00329         subwf   RCREG,W
+00B2   1903           00330         btfsc   STATUS,Z
+00B3   2???           00331         goto    recsave_unescape_2
+00B4   2???           00332         goto    restore             ;; Maybe you can change this, but a fail package that is the result,
+                             will also be CRC checked
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00333         
+00B5                  00334 recsave_unescape_1:
+00B5   307E           00335         movlw   0x7e
+00B6   2???           00336         goto    recsave_add
+00B7                  00337 recsave_unescape_2:
+00B7   307D           00338     movlw   0x7d
+00B8   2???           00339         goto    recsave_add
+                      00340         
+00B9                  00341 recsave_add:
+00B9   1683 1303      00342     banksel rc_add_byte
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00BB   00A8           00343         movwf   rc_add_byte
+00BC   30CA           00344     movlw       rcframe             ;; Place where to put the receiving byte
+00BD   1683 1303      00345     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00BF   0726           00346     addwf       rc_counter,W        ;; Add the number in rc_flow, to the pointer, like rcframe[rc_flow]
+00C0   0084           00347     movwf       FSR
+00C1   1683 1303      00348     banksel rc_add_byte
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00C3   0828           00349         movf    rc_add_byte,W
+00C4   1383           00350     bankisel rcframe
+00C5   0080           00351         movwf   INDF
+00C6   1683 1303      00352     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00C8   0AA6           00353         incf    rc_counter,F
+00C9   2???           00354         goto    restore
+                      00355         
+00CA                  00356 recend:
+00CA   3005           00357     movlw   5
+00CB   1683 1303      00358     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00CD   0226           00359     subwf   rc_counter,W
+00CE   1C03           00360     btfss   STATUS,C
+00CF   2???           00361     goto    reccrcfail
+00D0   1683 1303      00362     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00D2   0326           00363         decf    rc_counter,W
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00D3   00A6           00364         movwf   rc_counter
+00D4   1683 1303      00365     banksel crcloop
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00D6   00B0           00366         movwf   crcloop
+00D7   30CA           00367         movlw   rcframe
+00D8   1283 1303      00368     banksel FSR
+00DA   0084           00369         movwf   FSR
+00DB   1683 1303      00370     banksel crc0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00DD   01AE           00371         clrf    crc0
+00DE   1683 1303      00372     banksel crc1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00E0   01AF           00373         clrf    crc1
+00E1   2???           00374         call    crcloopr        ; Call CRC function
+                      00375 
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00376 
+00E2   30CA           00377         movlw   rcframe
+00E3   1683 1303      00378     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00E5   0726           00379         addwf   rc_counter,W
+00E6   0084           00380         movwf   FSR
+                      00381 
+00E7   1383           00382     bankisel rcframe
+00E8   0800           00383         movf    INDF,W
+                      00384 
+00E9   1683 1303      00385     banksel crc1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00EB   022F           00386         subwf   crc1,W
+00EC   1D03           00387         btfss   STATUS,Z
+00ED   2???           00388         goto    reccrcfail
+00EE   0304           00389         decf    FSR,W
+00EF   0084           00390         movwf   FSR
+                      00391 
+00F0   1383           00392     bankisel rcframe
+00F1   0800           00393         movf    INDF,W
+                      00394 
+00F2   1683 1303      00395     banksel crc0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00F4   022E           00396         subwf   crc0,W
+00F5   1D03           00397         btfss   STATUS,Z
+00F6   2???           00398         goto    reccrcfail
+                      00399 
+00F7   1683 1303      00400         banksel rc_listen           ;; REMEMBER, if checksum is right, clear "got flag", else, untuched
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00F9   12A5           00401     bcf     rc_listen,5
+                      00402 
+00FA   30D0           00403         movlw   rcframe+6           ;; Move recived byte to W
+00FB   1283 1303      00404         banksel FSR
+00FD   0084           00405     movwf       FSR
+                      00406 
+00FE                  00407 recend_tmp:
+00FE   1283 1303      00408     banksel speedlib_main
+0100   18F5           00409     btfsc   speedlib_main,1     ;; No CUSTOM command when in Whait for RESP STATE
+0101   2???           00410     goto    recend_no_broadcast
+0102   2???           00411         goto    func_bc
+                      00412 
+0103                  00413 recend_no_broadcast:
+0103   1683 1303      00414     banksel rcframe
+0105   30CA           00415         movlw   rcframe
+0106   0084           00416         movwf   FSR
+0107   1383           00417     bankisel rcframe
+0108   0800           00418         movf    INDF,W              ;; Check so that the adress is destinated for me
+0109   1683 1303      00419         banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+010B   022B           00420     subwf       adress1,W
+010C   1D03           00421         btfss   STATUS,Z
+010D   2???           00422         goto    restore
+010E   0A04           00423         incf    FSR,W
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 11
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+010F   0084           00424         movwf   FSR
+0110   1383           00425     bankisel rcframe
+0111   0800           00426         movf    INDF,W
+0112   1683 1303      00427     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0114   022C           00428         subwf   adress2,W
+0115   1D03           00429         btfss   STATUS,Z
+0116   2???           00430         goto    restore
+                      00431 
+0117   30D0           00432         movlw   rcframe+6           ;; Move recived byte to W
+0118   0084           00433     movwf       FSR
+                      00434 
+0119   3000           00435         movlw   0x00                ;; Got response
+011A   1383           00436         bankisel rcframe
+011B   0200           00437     subwf       INDF,W
+011C   1903           00438         btfsc   STATUS,Z
+011D   2???           00439         goto    func_check_response
+                      00440 
+011E   1283 1303      00441     banksel speedlib_main
+0120   18F5           00442     btfsc   speedlib_main,1     ;; No CUSTOM command when in Whait for RESP STATE
+0121   2???           00443     goto    restore
+                      00444 
+0122   1683 1303      00445     banksel rcframe+5
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0124   084F           00446         movf    rcframe+5,W
+0125   3C01           00447         sublw   0x01
+0126   1903           00448         btfsc   STATUS,Z
+0127   2???           00449     call    func_send_response
+                      00450 
+                      00451 
+                      00452         
+0128   30D0           00453         movlw   rcframe+6           ;; Make sure that the FSR pointer is pointed right
+0129   0084           00454     movwf       FSR
+                      00455 
+012A   3001           00456         movlw   0x01                ;; Send respons for, 0x01 message, destionated for me
+012B   1383           00457         bankisel rcframe
+012C   0200           00458     subwf       INDF,W
+012D   1903           00459         btfsc   STATUS,Z
+012E   2???           00460         goto    func_is_ocupied_send_response
+                      00461         
+012F   3002           00462         movlw   0x02
+0130   1383           00463     bankisel rcframe
+0131   0200           00464         subwf   INDF,W
+0132   1903           00465         btfsc   STATUS,Z
+0133   2???           00466         goto    func_setport
+                      00467 
+                      00468 #ifdef  REC_CUSTOM_JUMP
+                      00469     goto    REC_CUSTOM_JUMP
+                      00470 #endif
+0134   2???           00471         goto    restore
+                      00472 
+0135                  00473 func_speedlib_config:
+0135   300D           00474         movlw   13
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 12
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0136   1683 1303      00475     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0138   0226           00476         subwf   rc_counter,W
+0139   1903           00477         btfsc   STATUS,Z
+013A   2???           00478         goto    func_speedlib_config_basics
+                      00479 
+013B   1803           00480     btfsc   STATUS,C
+013C   2???           00481     goto    func_speedlib_config_extended
+013D   2???           00482     goto    restore
+                      00483 
+013E                  00484 func_speedlib_config_extended:
+013E   30D5           00485     movlw       rcframe+11           ;; Make sure that the FSR pointer is pointed right
+013F   0084           00486     movwf       FSR
+0140   3000           00487     movlw       0x00
+0141   1383           00488     bankisel rcframe
+0142   0200           00489         subwf   INDF,W
+0143   1903           00490         btfsc   STATUS,Z
+0144   2???           00491         goto    func_speedlib_config_basics
+0145   3001           00492         movlw   0x01
+0146   1383           00493     bankisel rcframe
+0147   0200           00494         subwf   INDF,W
+0148   1903           00495         btfsc   STATUS,Z
+0149   2???           00496         goto    func_speedlib_config_caddr
+014A   2???           00497     goto    restore
+                      00498 
+                      00499 
+014B                  00500 func_speedlib_config_caddr:
+014B   3010           00501     movlw       16
+014C   1683 1303      00502     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+014E   0226           00503         subwf   rc_counter,W
+014F   1C03           00504         btfss   STATUS,C            ;; If rc_counter NOT is more och equal to twelve, jump back
+0150   2???           00505     goto    restore
+                      00506 
+                      00507     ;;call    func_send_response
+                      00508         
+0151   30D6           00509     movlw       rcframe+12           ;; Move recived byte to W
+0152   0084           00510         movwf   FSR
+0153   30FF           00511     movlw   0xFF
+0154   1383           00512     bankisel rcframe
+0155   0200           00513     subwf   INDF,W
+0156   1D03           00514     btfss   STATUS,Z
+0157   2???           00515     goto    func_speedlib_config_caddr_f
+0158   1283 1303      00516     banksel FSR
+015A   0A84           00517     incf    FSR,F
+015B   30FF           00518     movlw   0xFF
+015C   1383           00519     bankisel rcframe
+015D   0200           00520     subwf   INDF,W
+015E   1D03           00521     btfss   STATUS,Z
+015F   2???           00522     goto    func_speedlib_config_caddr_f
+0160   2???           00523     goto    restore
+                      00524 
+0161                  00525 func_speedlib_config_caddr_f:
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 13
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0161   30D6           00526     movlw       rcframe+12      ; Move recived byte to W
+0162   0084           00527         movwf   FSR
+0163   1383           00528     bankisel rcframe
+0164   0800           00529     movf    INDF,W
+0165   1683 1303      00530     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0167   00AB           00531     movwf   adress1
+0168   0A84           00532     incf    FSR, F
+0169   1383           00533     bankisel rcframe
+016A   0800           00534     movf    INDF,W
+016B   1683 1303      00535     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+016D   00AC           00536     movwf   adress2
+                      00537 
+016E   1683 1303      00538     banksel speedlib_config
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0170   14AD           00539     bsf     speedlib_config,1
+                      00540 #ifdef  WRITE_EEPROM
+                      00541     ;; Write adress to eeprom
+0171   3000           00542     movlw   0
+0172   1683 1303      00543     banksel rc_nocoll
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0174   00A7           00544     movwf   rc_nocoll
+0175   1683 1303      00545     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0177   082B           00546     movf    adress1,W
+0178   2???           00547     call    WRITE_EEPROM
+0179   1683 1303      00548     banksel rc_nocoll
+017B   3001           00549     movlw   1
+017C   1683 1303      00550     banksel rc_nocoll
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+017E   00A7           00551     movwf   rc_nocoll
+017F   1683 1303      00552     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0181   082C           00553     movf    adress2,W
+0182   2???           00554     call    WRITE_EEPROM
+0183   1683 1303      00555     banksel rc_nocoll
+0185   3002           00556     movlw   2
+0186   1683 1303      00557     banksel rc_nocoll
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0188   00A7           00558     movwf   rc_nocoll
+0189   1683 1303      00559     banksel speedlib_config
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+018B   082D           00560     movf    speedlib_config,W
+018C   2???           00561     call    WRITE_EEPROM
+                      00562 #endif
+                      00563     ;; Delay to make sure there is no error on the bus
+018D   300C           00564     movlw   12
+018E   2???           00565     call    Delay
+018F   2???           00566     call    func_bc_sendaddr_noresp
+                      00567     ;;
+0190   2???           00568     goto    restore
+                      00569 
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 14
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00570 
+0191                  00571 func_speedlib_config_basics:
+0191   300C           00572     movlw   12
+0192   2???           00573     call    Delay
+0193   300B           00574         movlw   11
+0194   1683 1303      00575     banksel framelen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0196   00B2           00576         movwf   framelen
+                      00577 
+0197   30CC           00578     movlw       rcframe+2
+0198   0084           00579     movwf       FSR
+0199   1383           00580     bankisel rcframe
+019A   0800           00581     movf    INDF,W
+019B   1683 1303      00582     banksel txframe
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+019D   00B5           00583         movwf   txframe
+                      00584 
+019E   30CD           00585     movlw       rcframe+3
+019F   0084           00586     movwf       FSR
+01A0   1383           00587     bankisel rcframe
+01A1   0800           00588     movf    INDF,W
+01A2   1683 1303      00589     banksel txframe
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01A4   00B6           00590         movwf   txframe+1
+                      00591 
+                      00592     ;; * my own src adress
+01A5   1683 1303      00593     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01A7   082B           00594         movf    adress1, W
+01A8   1683 1303      00595     banksel txframe+2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01AA   00B7           00596         movwf   txframe+2
+                      00597 
+                      00598     ;; * my own src adress
+01AB   1683 1303      00599     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01AD   082C           00600         movf    adress2, W
+01AE   1683 1303      00601     banksel txframe+3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01B0   00B8           00602         movwf   txframe+3
+                      00603 
+                      00604     ;; 0x03 control bit
+01B1   3003           00605         movlw   0x03
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01B2   00B9           00606         movwf   txframe+4
+                      00607 
+                      00608     ;; 0x01     protocoll
+01B3   3000           00609     movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01B4   00BA           00610         movwf   txframe+5
+                      00611 
+                      00612     ;; Data
+01B5   3003           00613     movlw       0x03
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 15
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01B6   00BB           00614         movwf   txframe+6
+                      00615 
+                      00616     ;; 0x00 Basic config response
+01B7   3000           00617         movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01B8   00BC           00618     movwf   txframe+7
+                      00619 
+                      00620     ;; Send back speedlib_config
+01B9   1683 1303      00621     banksel speedlib_config
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01BB   082D           00622         movf   speedlib_config, W
+01BC   1683 1303      00623     banksel txframe+8
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01BE   00BD           00624     movwf   txframe+8
+                      00625 
+                      00626     ;; Padding bit
+01BF   3000           00627         movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01C0   00BE           00628     movwf   txframe+9
+                      00629 
+01C1   2???           00630     call    txdo
+01C2   2???           00631     goto    restore
+                      00632 
+01C3                  00633 func_send_response:
+01C3   3009           00634     movlw   SPEEDLIB_RESPONSE_DELAY
+01C4   2???           00635     call    Delay
+01C5   3009           00636         movlw   9
+01C6   1683 1303      00637     banksel framelen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01C8   00B2           00638         movwf   framelen
+                      00639 
+01C9   30CC           00640     movlw       rcframe+2
+01CA   0084           00641     movwf       FSR
+01CB   1383           00642     bankisel rcframe
+01CC   0800           00643     movf    INDF,W
+01CD   1683 1303      00644     banksel txframe
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01CF   00B5           00645         movwf   txframe
+                      00646 
+01D0   30CD           00647     movlw       rcframe+3
+01D1   0084           00648     movwf       FSR
+01D2   1383           00649     bankisel rcframe
+01D3   0800           00650     movf    INDF,W
+01D4   1683 1303      00651     banksel txframe
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01D6   00B6           00652         movwf   txframe+1
+                      00653 
+                      00654         ;; * my own src adress
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01D7   082B           00655         movf    adress1, W
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01D8   00B7           00656         movwf   txframe+2
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 16
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00657 
+                      00658         ;; * my own src adress
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01D9   082C           00659         movf    adress2, W
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01DA   00B8           00660         movwf   txframe+3
+                      00661 
+                      00662         ;; 0x03 control bit
+01DB   3003           00663         movlw   0x03
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01DC   00B9           00664         movwf   txframe+4
+                      00665 
+                      00666         ;; 0x01 protocoll
+01DD   3000           00667     movlw   0x00                ;; No response on response
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01DE   00BA           00668         movwf   txframe+5   
+                      00669 
+                      00670         ;; Data             
+01DF   3000           00671     movlw       0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01E0   00BB           00672         movwf   txframe+6
+                      00673 
+                      00674         ;; Padding bit
+01E1   3000           00675         movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01E2   00BC           00676     movwf   txframe+7
+                      00677 
+01E3   2???           00678         call    txdo
+01E4   0008           00679     return
+                      00680 
+01E5                  00681 func_check_response:
+                      00682 ; May be more advanced in the future, but for now, i dont se any reason why
+                      00683 ; we should make this functione more advanced, how many response packages are
+                      00684 ; realy exchange in a cuple of ms? -.- //  Speedster
+01E5   1683 1303      00685     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01E7   15A5           00686     bsf     rc_listen,3
+01E8   2???           00687     goto        restore
+                      00688 
+                      00689 
+01E9                  00690 func_is_ocupied_send_response:
+01E9   300C           00691         movlw   12                  ;; Pretty strange, but you need this, so no colission or somthing wi
+                            ll be made betwen PC and ansoring device
+01EA   2???           00692         call    Delay
+                      00693 
+01EB   1683 1303      00694     banksel rc_listen
+                      00695         ;; Send Package:
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01ED   1825           00696     btfsc   rc_listen,0
+01EE   2???           00697     goto    func_is_ocupied_send_response_got_resp
+01EF   2???           00698     goto    func_is_ocupied_send_response_pack
+Warning[208]: Label truncated at 32 characters. (func_is_ocupied_send_response_got_resp)
+01F0                  00699 func_is_ocupied_send_response_got_resp:
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 17
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01F0   1025           00700     bcf     rc_listen,0
+01F1   2???           00701     goto    restore
+                      00702 
+Warning[208]: Label truncated at 32 characters. (func_is_ocupied_send_response_pack)
+01F2                  00703 func_is_ocupied_send_response_pack:
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01F2   1A25           00704     btfsc   rc_listen,4
+01F3   2???           00705     goto    restore
+01F4   3009           00706         movlw   9
+01F5   1683 1303      00707     banksel framelen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01F7   00B2           00708         movwf   framelen
+                      00709 
+01F8   30CC           00710         movlw   rcframe+2
+01F9   0084           00711     movwf       FSR
+01FA   1383           00712     bankisel rcframe
+01FB   0800           00713     movf    INDF,W
+01FC   1683 1303      00714     banksel txframe
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+01FE   00B5           00715         movwf   txframe
+                      00716 
+01FF   30CD           00717         movlw   rcframe+3
+0200   0084           00718         movwf   FSR
+0201   1383           00719     bankisel rcframe
+0202   0800           00720     movf    INDF,W
+0203   1683 1303      00721     banksel txframe
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0205   00B6           00722         movwf   txframe+1
+                      00723 
+                      00724         ;; * my own src adress
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0206   082B           00725         movf    adress1, W
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0207   00B7           00726         movwf   txframe+2
+                      00727 
+                      00728         ;; * my own src adress
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0208   082C           00729         movf    adress2, W
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0209   00B8           00730         movwf   txframe+3
+                      00731 
+                      00732         ;; 0x03 control bit
+020A   3003           00733         movlw   0x03
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+020B   00B9           00734         movwf   txframe+4
+                      00735 
+                      00736         ;; 0x01 protocoll
+020C   3000           00737     movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+020D   00BA           00738         movwf   txframe+5
+                      00739 
+                      00740         ;; Data
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 18
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+020E   3001           00741     movlw       0x01
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+020F   00BB           00742         movwf   txframe+6
+                      00743 
+                      00744         ;; Padding bit
+0210   3000           00745         movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0211   00BC           00746     movwf   txframe+7
+                      00747 
+0212   2???           00748         call    txdo    
+                      00749 
+0213   2???           00750         goto    restore
+                      00751 
+                      00752         
+0214                  00753 func_bc:
+                      00754 ; 120623 A new era has become speedbus, all package that are need to, shall for
+                      00755 ; now be sent with an respons, and, for that reason, i no more use command 0x00
+                      00756 ; for is_occupied commands. When an 0x01 NOT is broadcast(it got a real adress)
+                      00757 ; It is ment to bee like an old 0x00, if it is not an bc, send is_occupied.
+                      00758 ; For now on, 0x00 is used to respond packages that need a response! Over'n out
+                      00759 ; // Speedster
+                      00760 
+0214   1683 1303      00761     banksel rcframe
+0216   30CA           00762         movlw   rcframe
+0217   0084           00763     movwf       FSR
+                      00764         
+0218   30FF           00765         movlw   0xFF                ;;  check dst adress1
+0219   1683 1303      00766         banksel rcframe
+021B   0200           00767     subwf       INDF,W
+021C   1D03           00768         btfss   STATUS,Z
+021D   2???           00769         goto    recend_no_broadcast
+                      00770 
+021E   0A84           00771         incf    FSR, F               ;; Increase the address
+                      00772 
+021F   30FF           00773         movlw   0xFF                ;;  check dst adress2
+0220   1683 1303      00774         banksel rcframe
+0222   0200           00775     subwf       INDF,W
+0223   1D03           00776         btfss   STATUS,Z
+0224   2???           00777         goto    recend_no_broadcast
+                      00778 
+0225   30D0           00779         movlw   rcframe+6        
+0226   0084           00780     movwf       FSR
+                      00781 
+                      00782 #ifdef  on_got_IAH
+                      00783     movlw       0x03
+                      00784     bankisel rcframe
+                      00785         subwf   INDF,W
+                      00786         btfss   STATUS,Z
+                      00787         goto    restore
+                      00788     bankisel rcframe
+                      00789     incf    FSR, F
+                      00790     movlw       0x01
+                      00791     bankisel rcframe
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 19
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00792         subwf   INDF,W
+                      00793         btfss   STATUS,Z
+                      00794         goto    restore
+                      00795     goto    on_got_IAH
+                      00796 #endif
+                      00797 
+0227   300C           00798     movlw   12
+0228   1683 1303      00799     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+022A   0226           00800     subwf   rc_counter, W
+022B   1803           00801     btfsc   STATUS, C
+022C   2???           00802     goto    func_bc_devid
+                      00803 
+022D   3001           00804         movlw   0x01
+022E   1383           00805     bankisel rcframe
+022F   0200           00806         subwf   INDF,W
+0230   1903           00807         btfsc   STATUS,Z
+0231   2???           00808         goto    func_bc_01
+0232   2???           00809         goto    restore
+                      00810 
+                      00811 
+0233                  00812 func_bc_devid:
+                      00813     ;; Check that the devid matches, else drop it.
+                      00814 
+                      00815 
+0233   30D1           00816         movlw   rcframe+7
+0234   0084           00817     movwf       FSR
+0235   1383           00818     bankisel rcframe
+0236   3000           00819     movlw   DEV_ID1
+0237   0200           00820     subwf   INDF, W
+0238   1D03           00821     btfss   STATUS, Z
+0239   2???           00822     goto    restore
+                      00823 
+023A   30D2           00824         movlw   rcframe+8
+023B   0084           00825     movwf       FSR
+023C   1383           00826     bankisel rcframe
+023D   3000           00827     movlw   DEV_ID2
+023E   0200           00828     subwf   INDF, W
+023F   1D03           00829     btfss   STATUS, Z
+0240   2???           00830     goto    restore
+                      00831 
+0241   30D3           00832         movlw   rcframe+9
+0242   0084           00833     movwf       FSR
+0243   1383           00834     bankisel rcframe
+0244   3040           00835     movlw   DEV_ID3
+0245   0200           00836     subwf   INDF, W
+0246   1D03           00837     btfss   STATUS, Z
+0247   2???           00838     goto    restore
+                      00839 
+0248   30D4           00840         movlw   rcframe+10
+0249   0084           00841     movwf       FSR
+024A   1383           00842     bankisel rcframe
+024B   3033           00843     movlw   DEV_ID4
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 20
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+024C   0200           00844     subwf   INDF, W
+024D   1D03           00845     btfss   STATUS, Z
+024E   2???           00846     goto    restore
+                      00847 
+                      00848 
+                      00849     ;;
+024F   30D0           00850         movlw   rcframe+6
+0250   0084           00851     movwf   FSR
+0251   1383           00852     bankisel rcframe
+0252   3001           00853     movlw       0x01
+0253   0200           00854         subwf   INDF,W
+0254   1903           00855         btfsc   STATUS,Z
+0255   2???           00856         goto    func_bc_sendaddr_devid_resp
+0256   1383           00857     bankisel rcframe
+0257   3003           00858     movlw       0x03
+0258   0200           00859         subwf   INDF,W
+0259   1903           00860         btfsc   STATUS,Z
+025A   2???           00861         goto    func_speedlib_config
+025B   2???           00862     goto    restore
+                      00863 
+025C                  00864 func_bc_sendaddr_devid_resp:
+025C   300C           00865     movlw   12
+025D   2???           00866     call    Delay
+025E   2???           00867     call    func_bc_sendaddr_noresp
+025F   2???           00868     goto    restore
+                      00869 
+0260                  00870 func_bc_01:
+0260   30CF           00871     movlw       rcframe+5
+0261   0084           00872     movwf       FSR
+0262   3001           00873         movlw   0x01
+0263   1383           00874     bankisel rcframe
+0264   0200           00875         subwf   INDF,W
+0265   1903           00876         btfsc   STATUS,Z
+0266   2???           00877     goto    func_bc_sendaddr
+0267   3000           00878     movlw       0x00
+0268   1383           00879     bankisel rcframe
+0269   0200           00880     subwf       INDF,W
+026A   1903           00881         btfsc   STATUS,Z
+026B   2???           00882     call    func_send_response
+026C   2???           00883     goto    restore
+                      00884 
+026D                  00885 func_bc_sendaddr:       
+026D   2???           00886         call    trd                 ;; Three random delay:s before ansor broadcast
+026E   300C           00887     movlw   12
+026F   2???           00888     call    Delay
+0270   2???           00889     call    func_set_rsp_addr   ;; Set rsp_adress to the src adress of the last recived package
+                      00890 
+                      00891         ;; Send Package:
+0271   300D           00892         movlw   13
+0272   1683 1303      00893         banksel framelen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0274   00B2           00894         movwf   framelen
+                      00895 
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 21
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00896         ;; dst adress
+0275   1683 1303      00897     banksel rsp_adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0277   0829           00898         movf    rsp_adress1,W
+0278   1683 1303      00899     banksel txframe
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+027A   00B5           00900         movwf   txframe
+                      00901 
+                      00902         ;; dst adress
+027B   1683 1303      00903     banksel rsp_adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+027D   082A           00904         movf    rsp_adress2,W
+027E   1683 1303      00905     banksel txframe+1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0280   00B6           00906         movwf   txframe+1
+                      00907 
+                      00908         ;; * my own src adress
+0281   1683 1303      00909     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0283   082B           00910         movf    adress1, W
+0284   1683 1303      00911     banksel txframe+2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0286   00B7           00912         movwf   txframe+2
+                      00913 
+                      00914         ;; * my own src adress
+0287   1683 1303      00915     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0289   082C           00916         movf    adress2, W
+028A   1683 1303      00917     banksel txframe+3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+028C   00B8           00918         movwf   txframe+3
+                      00919 
+                      00920         ;; 0x03 control bit
+028D   3003           00921         movlw   0x03
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+028E   00B9           00922         movwf   txframe+4
+                      00923 
+                      00924         ;; 0x01 protocoll
+028F   3001           00925     movlw   0x01
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0290   00BA           00926         movwf   txframe+5
+                      00927 
+                      00928         ;; Data
+0291   3001           00929     movlw       0x01
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0292   00BB           00930         movwf   txframe+6
+                      00931 
+                      00932     ;; Data - DeviceID
+0293   3000           00933     movlw   DEV_ID1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0294   00BC           00934         movwf   txframe+7
+                      00935 
+                      00936         ;; Data - DeviceID
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 22
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0295   3000           00937     movlw       DEV_ID2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0296   00BD           00938         movwf   txframe+8
+                      00939 
+                      00940    ;; Data - DeviceID
+0297   3040           00941     movlw   DEV_ID3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0298   00BE           00942         movwf   txframe+9
+                      00943 
+                      00944         ;; Data - DeviceID
+0299   3033           00945     movlw       DEV_ID4
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+029A   00BF           00946         movwf   txframe+10
+                      00947 
+                      00948         ;; Padding bit
+029B   3000           00949         movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+029C   00C0           00950     movwf   txframe+11
+                      00951         
+                      00952         ;; This is a broadcast package with adress on it
+029D   3001           00953         movlw   0x01
+029E   1683 1303      00954     banksel rcframe+5
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02A0   024F           00955         subwf   rcframe+5,W
+02A1   1903           00956         btfsc   STATUS,Z
+02A2   2???           00957     goto    handle_response
+02A3   2???           00958     call    txdo
+02A4   2???           00959         goto    restore
+                      00960 
+02A5                  00961 func_bc_sendaddr_noresp:
+02A5   2???           00962     call    func_set_rsp_addr   ;; Set rsp_adress to the src adress of the last recived package
+                      00963 
+                      00964         ;; Send Package:
+02A6   300D           00965         movlw   13
+02A7   1683 1303      00966         banksel framelen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02A9   00B2           00967         movwf   framelen
+                      00968 
+                      00969         ;; dst adress
+02AA   1683 1303      00970     banksel rsp_adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02AC   0829           00971         movf    rsp_adress1,W
+02AD   1683 1303      00972     banksel txframe
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02AF   00B5           00973         movwf   txframe
+                      00974 
+                      00975         ;; dst adress
+02B0   1683 1303      00976     banksel rsp_adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02B2   082A           00977         movf    rsp_adress2,W
+02B3   1683 1303      00978     banksel txframe+1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02B5   00B6           00979         movwf   txframe+1
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 23
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00980 
+                      00981         ;; * my own src adress
+02B6   1683 1303      00982     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02B8   082B           00983         movf    adress1, W
+02B9   1683 1303      00984     banksel txframe+2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02BB   00B7           00985         movwf   txframe+2
+                      00986 
+                      00987         ;; * my own src adress
+02BC   1683 1303      00988     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02BE   082C           00989         movf    adress2, W
+02BF   1683 1303      00990     banksel txframe+3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02C1   00B8           00991         movwf   txframe+3
+                      00992 
+                      00993         ;; 0x03 control bit
+02C2   3003           00994         movlw   0x03
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02C3   00B9           00995         movwf   txframe+4
+                      00996 
+                      00997         ;; 0x01 protocoll
+02C4   3000           00998     movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02C5   00BA           00999         movwf   txframe+5
+                      01000 
+                      01001         ;; Data
+02C6   3001           01002     movlw       0x01
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02C7   00BB           01003         movwf   txframe+6
+                      01004 
+                      01005     ;; Data - DeviceID
+02C8   3000           01006     movlw   DEV_ID1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02C9   00BC           01007         movwf   txframe+7
+                      01008 
+                      01009         ;; Data - DeviceID
+02CA   3000           01010     movlw       DEV_ID2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02CB   00BD           01011         movwf   txframe+8
+                      01012 
+                      01013    ;; Data - DeviceID
+02CC   3040           01014     movlw   DEV_ID3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02CD   00BE           01015         movwf   txframe+9
+                      01016 
+                      01017         ;; Data - DeviceID
+02CE   3033           01018     movlw       DEV_ID4
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02CF   00BF           01019         movwf   txframe+10
+                      01020 
+                      01021         ;; Padding bit
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 24
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+02D0   3000           01022         movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02D1   00C0           01023     movwf   txframe+11
+02D2   2???           01024         call    txdo
+02D3   0008           01025     return
+                      01026 
+02D4                  01027 func_send_iam_here:             ;; IMPORTANT, this function "return", use "call func_send_iam_here"
+02D4   300E           01028         movlw   14
+02D5   1683 1303      01029     banksel framelen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02D7   00B2           01030         movwf   framelen
+                      01031 
+02D8   1683 1303      01032     banksel txframe
+02DA   30FF           01033     movlw   0xFF
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02DB   00B5           01034         movwf   txframe
+                      01035 
+02DC   30FF           01036     movlw   0xFF
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02DD   00B6           01037         movwf   txframe+1
+                      01038 
+                      01039     ;; * my own src adress
+02DE   1683 1303      01040     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02E0   082B           01041         movf    adress1, W
+02E1   1683 1303      01042     banksel txframe+2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02E3   00B7           01043         movwf   txframe+2
+                      01044 
+                      01045     ;; * my own src adress
+02E4   1683 1303      01046     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02E6   082C           01047         movf    adress2, W
+02E7   1683 1303      01048     banksel txframe+3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02E9   00B8           01049         movwf   txframe+3
+                      01050 
+                      01051     ;; 0x03 control bit
+02EA   3003           01052         movlw   0x03
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02EB   00B9           01053         movwf   txframe+4
+                      01054 
+                      01055     ;; 0x01     protocoll
+02EC   3000           01056     movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02ED   00BA           01057         movwf   txframe+5
+                      01058 
+                      01059     ;; Data
+02EE   3003           01060     movlw       0x03
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02EF   00BB           01061         movwf   txframe+6
+                      01062 
+                      01063     ;; 0x00 Basic config response
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 25
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+02F0   3001           01064         movlw   0x01
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02F1   00BC           01065     movwf   txframe+7
+                      01066 
+                      01067     ;; Data - DeviceID
+02F2   3000           01068     movlw   DEV_ID1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02F3   00BD           01069         movwf   txframe+8
+                      01070 
+                      01071     ;; Data - DeviceID
+02F4   3000           01072     movlw       DEV_ID2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02F5   00BE           01073         movwf   txframe+9
+                      01074 
+                      01075     ;; Data - DeviceID
+02F6   3040           01076     movlw   DEV_ID3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02F7   00BF           01077         movwf   txframe+10
+                      01078 
+                      01079     ;; Data - DeviceID
+02F8   3033           01080     movlw       DEV_ID4
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02F9   00C0           01081         movwf   txframe+11
+                      01082 
+                      01083         ;; Padding bit
+02FA   3000           01084         movlw   0x00
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+02FB   00C1           01085     movwf   txframe+12
+                      01086 
+02FC   2???           01087     call    txdo
+02FD   0008           01088     return  
+                      01089 
+02FE                  01090 func_rand_addr:
+02FE   1683 1303      01091     banksel rand
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0300   0824           01092     movf    rand,W
+0301   1683 1303      01093     banksel adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0303   00AB           01094     movwf   adress1
+0304   2???           01095     call    lfsr_func
+0305   1683 1303      01096     banksel rand
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0307   0824           01097     movf    rand,W
+0308   1683 1303      01098     banksel adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+030A   00AC           01099     movwf   adress2
+030B   0008           01100     return
+                      01101 
+030C                  01102 func_setport:
+030C   3002           01103         movlw   2
+030D   0784           01104         addwf   FSR,F
+030E   1383           01105     bankisel rcframe
+030F   0800           01106         movf    INDF,W
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 26
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      01107 #ifdef PORTC
+0310   1283 1303      01108     banksel PORTC
+0312   0087           01109         movwf   PORTC
+                      01110 #endif
+0313   2???           01111         goto    restore
+                      01112 
+0314                  01113 func_set_rsp_addr:
+                      01114     ;; Add last rec package src addr to rsp_adress1 rsp_adress2
+0314   30CC           01115     movlw       rcframe+2
+0315   0084           01116         movwf   FSR
+0316   1383           01117     bankisel rcframe
+0317   0800           01118     movf    INDF,W
+0318   1683 1303      01119     banksel rsp_adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+031A   00A9           01120     movwf   rsp_adress1
+                      01121 
+031B   30CD           01122         movlw   rcframe+3
+031C   0084           01123         movwf   FSR
+031D   1383           01124     bankisel rcframe
+031E   0800           01125     movf    INDF,W
+031F   1683 1303      01126     banksel rsp_adress2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0321   00AA           01127     movwf   rsp_adress2
+0322   0008           01128     return
+                      01129 
+0323                  01130 handle_response:
+0323   1683 1303      01131     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0325   11A5           01132     bcf     rc_listen,3
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0326   10A5           01133     bcf     rc_listen,1
+0327   14F5           01134     bsf     speedlib_main,1
+                      01135 
+                      01136 
+                      01137     ;; Important, this should be run in "main space", not interupt space, soo,
+                      01138     ;; well, now it is runed somewheare in the middle, wait for response STATE
+0328   1283 1303      01139     banksel INTCON
+032A   178B           01140     bsf     INTCON,GIE
+032B   300A           01141     movlw   10
+032C   1683 1303      01142     banksel rsp_adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+032E   00A9           01143     movwf   rsp_adress1
+                      01144 
+032F                  01145 handle_response_loop:
+032F   2???           01146     call    txdo
+0330   30FA           01147         movlw   250
+0331   2???           01148         call    Delay
+                      01149 
+                      01150     ;; If error
+0332   1283 1303      01151     banksel RCSTA
+0334   1898           01152         btfsc   RCSTA,OERR
+0335   2???           01153         call    recerror
+                      01154     ;;
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 27
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      01155 
+0336   1683 1303      01156     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0338   19A5           01157     btfsc   rc_listen,3
+0339   2???           01158     goto    handle_response_ret
+033A   1683 1303      01159     banksel rsp_adress1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+033C   0BA9           01160     decfsz  rsp_adress1,f
+033D   2???           01161     goto    handle_response_loop
+                      01162 
+033E                  01163 handle_response_ret:
+033E   1683 1303      01164     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0340   11A5           01165     bcf     rc_listen,3
+0341   10F5           01166     bcf     speedlib_main,1
+0342   2???           01167     goto    restore
+                      01168 
+0343                  01169 reccrcfail:
+                      01170         ;; Because that this happend directrly after a crc-fail, here we need to clear the counter, so t
+                            he next comming package will start allover
+0343   3005           01171     movlw   5
+0344   1683 1303      01172     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0346   0226           01173     subwf   rc_counter,W
+0347   1C03           01174     btfss   STATUS,C
+0348   2???           01175     goto    reccrcfail_end
+                      01176 
+0349   30FA           01177     movlw    250
+034A   2???           01178     call    Delay
+                      01179 
+034B                  01180 reccrcfail_end:
+034B   1683 1303      01181     banksel rc_counter
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+034D   01A6           01182     clrf        rc_counter
+034E   2???           01183         goto    restore
+                      01184         
+034F                  01185 recerror:
+                      01186         ;; Do somthing
+034F   1283 1303      01187     banksel RCSTA
+0351   1218           01188         bcf     RCSTA,CREN
+0352   1618           01189         bsf     RCSTA,CREN
+0353   0008           01190         return
+                      01191 
+0354                  01192 txoops:
+                      01193     ;; Colisson has ocurred
+0354   1683 1303      01194     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0356   10A5           01195     bcf     rc_listen,1
+0357   1683 1303      01196     banksel txreturn
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0359   10B4           01197         bcf     txreturn,1
+035A   2???           01198         call    lfsr_func
+035B   1683 1303      01199     banksel rand
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 28
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+035D   0824           01200         movf    rand,W
+035E   2???           01201         call    Delay
+035F   2???           01202         goto    txdo2
+                      01203 
+0360                  01204 tx_send:
+0360   1683 1303      01205     banksel txtmp
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0362   00B3           01206         movwf   txtmp
+0363   307E           01207         movlw   0x7e            
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0364   0233           01208         subwf   txtmp,W         
+0365   1903           01209         btfsc   STATUS,Z
+0366   2???           01210         goto    tx_send_escape_1
+                      01211 
+0367   307D           01212         movlw   0x7d
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0368   0233           01213         subwf   txtmp,W
+0369   1903           01214         btfsc   STATUS,Z
+036A   2???           01215         goto    tx_send_escape_2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+036B   0833           01216         movf    txtmp,W
+                      01217         
+036C                  01218 tx_send_noescape:
+036C   1683 1303      01219     banksel txtmp
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+036E   00B3           01220     movwf       txtmp
+                      01221 
+036F   1683 1303      01222     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0371   14A5           01223     bsf     rc_listen,1
+                      01224 
+0372   1683 1303      01225     banksel txtmp
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0374   0833           01226     movf        txtmp,W
+0375   1683 1303      01227     banksel rc_nocoll
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0377   00A7           01228     movwf       rc_nocoll
+0378   1283 1303      01229     banksel TXREG
+037A   0099           01230     movwf       TXREG
+                      01231 
+037B   1683 1303      01232     banksel TXSTA
+037D                  01233 tx_send_noescape_l:
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+037D   1C98           01234     btfss   TXSTA,TRMT
+037E   2???           01235     goto        tx_send_noescape_l
+                      01236 
+037F   1683 1303      01237     banksel d1
+0381   3090           01238     movlw   0x90
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0382   00A0           01239     movwf   d1
+0383                  01240 tx_send_noescape_k:
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 29
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0383   0BA0           01241     decfsz  d1,f
+0384   2???           01242     goto    tx_send_noescape_k
+0385   0008           01243         return
+                      01244 
+0386                  01245 tx_send_escape_1:
+0386   307D           01246         movlw   0x7d
+0387   2???           01247         call    tx_send_noescape
+0388   305E           01248         movlw   0x5e
+0389   2???           01249         call    tx_send_noescape
+038A   0008           01250         return
+                      01251 
+038B                  01252 tx_send_escape_2:
+038B   307D           01253         movlw   0x7d
+038C   2???           01254         call    tx_send_noescape
+038D   305D           01255         movlw   0x5d
+038E   2???           01256         call    tx_send_noescape
+038F   0008           01257         return
+                      01258         
+0390                  01259 txdo:                           
+                      01260     ;; This is like the function argumnents, they need to be set at every presense of crcloopr
+0390   1683 1303      01261     banksel framelen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0392   0832           01262         movf    framelen,W
+0393   1683 1303      01263     banksel crcloop
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0395   00B0           01264         movwf   crcloop
+0396   1683 1303      01265     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0398   14A5           01266     bsf     rc_listen,1
+0399   30B5           01267         movlw   txframe
+039A   0084           01268         movwf   FSR
+039B   1683 1303      01269     banksel crc0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+039D   01AE           01270         clrf    crc0
+039E   1683 1303      01271     banksel crc1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03A0   01AF           01272         clrf    crc1
+03A1   2???           01273         call    crcloopr
+03A2   2???           01274         goto    txdo2
+03A3                  01275 crcloopr:
+03A3   1683 1303      01276     banksel crcloop
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03A5   0BB0           01277         decfsz  crcloop, f
+03A6   2???           01278         goto    crccalc
+03A7   0008           01279         return
+                      01280 
+03A8                  01281 crccalc:
+03A8   1383           01282     bankisel txframe
+03A9   0800           01283         movf    INDF,W              ;; Load W with next databyte
+03AA   1683 1303      01284     banksel crc1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03AC   062F           01285         xorwf   crc1,W              ;;(a^x):(b^y)
+03AD   1683 1303      01286     banksel crctmp
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 30
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03AF   00B1           01287         movwf   crctmp              ;;
+03B0   39F0           01288         andlw   0xf0                ;; W = (a^x):0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03B1   0EB1           01289         swapf   crctmp,F            ;; Index = (b^y):(a^x)
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03B2   06B1           01290         xorwf   crctmp,F            ;; Index = (a^b^x^y):(a^x) = i2:i1
+                      01291 
+                      01292                                 ;; High byte
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03B3   0831           01293         movf    crctmp,W
+03B4   39F0           01294         andlw   0xf0
+03B5   1683 1303      01295     banksel crc0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03B7   062E           01296         xorwf   crc0,W
+03B8   1683 1303      01297     banksel crc1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03BA   00AF           01298         movwf   crc1
+03BB   1683 1303      01299     banksel crctmp
+                      01300 #ifdef  ARC_18F
+                      01301     rlcf    crctmp,W            ;; use rlf for PIC18
+                      01302         rlcf    crctmp,W            ;; use rlf for PIC18
+                      01303 #endif
+                      01304 #ifdef  ARC_16F
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03BD   0D31           01305         rlf     crctmp,W            ;; use rlf for PIC16
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03BE   0D31           01306         rlf     crctmp,W            ;; use rlf for PIC16
+                      01307 #endif
+                      01308 #ifdef  ARC_12F
+                      01309         rlf     crctmp,W            ;; use rlf for PIC12
+                      01310         rlf     crctmp,W            ;; use rlf for PIC12
+                      01311 #endif
+03BF   1683 1303      01312     banksel crc1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03C1   06AF           01313         xorwf   crc1,F
+03C2   39E0           01314         andlw   0xe0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03C3   06AF           01315         xorwf   crc1,F
+                      01316 
+03C4   1683 1303      01317     banksel crctmp
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03C6   0EB1           01318         swapf   crctmp,F
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03C7   0631           01319         xorwf   crctmp,W
+03C8   1683 1303      01320     banksel crc0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03CA   00AE           01321         movwf   crc0
+03CB   0A84           01322     incf    FSR, F
+03CC   2???           01323         goto    crcloopr
+                      01324 
+03CD                  01325 txdo2:
+                      01326     ;; Set TX enable
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 31
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+03CD   1283 1303      01327     banksel OUTREG
+03CF   1606           01328         bsf     OUTREG,OUTNUM
+                      01329         ;;
+03D0   1683 1303      01330     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03D2   14A5           01331     bsf     rc_listen,1
+03D3   307E           01332         movlw   0x7e
+03D4   2???           01333         call    tx_send_noescape
+03D5   30B5           01334     movlw       txframe
+03D6   0084           01335         movwf   FSR
+03D7   1683 1303      01336     banksel framelen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03D9   0832           01337         movf    framelen,W
+03DA   1683 1303      01338     banksel crcloop
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03DC   00B0           01339         movwf   crcloop
+03DD                  01340 send:
+03DD   1683 1303      01341     banksel crcloop
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03DF   0BB0           01342         decfsz  crcloop,f
+03E0   2???           01343         goto    lopp
+03E1   2???           01344         goto    crcsend
+03E2                  01345 lopp:
+03E2   1383           01346     bankisel txframe
+03E3   0800           01347         movf    INDF,W
+03E4   2???           01348         call    tx_send
+03E5   0A84           01349         incf    FSR,F
+03E6   2???           01350         goto    send
+                      01351 
+03E7                  01352 crcsend:
+03E7   1683 1303      01353     banksel crc0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03E9   082E           01354         movf    crc0,W
+03EA   2???           01355         call    tx_send
+03EB   1683 1303      01356     banksel crc1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03ED   082F           01357         movf    crc1,W
+03EE   2???           01358         call    tx_send
+03EF   2???           01359         goto    endflag
+                      01360 
+03F0                  01361 endflag:
+03F0   307E           01362         movlw   0x7e
+03F1   2???           01363         call    tx_send_noescape
+03F2   1683 1303      01364     banksel txreturn
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03F4   18B4           01365     btfsc       txreturn,1          ;; Cant allow this rutine, the device sends back flags and crc, but 
+                            the rest is zeroes (?)
+03F5   2???           01366     goto        txoops
+03F6   1683 1303      01367     banksel rc_listen
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+03F8   10A5           01368     bcf     rc_listen,1
+                      01369 
+                      01370     ;; Disable TX enable
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 32
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+03F9   1283 1303      01371     banksel OUTREG
+03FB   1206           01372         bcf     OUTREG,OUTNUM
+                      01373 
+03FC   0008           01374         return
+                      01375 
+03FD                  01376 trd:
+                      01377     ;; Three random delays before sending broadcast
+03FD   2???           01378         call    lfsr_func               
+03FE   1683 1303      01379     banksel rand
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0400   0824           01380         movf    rand,W
+0401   2???           01381         call    Delay
+0402   2???           01382         call    lfsr_func
+0403   1683 1303      01383     banksel rand
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0405   0824           01384         movf    rand,W
+0406   2???           01385         call    Delay
+0407   2???           01386         call    lfsr_func
+0408   1683 1303      01387     banksel rand
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+040A   0824           01388         movf    rand,W
+040B   2???           01389         call    Delay
+040C   0008           01390         return
+                      01391         
+040D                  01392 lfsr_func:
+040D   1683 1303      01393     banksel rand
+                      01394 #ifdef  ARC_18F
+                      01395     rlcf     rand,W
+                      01396         rlcf     rand,W
+                      01397 #endif
+                      01398 #ifdef  ARC_16F
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+040F   0D24           01399         rlf     rand,W
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0410   0D24           01400         rlf     rand,W
+                      01401 #endif
+                      01402 #ifdef  ARC_12F
+                      01403         rlf     rand,W
+                      01404         rlf     rand,W
+                      01405 #endif
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0411   1A24           01406         btfsc   rand,4
+0412   3A01           01407         xorlw   1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0413   1AA4           01408         btfsc   rand,5
+0414   3A01           01409         xorlw   1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0415   19A4           01410         btfsc   rand,3
+0416   3A01           01411         xorlw   1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0417   00A4           01412         movwf   rand
+0418   3400           01413         retlw   0
+                      01414         
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 33
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0419                  01415 Delay:
+0419   1683 1303      01416     banksel d1
+                      01417         ;; 499994 cycles
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+041B   00A2           01418         movwf   d3
+041C   30FF           01419         movlw   0xFF
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+041D   00A1           01420         movwf   d2
+041E   3032           01421         movlw   50
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+041F   00A0           01422         movwf   d1
+0420                  01423 Delay_0:
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0420   0BA0           01424         decfsz  d1, f
+0421   2???           01425         goto    Delay_0
+0422   3014           01426         movlw   20                  ;; Need this for tuning
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0423   00A0           01427         movwf   d1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0424   0BA1           01428         decfsz  d2, f
+0425   2???           01429         goto    Delay_0
+0426   3064           01430         movlw   100
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0427   00A1           01431         movwf   d2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0428   0BA2           01432         decfsz  d3, f
+0429   2???           01433         goto    Delay_0
+042A   0008           01434         return
+                      00029 
+                      00030 
+                      00031 ;; SpeedBus Serial Speed
+  00000008            00032 clock   equ     8       ; 8 MHz
+  00004B00            00033 baud    equ     19200  ; 19200, 57600, or 115200
+  00000004            00034 brgdiv  equ     4       ; divider value for BRG16 = 1
+  00000067            00035 brgval  equ     (clock*10000000/baud/brgdiv+5)/10-1
+                      00036 ;
+                      00037 
+                      00038 ;; Variable space.
+                      00039         cblock  USER_VARIABLE_SPACE
+  00000020            00040     w1
+  00000021            00041     w2
+  00000022            00042     w3
+  00000023            00043     w4
+  00000024            00044     w5
+  00000025            00045     main_commands          ; |X-------|b7 = NoNE
+                      00046                            ; |-X------|b6 = NoNE
+                      00047                            ; |--X-----|b5 = NoNE
+                      00048                            ; |---X----|b4 = NoNE
+                      00049                            ; |----X---|b3 = NoNE
+                      00050                            ; |-----X--|b2 = NoNE
+                      00051                            ; |------X-|b1 = If you set this to one, then the main loop will send back al
+                            l the tags.
+                      00052                            ; |-------X|b0 = If you set this to one, the next tag readed will be sent to 
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 34
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                            the bus.
+  00000026            00053     csum
+                      00054         endc
+                      00055 ;
+                      00056 
+                      00057 ;; Specify adresses for initial and interupt code.
+                      00058         org     0x000
+0000   2???           00059         goto    init_reset
+                      00060         org     0x004
+0004   2???           00061         goto    intserv
+                      00062 ;
+                      00063 
+                      00064 ;; Force bank 0 and IRP = 0
+0005                  00065 init_reset:
+0005   0183           00066     clrf    STATUS 
+0006   1283 1303      00067     banksel INTCON
+0008   138B           00068     bcf     INTCON, GIE
+                      00069 ;
+                      00070 
+                      00071 ;; Setup 8 MHz INTOSC
+0009   1683 1303      00072     banksel OSCCON
+000B   3070           00073     movlw   b'01110000'
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000C   008F           00074     movwf   OSCCON
+000D                  00075 Stable:
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000D   1D0F           00076     btfss   OSCCON,HTS ; osc stable? yes, skip, else     |B1
+000E   2???           00077         goto    Stable     ; test again                      |B1
+                      00078 ;
+                      00079 
+                      00080 ;; Turn off ADC pins
+000F   1283 1703      00081     banksel ANSEL
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0011   019E           00082     clrf    ANSEL
+0012   1283 1703      00083     banksel ANSELH
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0014   019F           00084     clrf    ANSELH
+0015   1683 1303      00085     banksel ADCON1
+0017   3060           00086     MOVLW   B'01100000'
+                      00087     ;A/D RC clock
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0018   009F           00088     MOVWF   ADCON1
+                      00089 ;
+                      00090 
+                      00091 ;; Setup ports
+0019   1683 1303      00092     banksel TRISA
+001B   30FF           00093         movlw   b'11111111'
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+001C   0085           00094         movwf   TRISA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+001D   0186           00095         clrf    TRISB
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+001E   0187           00096         clrf    TRISC
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 35
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00097 ;
+                      00098 
+                      00099 ;; Set interupts
+001F   1683 1303      00100     banksel PIE1
+0021   3020           00101         movlw   b'00100000'
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0022   008C           00102         movwf   PIE1
+                      00103 ;
+                      00104 
+                      00105 ;; Setup UART module for SpeedBus
+0023   1683 1303      00106     banksel SPBRG
+0025   3067           00107     movlw   low(brgval)
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0026   0099           00108     movwf   SPBRG
+0027   1683 1303      00109     banksel SPBRGH
+0029   3000           00110     movlw   high(brgval)
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+002A   009A           00111     movwf   SPBRGH
+002B   1683 1303      00112     banksel BAUDCTL
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+002D   159B           00113     bsf     BAUDCTL,BRG16
+002E   1683 1303      00114     banksel TXSTA
+0030   3024           00115     movlw   b'00100100'
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0031   0098           00116     movwf   TXSTA
+0032   1283 1303      00117     banksel RCSTA
+0034   3090           00118     movlw   b'10010000'
+0035   0098           00119     movwf   RCSTA
+0036   081A           00120     movf    RCREG,W
+0037   081A           00121     movf    RCREG,W
+                      00122 ;
+                      00123 
+                      00124 
+                      00125 ;; Start up Interrupts
+0038   1283 1303      00126         banksel INTCON
+003A   178B           00127                 bsf     INTCON, GIE
+003B   170B           00128                 bsf     INTCON, PEIE
+                      00129 ;
+                      00130 
+                      00131 ;; Init Speedbus Library
+003C   2???           00132         call    init_speedlib ; IMPORTANT to run this before, so the adresses are
+                      00133 ;                             ; imported from EEPROM
+                      00134 
+                      00135 
+003D                  00136 main:
+003D   1283 1303      00137     banksel RCSTA
+003F   1898           00138         btfsc   RCSTA,OERR
+0040   2???           00139         call    recerror
+                      00140         ;btfsc  PORTA, 0
+                      00141         ;call   txporta
+0041   1683 1303      00142     banksel rand
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0043   0AA4           00143         incf    rand,F          ; Increase the random value
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 36
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00144 
+                      00145 
+0044   2???           00146     goto    main
+                      00147 
+                      00148 
+                      00149 ; Untill further investigation, this functions need to be implemented explictly to
+                      00150 ; each processor
+                      00151 
+0045                  00152 read_eeprom:
+0045   1283 1703      00153     banksel EEADR
+                      00154     ;; Take the preset W number, and take the byte from the addr
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0047   008D           00155     movwf   EEADR
+0048   1683 1703      00156     banksel EECON1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+004A   138C           00157     bcf     EECON1, EEPGD
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+004B   140C           00158     bsf     EECON1, RD
+004C   1283 1703      00159     banksel EEDAT
+                      00160     ;; Put the result in W
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+004E   080C           00161     movf    EEDAT, W
+                      00162     ;; Get back to bank 0
+004F   1283           00163     bcf     STATUS, RP0
+0050   1303           00164     bcf     STATUS, RP1
+0051   0008           00165     return
+                      00166 
+0052                  00167 write_eeprom:
+0052   1283 1703      00168     banksel EEDAT
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0054   008C           00169     movwf   EEDAT ; write the value already in W to EEDAT, the data
+0055   1683 1303      00170     banksel rc_nocoll
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0057   0827           00171     movf    rc_nocoll,W
+0058   1283 1703      00172     banksel EEADR
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+005A   008D           00173     movwf   EEADR
+005B   1683 1703      00174     banksel EECON1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+005D   138C           00175     bcf     EECON1, EEPGD
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+005E   150C           00176     bsf     EECON1, WREN
+005F   3055           00177     movlw   0x55
+0060   1683 1703      00178     banksel EECON2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0062   008D           00179     movwf   EECON2
+0063   30AA           00180     movlw   0xAA
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0064   008D           00181     movwf   EECON2
+0065   1683 1703      00182     banksel EECON1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0067   148C           00183     bsf     EECON1, WR
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 37
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0068   188C           00184     btfsc   EECON1, WR
+0069   2???           00185     goto    $-1
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+006A   110C           00186     bcf     EECON1, WREN
+                      00187 
+                      00188     ;; Get back to bank 0
+006B   1283           00189     bcf     STATUS, RP0
+006C   1303           00190     bcf     STATUS, RP1
+006D   0008           00191     return
+                      00192 
+Warning[205]: Found directive in column 1. (end)
+30D4                  00193 end
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 38
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ABDEN                             00000000
+ABDOVF                            00000007
+ADCON0                            0000001F
+ADCON1                            0000009F
+ADCS0                             00000004
+ADCS1                             00000005
+ADCS2                             00000006
+ADDEN                             00000003
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADON                              00000000
+ADRESH                            0000001E
+ADRESL                            0000009E
+ANS0                              00000000
+ANS1                              00000001
+ANS10                             00000002
+ANS11                             00000003
+ANS2                              00000002
+ANS3                              00000003
+ANS4                              00000004
+ANS5                              00000005
+ANS6                              00000006
+ANS7                              00000007
+ANS8                              00000000
+ANS9                              00000001
+ANSEL                             0000011E
+ANSELH                            0000011F
+ARC_16F                           1
+BAUDCTL                           0000009B
+BF                                00000000
+BRG0                              00000000
+BRG1                              00000001
+BRG10                             00000002
+BRG11                             00000003
+BRG12                             00000004
+BRG13                             00000005
+BRG14                             00000006
+BRG15                             00000007
+BRG16                             00000003
+BRG2                              00000002
+BRG3                              00000003
+BRG4                              00000004
+BRG5                              00000005
+BRG6                              00000006
+BRG7                              00000007
+BRG8                              00000000
+BRG9                              00000001
+BRGH                              00000002
+C                                 00000000
+C1CH0                             00000000
+C1CH1                             00000001
+C1IE                              00000005
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 39
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+C1IF                              00000005
+C1OE                              00000005
+C1ON                              00000007
+C1OUT                             00000006
+C1POL                             00000004
+C1R                               00000002
+C1SEN                             00000005
+C1VREN                            00000007
+C2CH0                             00000000
+C2CH1                             00000001
+C2IE                              00000006
+C2IF                              00000006
+C2OE                              00000005
+C2ON                              00000007
+C2OUT                             00000006
+C2POL                             00000004
+C2R                               00000002
+C2REN                             00000004
+C2SYNC                            00000000
+C2VREN                            00000006
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCPR                              00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CHS0                              00000002
+CHS1                              00000003
+CHS2                              00000004
+CHS3                              00000005
+CKE                               00000006
+CKP                               00000004
+CM1CON0                           00000119
+CM2CON0                           0000011A
+CM2CON1                           0000011B
+CREN                              00000004
+CSRC                              00000007
+D                                 00000005
+DATA_ADDRESS                      00000005
+DC                                00000001
+DC1B0                             00000004
+DC1B1                             00000005
+DEV_ID1                           0
+DEV_ID2                           0
+DEV_ID3                           64
+DEV_ID4                           51
+D_A                               00000005
+D_NOT_A                           00000005
+Delay                             00000419
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 40
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+Delay_0                           00000420
+ECCPAS                            0000001D
+ECCPAS0                           00000004
+ECCPAS1                           00000005
+ECCPAS2                           00000006
+ECCPASE                           00000007
+EEADR                             0000010D
+EEADRH                            0000010F
+EECON1                            0000018C
+EECON2                            0000018D
+EEDAT                             0000010C
+EEDATA                            0000010C
+EEDATH                            0000010E
+EEIE                              00000004
+EEIF                              00000004
+EEPGD                             00000007
+F                                 00000001
+FERR                              00000002
+FSR                               00000004
+GIE                               00000007
+GO                                00000001
+GO_DONE                           00000001
+GO_NOT_DONE                       00000001
+HTS                               00000002
+I2C_DATA                          00000005
+I2C_READ                          00000002
+I2C_START                         00000003
+I2C_STOP                          00000004
+INDF                              00000000
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IOC                               00000096
+IOC0                              00000000
+IOC1                              00000001
+IOC2                              00000002
+IOC3                              00000003
+IOC4                              00000004
+IOC5                              00000005
+IOCA                              00000096
+IOCA0                             00000000
+IOCA1                             00000001
+IOCA2                             00000002
+IOCA3                             00000003
+IOCA4                             00000004
+IOCA5                             00000005
+IOCB                              00000116
+IOCB4                             00000004
+IOCB5                             00000005
+IOCB6                             00000006
+IOCB7                             00000007
+IRCF0                             00000004
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 41
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+IRCF1                             00000005
+IRCF2                             00000006
+IRP                               00000007
+LTS                               00000001
+MC1OUT                            00000007
+MC2OUT                            00000006
+MSK                               00000093
+MSK0                              00000000
+MSK1                              00000001
+MSK2                              00000002
+MSK3                              00000003
+MSK4                              00000004
+MSK5                              00000005
+MSK6                              00000006
+MSK7                              00000007
+NOT_A                             00000005
+NOT_ADDRESS                       00000005
+NOT_BOR                           00000000
+NOT_DONE                          00000001
+NOT_PD                            00000003
+NOT_POR                           00000001
+NOT_RABPU                         00000007
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+NOT_W                             00000002
+NOT_WRITE                         00000002
+OERR                              00000001
+OPTION_REG                        00000081
+OSCCON                            0000008F
+OSCTUNE                           00000090
+OSFIE                             00000007
+OSFIF                             00000007
+OSTS                              00000003
+OUTNUM                            4
+OUTREG                            PORTB
+P                                 00000004
+P1M0                              00000006
+P1M1                              00000007
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PDC0                              00000000
+PDC1                              00000001
+PDC2                              00000002
+PDC3                              00000003
+PDC4                              00000004
+PDC5                              00000005
+PDC6                              00000006
+PEIE                              00000006
+PIE1                              0000008C
+PIE2                              0000008D
+PIR1                              0000000C
+PIR2                              0000000D
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 42
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+PORTA                             00000005
+PORTB                             00000006
+PORTC                             00000007
+PR2                               00000092
+PRSEN                             00000007
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+PSSAC0                            00000002
+PSSAC1                            00000003
+PSSBD0                            00000000
+PSSBD1                            00000001
+PSTRCON                           0000019D
+PULSR                             00000002
+PULSS                             00000003
+PWM1CON                           0000001C
+R                                 00000002
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RABIE                             00000003
+RABIF                             00000000
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RC0                               00000000
+RC1                               00000001
+RC2                               00000002
+RC3                               00000003
+RC4                               00000004
+RC5                               00000005
+RC6                               00000006
+RC7                               00000007
+RCIDL                             00000006
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+READ_EEPROM                       read_eeprom
+READ_WRITE                        00000002
+RP0                               00000005
+RP1                               00000006
+RX9                               00000006
+RX9D                              00000000
+R_NOT_W                           00000002
+R_W                               00000002
+S                                 00000003
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 43
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+SBOREN                            00000004
+SCKP                              00000004
+SCS                               00000000
+SENB                              00000003
+SENDB                             00000003
+SMP                               00000007
+SPBRG                             00000099
+SPBRGH                            0000009A
+SPEEDLIB_RESPONSE_DELAY           9
+SPEN                              00000007
+SR0                               00000006
+SR1                               00000007
+SRCON                             0000019E
+SREN                              00000005
+SSPADD                            00000093
+SSPBUF                            00000013
+SSPCON                            00000014
+SSPEN                             00000005
+SSPIE                             00000003
+SSPIF                             00000003
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPMSK                            00000093
+SSPOV                             00000006
+SSPSTAT                           00000094
+STATUS                            00000003
+STRA                              00000000
+STRB                              00000001
+STRC                              00000002
+STRD                              00000003
+STRSYNC                           00000004
+SWDTEN                            00000000
+SYNC                              00000004
+Stable                            0000000D
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1GINV                            00000007
+T1GSS                             00000001
+T1IE                              00000000
+T1IF                              00000000
+T1OSCEN                           00000003
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+T2IE                              00000001
+T2IF                              00000001
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 44
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TMR0                              00000001
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1GE                            00000006
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISB                             00000086
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRISC                             00000087
+TRISC0                            00000000
+TRISC1                            00000001
+TRISC2                            00000002
+TRISC3                            00000003
+TRISC4                            00000004
+TRISC5                            00000005
+TRISC6                            00000006
+TRISC7                            00000007
+TRMT                              00000001
+TUN0                              00000000
+TUN1                              00000001
+TUN2                              00000002
+TUN3                              00000003
+TUN4                              00000004
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+TXSTA                             00000098
+UA                                00000001
+ULPWUE                            00000005
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 45
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+USER_NO_BANK_SPACE                0x67
+USER_VARIABLE_SPACE               0x20
+VCFG                              00000006
+VP6EN                             00000004
+VR0                               00000000
+VR1                               00000001
+VR2                               00000002
+VR3                               00000003
+VRCON                             00000118
+VRR                               00000005
+W                                 00000000
+WCOL                              00000007
+WDTCON                            00000097
+WDTPS0                            00000001
+WDTPS1                            00000002
+WDTPS2                            00000003
+WDTPS3                            00000004
+WPU                               00000095
+WPU0                              00000000
+WPU1                              00000001
+WPU2                              00000002
+WPU4                              00000004
+WPU5                              00000005
+WPUA                              00000095
+WPUA0                             00000000
+WPUA1                             00000001
+WPUA2                             00000002
+WPUA4                             00000004
+WPUA5                             00000005
+WPUB                              00000115
+WPUB4                             00000004
+WPUB5                             00000005
+WPUB6                             00000006
+WPUB7                             00000007
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+WRITE_EEPROM                      write_eeprom
+WUE                               00000001
+Z                                 00000002
+_.org_1_0069                      00000069
+_BOD_NSLEEP                       00003EFF
+_BOD_OFF                          00003CFF
+_BOD_ON                           00003FFF
+_BOD_SBODEN                       00003DFF
+_BOREN_NSLEEP                     00003EFF
+_BOREN_OFF                        00003CFF
+_BOREN_ON                         00003FFF
+_BOREN_SBODEN                     00003DFF
+_BOR_NSLEEP                       00003EFF
+_BOR_OFF                          00003CFF
+_BOR_ON                           00003FFF
+_BOR_SBODEN                       00003DFF
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 46
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003F7F
+_CP_OFF                           00003FFF
+_CP_ON                            00003FBF
+_DEVID1                           00002006
+_EC_OSC                           00003FFB
+_EXTRC                            00003FFF
+_EXTRCIO                          00003FFE
+_EXTRC_OSC_CLKOUT                 00003FFF
+_EXTRC_OSC_NOCLKOUT               00003FFE
+_FCMEN_OFF                        000037FF
+_FCMEN_ON                         00003FFF
+_FOSC_EC                          00003FFB
+_FOSC_EXTRCCLK                    00003FFF
+_FOSC_EXTRCIO                     00003FFE
+_FOSC_HS                          00003FFA
+_FOSC_INTRCCLK                    00003FFD
+_FOSC_INTRCIO                     00003FFC
+_FOSC_LP                          00003FF8
+_FOSC_XT                          00003FF9
+_HS_OSC                           00003FFA
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_IESO_OFF                         00003BFF
+_IESO_ON                          00003FFF
+_INTOSC                           00003FFD
+_INTOSCIO                         00003FFC
+_INTRC_OSC_CLKOUT                 00003FFD
+_INTRC_OSC_NOCLKOUT               00003FFC
+_LP_OSC                           00003FF8
+_MCLRE_OFF                        00003FDF
+_MCLRE_ON                         00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FEF
+_WDTE_OFF                         00003FF7
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FF7
+_WDT_ON                           00003FFF
+_XT_OSC                           00003FF9
+__16F690                          00000001
+adress1                           000000AB
+adress2                           000000AC
+baud                              00004B00
+brgdiv                            00000004
+brgval                            00000067
+clock                             00000008
+crc0                              000000AE
+crc1                              000000AF
+crccalc                           000003A8
+crcloop                           000000B0
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 47
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+crcloopr                          000003A3
+crcsend                           000003E7
+crctmp                            000000B1
+csum                              00000026
+d1                                000000A0
+d1_tmp                            00000072
+d2                                000000A1
+d2_tmp                            00000073
+d3                                000000A2
+d3_tmp                            00000074
+d4                                000000A3
+endflag                           000003F0
+framelen                          000000B2
+func_bc                           00000214
+func_bc_01                        00000260
+func_bc_devid                     00000233
+func_bc_sendaddr                  0000026D
+func_bc_sendaddr_devid_resp       0000025C
+func_bc_sendaddr_noresp           000002A5
+func_check_response               000001E5
+func_is_ocupied_send_response     000001E9
+func_is_ocupied_send_response_go  000001F0
+func_is_ocupied_send_response_pa  000001F2
+func_rand_addr                    000002FE
+func_send_iam_here                000002D4
+func_send_response                000001C3
+func_set_rsp_addr                 00000314
+func_setport                      0000030C
+func_speedlib_config              00000135
+func_speedlib_config_basics       00000191
+func_speedlib_config_caddr        0000014B
+func_speedlib_config_caddr_f      00000161
+func_speedlib_config_extended     0000013E
+handle_response                   00000323
+handle_response_loop              0000032F
+handle_response_ret               0000033E
+init_reset                        00000005
+init_speedlib                     00000000
+intserv                           00000041
+intserv_norm                      00000049
+lfsr_func                         0000040D
+lopp                              000003E2
+main                              0000003D
+main_commands                     00000025
+rand                              000000A4
+rc1                               000000CB
+rc10                              000000D4
+rc11                              000000D5
+rc12                              000000D6
+rc13                              000000D7
+rc14                              000000D8
+rc15                              000000D9
+rc16                              000000DA
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 48
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+rc17                              000000DB
+rc18                              000000DC
+rc19                              000000DD
+rc2                               000000CC
+rc20                              000000DE
+rc3                               000000CD
+rc4                               000000CE
+rc5                               000000CF
+rc6                               000000D0
+rc7                               000000D1
+rc8                               000000D2
+rc9                               000000D3
+rc_add_byte                       000000A8
+rc_counter                        000000A6
+rc_listen                         000000A5
+rc_nocoll                         000000A7
+rcframe                           000000CA
+read_eeprom                       00000045
+rec                               0000006F
+rec_oops_coll                     0000007D
+rec_start                         00000081
+reccrcfail                        00000343
+reccrcfail_end                    0000034B
+recend                            000000CA
+recend_no_broadcast               00000103
+recend_tmp                        000000FE
+recerror                          0000034F
+recsave                           00000095
+recsave_add                       000000B9
+recsave_set                       000000A3
+recsave_unescape                  000000A7
+recsave_unescape_1                000000B5
+recsave_unescape_2                000000B7
+recx                              0000008C
+restore                           0000005D
+restore_norm                      0000005F
+rsp_adress1                       000000A9
+rsp_adress2                       000000AA
+send                              000003DD
+speedlib_config                   000000AD
+speedlib_main                     00000075
+tmp_STATUS                        00000071
+tmp_W                             00000070
+trd                               000003FD
+tx1                               000000B6
+tx10                              000000BF
+tx11                              000000C0
+tx12                              000000C1
+tx13                              000000C2
+tx14                              000000C3
+tx15                              000000C4
+tx16                              000000C5
+tx17                              000000C6
+MPASM  5.50  /HOME/MOONSHINE/SPEEDBUS/PIC/MPL   5-29-2014  13:55:02         PAGE 49
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+tx18                              000000C7
+tx19                              000000C8
+tx2                               000000B7
+tx20                              000000C9
+tx3                               000000B8
+tx4                               000000B9
+tx5                               000000BA
+tx6                               000000BB
+tx7                               000000BC
+tx8                               000000BD
+tx9                               000000BE
+tx_send                           00000360
+tx_send_escape_1                  00000386
+tx_send_escape_2                  0000038B
+tx_send_noescape                  0000036C
+tx_send_noescape_k                00000383
+tx_send_noescape_l                0000037D
+txdo                              00000390
+txdo2                             000003CD
+txframe                           000000B5
+txoops                            00000354
+txreturn                          000000B4
+txtmp                             000000B3
+w1                                00000020
+w2                                00000021
+w3                                00000022
+w4                                00000023
+w5                                00000024
+write_eeprom                      00000052
+
+Errors   :     0
+Warnings :     6 reported,     0 suppressed
+Messages :   253 reported,     0 suppressed
+
+
