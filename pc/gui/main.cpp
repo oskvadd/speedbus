@@ -560,7 +560,7 @@ exec_package(void *ptr, char *data, int counter)
 	      devid <<= 8;
 	      devid += data[i + 7];
 	    }
-	  device_add(rdata, data[2], data[3], devid);
+	  device_add(rdata->backe, data[2], data[3], devid);
 	  gdk_threads_enter();
 	  speedbus_fill_devlist(rdata);
 	  gdk_threads_leave();
@@ -593,7 +593,7 @@ exec_package(void *ptr, char *data, int counter)
 		  devid += (unsigned char)data[i + 8];
 		}
 	      char print[50];
-	      device_add(rdata, data[2], data[3], devid);
+	      device_add(rdata->backe, data[2], data[3], devid);
 	      speedbus_fill_devlist(rdata);
 	      sprintf(print, "Recived IAH from: %d.%d (%d)", (unsigned char)data[2], (unsigned char)data[3], devid);
 	      gtk_label_set_text(GTK_LABEL(rdata->label), print);
@@ -730,7 +730,7 @@ client_handler(void *ptr)
 		continue;
 	      int addr1, addr2, devid;
 	      sscanf(data, "devlistadd %d.%d %d\n", &addr1, &addr2, &devid);
-	      device_add(rdata, addr1, addr2, devid);
+	      device_add(rdata->backe, addr1, addr2, devid);
 	    }
 	  if (strncmp(data, "devlistdel ", 11) == 0)
 	    {
@@ -2095,9 +2095,7 @@ rdev_stamp(GtkWidget * some, gpointer data)
     rdev_stamp_done:
       rdata->addr1 = getaddr1;
       rdata->addr2 = getaddr2;
-      device_add(rdata, rdata->addr1, rdata->addr2, rdata->c_devid);
-      backend_check_update_addr(rdata->backe, rdata->c_devid);	// Well, this should be updated automaticly when an event ocurres, 
-      // but to prevent bugs in the future, i do an update here to
+      device_add(rdata->backe, rdata->addr1, rdata->addr2, rdata->c_devid);
       return 1;
     }
 }

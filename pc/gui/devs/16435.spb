@@ -40,7 +40,15 @@ spb =
                type = "send"; // Anyway, this first command is simply Nexa LYC On Off Dim.
                data = (0x0A);
 	       },
-	       { event = 2;
+	       { event = 2;   
+               type = "getvars";	
+	       eevent = 1;
+	       descr = "Inside Temp: (264).(259)°C";},
+	       { event = 3;   
+               type = "getvars";	
+	       eevent = 1;
+	       descr = "Inside Hum: (262).(257)%";},
+	       { event = 4;
                type = "getvars";  	
                data = (0x0A);
                var_num = (262,261,264,263,257,258,259,260);

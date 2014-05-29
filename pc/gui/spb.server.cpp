@@ -277,7 +277,7 @@ device_file_init(print_seri * serial_p)
 	  if (sscanf(line, "%d %s\n", &devid, addr) == 2)
 	    {
 	      sscanf(addr, "%d.%d", &addr1, &addr2);
-	      device_add((void *)NULL, addr1, addr2, devid);
+	      device_add(serial_p->backe, addr1, addr2, devid);
 	      serial_p->device_id[serial_p->device_num] = devid;
 	      strcpy(serial_p->device_addr[serial_p->device_num], addr);
 	      serial_p->device_num++;
@@ -291,7 +291,7 @@ void
 device_add(print_seri * serial_p, char addr1, char addr2, int devid)
 {
   // Device add for the backend
-  device_add((void *)NULL, addr1, addr2, devid);
+  device_add(serial_p->backe, addr1, addr2, devid);
   //
   char name[7];
   sprintf(name, "%d.%d", (unsigned char)addr1, (unsigned char)addr2);
@@ -326,8 +326,10 @@ device_rm(print_seri * serial_p, int devid)
     {
       if (serial_p->device_id[i] == devid)
 	dev_hop++;
-      if(dev_hop > 0)
+      if(dev_hop > 0){
 	strncpy(serial_p->device_addr[i], serial_p->device_addr[i+dev_hop], 8);
+	serial_p->device_id[i] = serial_p->device_id[i+dev_hop];
+      }
     }
   serial_p->device_num -= dev_hop;
   
@@ -1329,7 +1331,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       if (strncmp(data, "devlistdel", 10) == 0)
 	{
 	  // Send command to links upstream
-	  //spb_links_send(serial_p, listnum, linknum, data, len);
+	  spb_links_send(serial_p, listnum, linknum, data, len);
 	  //
 	  int devid;
 	  if(sscanf(data, "devlistdel %d\n", &devid) > 0 && devid > 0){
@@ -2307,6 +2309,7 @@ main(int argc, char *argv[])
     {
       users[i][1][0] = '\0';
     }
+
 
 
   int port;

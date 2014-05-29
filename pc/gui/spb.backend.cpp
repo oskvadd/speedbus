@@ -5,12 +5,6 @@
 #include <dirent.h>
 
 
-  // Device Scan list. Declare this global, so that the backend can reach the devices
-short device_num;
-int device_id[30];
-char device_addr[30][8];
-  //
-
 
 #include "spb.backend.h"
 #include "usb.hid.h"
@@ -20,10 +14,15 @@ char device_addr[30][8];
 #endif
 
 
+// Device Scan list. Declare this global, so that the backend can reach the devices
+short device_num;
+int device_id[MAX_DEVIDS];
+char device_addr[MAX_DEVIDS][8];
+//
 
 
 void
-device_add(void *data, char addr1, char addr2, int devid)
+device_add(main_backend * backe, char addr1, char addr2, int devid)
 {
   //rspeed_gui_rep *rdata = (rspeed_gui_rep *)data;  
   char name[7];
@@ -41,6 +40,15 @@ device_add(void *data, char addr1, char addr2, int devid)
   strcpy(device_addr[device_num], name);
   device_num++;
 device_add_end:
+
+  for (int i = 0; i < backe->devids; i++)
+    {
+      if (backe->device_id[i] == devid)
+	{			// Device id is found in the MAIN device list                                                                                                       
+	  backe->daddr1[i] = (unsigned char)addr1;
+	  backe->daddr2[i] = (unsigned char)addr2;
+	}
+    }
   return;
 }
 
@@ -52,8 +60,10 @@ device_rm(void *data, int devid)
     {
       if (device_id[i] == devid)
 	dev_hop++;
-      if(dev_hop > 0)
+      if(dev_hop > 0){
 	strncpy(device_addr[i], device_addr[i+dev_hop], 8);
+      	device_id[i] = device_id[i+dev_hop];
+      }
     }
   device_num -= dev_hop;
 }
@@ -112,23 +122,6 @@ backend_get_variable(main_backend * backe, int array_num, int var_num)
     return backend_exec_ops(backe, array_num, var_num, backe->event_variable[array_num][var_num - 257], 0);
   else
     return 0;
-}
-
-void
-backend_check_update_addr(main_backend * backe, int devid)
-{
-  for (int i = 0; i < device_num; i++)
-    {
-      if (device_id[i] == devid)
-	{			// Device id is found in the MAIN device list                                                                                                       
-	  int daddr1;
-	  int daddr2;
-	  sscanf(device_addr[i], "%d.%d", &daddr1, &daddr2);
-	  backe->daddr1[i] = daddr1;
-	  backe->daddr2[i] = daddr2;
-	  return;
-	}
-    }
 }
 
 int
@@ -258,7 +251,6 @@ backend_exec_ops(main_backend * backe, int array_num, int var_num, int var_val, 
 bool
 backend_exec(main_backend * backe, int event, int devid, short vspace)
 {
-  backend_check_update_addr(backe, devid);
   for (int i = 0; i < device_num; i++)
     {
       if (device_id[i] == devid)
@@ -302,6 +294,7 @@ backend_run_event(main_backend * backe, int array_num, int event, short vspace)
       char getdevs[MAX_BUFFER + 7] = { backe->daddr1[array_num], backe->daddr2[array_num],
 	addr1, addr2, 0x03, 0x01
       };
+
       for (int ii = 0; ii < len - 7; ii++)
 	{			// Len-7 = rdata->spb_widget_event_data[rdata->spb_widget_event[i]][0] 
 	  if (backe->event_data[array_num][event][ii + 1] > 256)
@@ -454,6 +447,7 @@ backend_load_events(main_backend * backe)
 	}
       //if(debug)
       printf("Sucess loaded %d.spb\n", devid);
+
       int devids = backe->devids++;
       backe->device_id[devids] = devid;
       int daddr1;
@@ -568,7 +562,6 @@ backend_load_events(main_backend * backe)
 
 
 	    }
-	}
-
+	} 
     }
 }
