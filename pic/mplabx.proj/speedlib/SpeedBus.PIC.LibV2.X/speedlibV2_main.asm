@@ -55,7 +55,7 @@ radix dec
 ; Remember that d1, d2, d3, d4 is stored i the same bank as cblock, 0xA0 = bank nr1.
 	cblock  0xA0
 	     d1      		; Define three file registers for the
-      	 d2      		; delay loop
+      	 d2      		; delay loop. Make sure all these(d1,d2,d3) is in the same bank
 	     d3
 	     d4
 	     rand
@@ -90,6 +90,8 @@ radix dec
 	     framelen		; TX framelen
 	     txtmp		; temporary before sending
 	     txreturn		; Hardcoded return, if nessesary(in interupts)
+         ;; IMPORTANT - Make sure that txframe and its 20bytes is in the same register,
+         ;; and that rcframe and its 20bytes is in the same registers.
 	     txframe, tx1, tx2, tx3, tx4, tx5, tx6, tx7, tx8, tx9, tx10 ; Current package limit, 20B
              tx11, tx12, tx13, tx14, tx15, tx16, tx17, tx18, tx19, tx20
 	     rcframe, rc1, rc2, rc3, rc4, rc5, rc6, rc7, rc8, rc9, rc10 ; Current package limit, 20B
@@ -138,6 +140,7 @@ init_speedlib:
     bcf     rc_listen,1
     bcf     rc_listen,4
     bcf     rc_listen,5         ;; Clear got flag
+    banksel txreturn
     bcf     txreturn, 1
 
 #ifdef  READ_EEPROM
@@ -170,16 +173,20 @@ init_speedlib:
 
     banksel     adress1
     clrf        adress1
+    banksel     adress2
     clrf        adress2
 
 #ifdef  WRITE_EEPROM
     movlw   0
+    banksel rc_nocoll
     movwf   rc_nocoll
+    banksel adress1
     movf    adress1,W
     call    WRITE_EEPROM
     banksel rc_nocoll
     movlw   1
     movwf   rc_nocoll
+    banksel adress2
     movf    adress2,W
     call    WRITE_EEPROM
 #endif
@@ -207,12 +214,13 @@ intserv_norm:
 	movf	STATUS,W
 	clrf	STATUS
 	movwf	tmp_STATUS
-	movf	PCLATH,W
-	movwf	tmp_PCLATH
+    banksel d1
 	movf	d1,W
 	movwf	d1_tmp
+    banksel d2
 	movf	d2,W
 	movwf	d2_tmp
+    banksel d3
 	movf	d3,W
 	movwf	d3_tmp
 #ifdef  CUSTOM_INTERRUPT
@@ -226,7 +234,6 @@ ci_restore:
 
 
 restore:
-	banksel speedlib_main       ;; Restore the regisers
     btfsc	speedlib_main,1     ;; Waiting for response STATE? Dont
     retfie                      ;; restore saved, nothing is saved
 
@@ -239,17 +246,17 @@ restore:
 
 restore_norm:
 	movf	d1_tmp,W
+    banksel d1
 	movwf	d1
 	movf	d2_tmp,W
+    banksel d2
 	movwf	d2
 	movf	d3_tmp,W
+    banksel d3
 	movwf	d3	
-	movf 	tmp_PCLATH,W
-	movwf	PCLATH
 	movf	tmp_STATUS,W
 	movwf	STATUS
-	swapf	tmp_W,F
-	swapf	tmp_W,W
+    movf    tmp_W, W
 	retfie	
 
 rec:
@@ -258,7 +265,8 @@ rec:
 	goto	rec_start		
 
 	bcf     rc_listen,1         ;; Start this rutine with checking that the recived bit NOT was send from this own device
-	movf	rc_nocoll,W
+	banksel rc_nocoll
+    movf	rc_nocoll,W
     banksel RCREG
 	subwf	RCREG,W
 	btfss	STATUS,Z
@@ -286,7 +294,8 @@ recx:
 	btfsc	rc_listen,5
 	goto	recend              ;; If this may be end flag, check the package, finalize, check crc
 	bsf     rc_listen,5         ;; Else set the gotflag, and start recording package!
-	clrf	rc_counter          ;; Clear the counter :)
+	banksel rc_counter
+    clrf	rc_counter          ;; Clear the counter :)
 	goto	restore
 
 recsave:
@@ -332,13 +341,13 @@ recsave_unescape_2:
 recsave_add:
     banksel rc_add_byte
 	movwf	rc_add_byte
-	movlw	rcframe             ;; Place where to put the receiving byte
-	addwf	rc_counter,W        ;; Add the number in rc_flow, to the pointer, like rcframe[rc_flow]
-	banksel FSR
+    movlw	rcframe             ;; Place where to put the receiving byte
+    banksel rc_counter
+    addwf	rc_counter,W        ;; Add the number in rc_flow, to the pointer, like rcframe[rc_flow]
     movwf	FSR
     banksel rc_add_byte
 	movf	rc_add_byte,W
-    banksel INDF
+    bankisel rcframe
 	movwf	INDF
     banksel rc_counter
 	incf	rc_counter,F
@@ -346,39 +355,41 @@ recsave_add:
 	
 recend:
     movlw   5
+    banksel rc_counter
     subwf   rc_counter,W
     btfss   STATUS,C
     goto    reccrcfail
     banksel rc_counter
 	decf	rc_counter,W
 	movwf	rc_counter
+    banksel crcloop
 	movwf	crcloop
 	movlw	rcframe
     banksel FSR
 	movwf	FSR
     banksel crc0
 	clrf	crc0
+    banksel crc1
 	clrf	crc1
 	call	crcloopr	; Call CRC function
 
-    banksel rcframe
+
 	movlw	rcframe
+    banksel rc_counter
 	addwf	rc_counter,W
-    banksel FSR
 	movwf	FSR
 
-    banksel INDF
+    bankisel rcframe
 	movf	INDF,W
 
     banksel crc1
 	subwf	crc1,W
 	btfss	STATUS,Z
 	goto	reccrcfail
-    banksel FSR
 	decf	FSR,W
 	movwf	FSR
 
-    banksel INDF
+    bankisel rcframe
 	movf	INDF,W
 
     banksel crc0
@@ -402,18 +413,16 @@ recend_tmp:
 recend_no_broadcast:
     banksel rcframe
 	movlw	rcframe
-    banksel FSR
 	movwf	FSR
-    banksel INDF
+    bankisel rcframe
 	movf	INDF,W              ;; Check so that the adress is destinated for me
 	banksel adress1
     subwf	adress1,W
 	btfss	STATUS,Z
 	goto	restore
-    banksel FSR
 	incf	FSR,W
 	movwf	FSR
-    banksel INDF
+    bankisel rcframe
 	movf	INDF,W
     banksel adress2
 	subwf	adress2,W
@@ -421,11 +430,10 @@ recend_no_broadcast:
 	goto	restore
 
 	movlw	rcframe+6           ;; Move recived byte to W
-    banksel FSR
     movwf	FSR
 
 	movlw	0x00                ;; Got response
-	banksel INDF
+	bankisel rcframe
     subwf	INDF,W
 	btfsc	STATUS,Z
 	goto	func_check_response
@@ -434,6 +442,7 @@ recend_no_broadcast:
     btfsc   speedlib_main,1     ;; No CUSTOM command when in Whait for RESP STATE
     goto    restore
 
+    banksel rcframe+5
  	movf    rcframe+5,W
 	sublw   0x01
 	btfsc	STATUS,Z
@@ -442,16 +451,16 @@ recend_no_broadcast:
 
         
 	movlw	rcframe+6           ;; Make sure that the FSR pointer is pointed right
-	banksel FSR
     movwf	FSR
 
 	movlw	0x01                ;; Send respons for, 0x01 message, destionated for me
-	banksel INDF
+	bankisel rcframe
     subwf	INDF,W
 	btfsc	STATUS,Z
 	goto	func_is_ocupied_send_response
 	
 	movlw	0x02
+    bankisel rcframe
 	subwf	INDF,W
 	btfsc	STATUS,Z
 	goto	func_setport
@@ -474,14 +483,14 @@ func_speedlib_config:
 
 func_speedlib_config_extended:
     movlw	rcframe+11           ;; Make sure that the FSR pointer is pointed right
-	banksel FSR
     movwf	FSR
     movlw	0x00
-    banksel INDF
+    bankisel rcframe
 	subwf	INDF,W
 	btfsc	STATUS,Z
 	goto	func_speedlib_config_basics
 	movlw	0x01
+    bankisel rcframe
 	subwf	INDF,W
 	btfsc	STATUS,Z
 	goto	func_speedlib_config_caddr
@@ -498,17 +507,16 @@ func_speedlib_config_caddr:
     ;;call    func_send_response
         
     movlw	rcframe+12           ;; Move recived byte to W
-    banksel FSR
 	movwf	FSR
     movlw   0xFF
-    banksel INDF
+    bankisel rcframe
     subwf   INDF,W
     btfss   STATUS,Z
     goto    func_speedlib_config_caddr_f
     banksel FSR
     incf    FSR,F
     movlw   0xFF
-    banksel INDF
+    bankisel rcframe
     subwf   INDF,W
     btfss   STATUS,Z
     goto    func_speedlib_config_caddr_f
@@ -516,34 +524,39 @@ func_speedlib_config_caddr:
 
 func_speedlib_config_caddr_f:
     movlw	rcframe+12	; Move recived byte to W
-    banksel FSR
 	movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel adress1
     movwf   adress1
-    banksel FSR
-    incf    FSR,f
-    banksel INDF
+    incf    FSR, F
+    bankisel rcframe
     movf    INDF,W
     banksel adress2
     movwf   adress2
 
+    banksel speedlib_config
     bsf     speedlib_config,1
 #ifdef  WRITE_EEPROM
     ;; Write adress to eeprom
     movlw   0
+    banksel rc_nocoll
     movwf   rc_nocoll
+    banksel adress1
     movf    adress1,W
     call    WRITE_EEPROM
     banksel rc_nocoll
     movlw   1
+    banksel rc_nocoll
     movwf   rc_nocoll
+    banksel adress2
     movf    adress2,W
     call    WRITE_EEPROM
     banksel rc_nocoll
     movlw   2
+    banksel rc_nocoll
     movwf   rc_nocoll
+    banksel speedlib_config
     movf    speedlib_config,W
     call    WRITE_EEPROM
 #endif
@@ -563,27 +576,29 @@ func_speedlib_config_basics:
 	movwf   framelen
 
     movlw	rcframe+2
-	banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel txframe
 	movwf   txframe
 
     movlw	rcframe+3
-	banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel txframe
 	movwf   txframe+1
 
     ;; * my own src adress
+    banksel adress1
 	movf	adress1, W
+    banksel txframe+2
 	movwf   txframe+2
 
     ;; * my own src adress
+    banksel adress2
 	movf	adress2, W
+    banksel txframe+3
 	movwf   txframe+3
 
     ;; 0x03 control bit
@@ -603,7 +618,9 @@ func_speedlib_config_basics:
     movwf   txframe+7
 
     ;; Send back speedlib_config
-	movlw   speedlib_config
+    banksel speedlib_config
+	movf   speedlib_config, W
+    banksel txframe+8
     movwf   txframe+8
 
     ;; Padding bit
@@ -616,22 +633,20 @@ func_speedlib_config_basics:
 func_send_response:
     movlw   SPEEDLIB_RESPONSE_DELAY
     call    Delay
-    banksel framelen
 	movlw   9
+    banksel framelen
 	movwf   framelen
 
     movlw	rcframe+2
-    banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel txframe
 	movwf   txframe
 
     movlw	rcframe+3
-	banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel txframe
 	movwf   txframe+1
@@ -693,17 +708,15 @@ func_is_ocupied_send_response_pack:
 	movwf   framelen
 
   	movlw	rcframe+2
-	banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel txframe
 	movwf   txframe
 
    	movlw	rcframe+3
-    banksel FSR
 	movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel txframe
 	movwf   txframe+1
@@ -747,39 +760,35 @@ func_bc:
 
     banksel rcframe
 	movlw	rcframe
-	banksel FSR
     movwf	FSR
 	
 	movlw	0xFF                ;;	check dst adress1
-	banksel INDF
+	banksel rcframe
     subwf	INDF,W
 	btfss	STATUS,Z
 	goto    recend_no_broadcast
 
-    banksel FSR
-	incf	FSR,W               ;;	Increase the address
-	movwf	FSR
+	incf	FSR, F               ;;	Increase the address
 
 	movlw	0xFF                ;;	check dst adress2
-	banksel INDF
+	banksel rcframe
     subwf	INDF,W
 	btfss	STATUS,Z
 	goto    recend_no_broadcast
 
 	movlw	rcframe+6        
-	banksel FSR
     movwf	FSR
 
 #ifdef  on_got_IAH
     movlw	0x03
-    banksel INDF
+    bankisel rcframe
 	subwf	INDF,W
 	btfss	STATUS,Z
 	goto	restore
-    banksel INDF
+    bankisel rcframe
     incf    FSR, F
     movlw	0x01
-    banksel INDF
+    bankisel rcframe
 	subwf	INDF,W
 	btfss	STATUS,Z
 	goto	restore
@@ -793,7 +802,7 @@ func_bc:
     goto    func_bc_devid
 
 	movlw	0x01
-    banksel INDF
+    bankisel rcframe
 	subwf	INDF,W
 	btfsc	STATUS,Z
 	goto	func_bc_01
@@ -805,36 +814,32 @@ func_bc_devid:
 
 
 	movlw	rcframe+7
-	banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movlw   DEV_ID1
     subwf   INDF, W
     btfss   STATUS, Z
     goto    restore
 
 	movlw	rcframe+8
-	banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movlw   DEV_ID2
     subwf   INDF, W
     btfss   STATUS, Z
     goto    restore
 
 	movlw	rcframe+9
-	banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movlw   DEV_ID3
     subwf   INDF, W
     btfss   STATUS, Z
     goto    restore
 
 	movlw	rcframe+10
-	banksel FSR
     movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movlw   DEV_ID4
     subwf   INDF, W
     btfss   STATUS, Z
@@ -843,14 +848,13 @@ func_bc_devid:
 
     ;;
 	movlw	rcframe+6
-	banksel FSR
     movwf   FSR
-    banksel INDF
+    bankisel rcframe
     movlw	0x01
 	subwf	INDF,W
 	btfsc	STATUS,Z
 	goto	func_bc_sendaddr_devid_resp
-    banksel INDF
+    bankisel rcframe
     movlw	0x03
 	subwf	INDF,W
 	btfsc	STATUS,Z
@@ -865,14 +869,14 @@ func_bc_sendaddr_devid_resp:
 
 func_bc_01:
     movlw	rcframe+5
-	banksel FSR
     movwf	FSR
 	movlw	0x01
-    banksel INDF
+    bankisel rcframe
 	subwf	INDF,W
 	btfsc	STATUS,Z
     goto    func_bc_sendaddr
     movlw	0x00
+    bankisel rcframe
     subwf	INDF,W
 	btfsc	STATUS,Z
     call    func_send_response
@@ -885,24 +889,32 @@ func_bc_sendaddr:
     call    func_set_rsp_addr   ;; Set rsp_adress to the src adress of the last recived package
 
 	;; Send Package:
-	banksel framelen
 	movlw   13
+	banksel framelen
 	movwf   framelen
 
 	;; dst adress
+    banksel rsp_adress1
 	movf    rsp_adress1,W
+    banksel txframe
 	movwf   txframe
 
 	;; dst adress
+    banksel rsp_adress2
 	movf    rsp_adress2,W
+    banksel txframe+1
 	movwf   txframe+1
 
 	;; * my own src adress
+    banksel adress1
 	movf	adress1, W
+    banksel txframe+2
 	movwf   txframe+2
 
 	;; * my own src adress
+    banksel adress2
 	movf	adress2, W
+    banksel txframe+3
 	movwf   txframe+3
 
 	;; 0x03 control bit
@@ -939,6 +951,7 @@ func_bc_sendaddr:
 	
 	;; This is a broadcast package with adress on it
 	movlw	0x01
+    banksel rcframe+5
 	subwf	rcframe+5,W
 	btfsc	STATUS,Z
     goto    handle_response
@@ -949,24 +962,32 @@ func_bc_sendaddr_noresp:
     call    func_set_rsp_addr   ;; Set rsp_adress to the src adress of the last recived package
 
 	;; Send Package:
-	banksel framelen
 	movlw   13
+	banksel framelen
 	movwf   framelen
 
 	;; dst adress
+    banksel rsp_adress1
 	movf    rsp_adress1,W
+    banksel txframe
 	movwf   txframe
 
 	;; dst adress
+    banksel rsp_adress2
 	movf    rsp_adress2,W
+    banksel txframe+1
 	movwf   txframe+1
 
 	;; * my own src adress
+    banksel adress1
 	movf	adress1, W
+    banksel txframe+2
 	movwf   txframe+2
 
 	;; * my own src adress
+    banksel adress2
 	movf	adress2, W
+    banksel txframe+3
 	movwf   txframe+3
 
 	;; 0x03 control bit
@@ -1008,6 +1029,7 @@ func_send_iam_here:             ;; IMPORTANT, this function "return", use "call 
     banksel framelen
 	movwf   framelen
 
+    banksel txframe
     movlw   0xFF
 	movwf   txframe
 
@@ -1015,11 +1037,15 @@ func_send_iam_here:             ;; IMPORTANT, this function "return", use "call 
 	movwf   txframe+1
 
     ;; * my own src adress
+    banksel adress1
 	movf	adress1, W
+    banksel txframe+2
 	movwf   txframe+2
 
     ;; * my own src adress
+    banksel adress2
 	movf	adress2, W
+    banksel txframe+3
 	movwf   txframe+3
 
     ;; 0x03 control bit
@@ -1064,18 +1090,19 @@ func_send_iam_here:             ;; IMPORTANT, this function "return", use "call 
 func_rand_addr:
     banksel rand
     movf    rand,W
+    banksel adress1
     movwf   adress1
     call    lfsr_func
     banksel rand
     movf    rand,W
+    banksel adress2
     movwf   adress2
     return
 
 func_setport:
 	movlw	2
-    banksel FSR
 	addwf	FSR,F
-    banksel INDF
+    bankisel rcframe
 	movf	INDF,W
 #ifdef PORTC
     banksel PORTC
@@ -1086,17 +1113,15 @@ func_setport:
 func_set_rsp_addr:
     ;; Add last rec package src addr to rsp_adress1 rsp_adress2
     movlw	rcframe+2
-    banksel FSR
 	movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel rsp_adress1
     movwf   rsp_adress1
 
 	movlw	rcframe+3
-    banksel FSR
 	movwf	FSR
-    banksel INDF
+    bankisel rcframe
     movf    INDF,W
     banksel rsp_adress2
     movwf   rsp_adress2
@@ -1105,8 +1130,9 @@ func_set_rsp_addr:
 handle_response:
     banksel rc_listen
     bcf     rc_listen,3
+    bcf     rc_listen,1
     bsf     speedlib_main,1
-    bcf	rc_listen,1
+
 
     ;; Important, this should be run in "main space", not interupt space, soo,
     ;; well, now it is runed somewheare in the middle, wait for response STATE
@@ -1130,18 +1156,20 @@ handle_response_loop:
     banksel rc_listen
     btfsc   rc_listen,3
     goto    handle_response_ret
+    banksel rsp_adress1
     decfsz  rsp_adress1,f
     goto    handle_response_loop
 
 handle_response_ret:
+    banksel rc_listen
     bcf     rc_listen,3
     bcf     speedlib_main,1
     goto    restore
 
 reccrcfail:
 	;; Because that this happend directrly after a crc-fail, here we need to clear the counter, so the next comming package will start allover
-    banksel rc_counter
     movlw   5
+    banksel rc_counter
     subwf   rc_counter,W
     btfss   STATUS,C
     goto    reccrcfail_end
@@ -1165,6 +1193,7 @@ txoops:
     ;; Colisson has ocurred
     banksel rc_listen
     bcf	    rc_listen,1
+    banksel txreturn
 	bcf     txreturn,1
 	call	lfsr_func
     banksel rand
@@ -1195,6 +1224,7 @@ tx_send_noescape:
 
     banksel txtmp
     movf	txtmp,W
+    banksel rc_nocoll
     movwf	rc_nocoll
     banksel TXREG
     movwf	TXREG
@@ -1230,13 +1260,15 @@ txdo:
     ;; This is like the function argumnents, they need to be set at every presense of crcloopr
     banksel framelen
 	movf	framelen,W
-    bsf	    rc_listen,1
+    banksel crcloop
 	movwf	crcloop
+    banksel rc_listen
+    bsf	    rc_listen,1
 	movlw	txframe
-    banksel FSR
 	movwf	FSR
     banksel crc0
 	clrf	crc0
+    banksel crc1
 	clrf	crc1
 	call	crcloopr
 	goto	txdo2
@@ -1247,10 +1279,11 @@ crcloopr:
 	return
 
 crccalc:
-    banksel INDF
+    bankisel txframe
 	movf    INDF,W              ;; Load W with next databyte
     banksel crc1
 	xorwf   crc1,W              ;;(a^x):(b^y)
+    banksel crctmp
 	movwf   crctmp              ;;
 	andlw   0xf0                ;; W = (a^x):0
 	swapf   crctmp,F            ;; Index = (b^y):(a^x)
@@ -1259,8 +1292,11 @@ crccalc:
                                 ;; High byte
 	movf    crctmp,W
 	andlw   0xf0
+    banksel crc0
 	xorwf   crc0,W
+    banksel crc1
 	movwf   crc1
+    banksel crctmp
 #ifdef  ARC_18F
     rlcf    crctmp,W            ;; use rlf for PIC18
 	rlcf    crctmp,W            ;; use rlf for PIC18
@@ -1273,16 +1309,17 @@ crccalc:
 	rlf     crctmp,W            ;; use rlf for PIC12
 	rlf     crctmp,W            ;; use rlf for PIC12
 #endif
+    banksel crc1
 	xorwf   crc1,F
 	andlw   0xe0
 	xorwf   crc1,F
 
+    banksel crctmp
 	swapf   crctmp,F
 	xorwf   crctmp,W
+    banksel crc0
 	movwf   crc0
-    banksel FSR
-    incf    FSR,W
-	movwf   FSR
+    incf    FSR, F
 	goto    crcloopr
 
 txdo2:
@@ -1294,12 +1331,11 @@ txdo2:
     bsf	    rc_listen,1
 	movlw	0x7e
 	call	tx_send_noescape
-	banksel txframe
     movlw	txframe
-    banksel FSR
 	movwf	FSR
     banksel framelen
 	movf	framelen,W
+    banksel crcloop
 	movwf	crcloop
 send:
     banksel crcloop
@@ -1307,10 +1343,9 @@ send:
 	goto 	lopp
 	goto    crcsend
 lopp:
-    banksel INDF
+    bankisel txframe
 	movf	INDF,W
 	call	tx_send
-    banksel FSR
 	incf	FSR,F
 	goto 	send
 
@@ -1326,13 +1361,10 @@ crcsend:
 endflag:
 	movlw	0x7e
 	call	tx_send_noescape
-    banksel TXSTA
-endflag_l:
-	btfss   TXSTA,TRMT
-	goto	endflag_l
     banksel txreturn
     btfsc	txreturn,1          ;; Cant allow this rutine, the device sends back flags and crc, but the rest is zeroes (?)
     goto	txoops
+    banksel rc_listen
     bcf	    rc_listen,1
 
     ;; Disable TX enable
