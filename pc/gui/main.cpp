@@ -857,7 +857,6 @@ client_handler(void *ptr)
 	    gdk_threads_enter();
 	    gtk_widget_show(((ProgressData *) rdata->share)->window);
 	    gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "Disconnected");
-	    ((ProgressData *) rdata->share)->sslc.sslfree();
 	    ((ProgressData *) rdata->share)->connected = 0;
 	    gtk_button_set_label(GTK_BUTTON(((ProgressData *) rdata->share)->connect_button), "Connect to server");
 	    gdk_threads_leave();
