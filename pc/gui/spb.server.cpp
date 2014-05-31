@@ -11,7 +11,7 @@
 #include <openssl/md5.h>
 #include <mysql/mysql.h>
 
-#define BACKEND_DIR "/etc/spbserver/"
+#define BACKEND_DIR "./"
 #include "spb.backend.cpp"
 #include "http_post.cpp"
 
@@ -122,6 +122,7 @@ bool spb_write_log(const char *w_log);
 bool spb_write_notify(print_seri * serial_p, const char *w_log, int prio);
 bool spb_resp_wait(print_seri * serial_p, int listnum, int wait_sec);
 bool spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len);
+bool spb_links_send(print_seri * serial_p, int listnum, int linknum, const char * data, int len);
 
 //
 
@@ -249,6 +250,103 @@ get_vars_load(void *data, char *p_data, int counter)
 	    }
 	}
     }
+}
+
+
+static void
+get_params_load(void *data, char *p_data, int counter)
+{
+  print_seri *serial_p = (print_seri *) data;
+  for (int i = 0; i < serial_p->backe->devids; i++)
+    {
+      if (serial_p->backe->daddr1[i] == p_data[2] && serial_p->backe->daddr2[i] == p_data[3])
+	{			// Device id is found in the MAIN device list
+	  for (int ii = 0; ii < MAX_PARAMETER; ii++)
+	    {
+	      if(serial_p->backe->parameter_exist[i][ii] && (unsigned char)p_data[7] == ii){
+		char paraload[MAX_BUFFER];
+		switch(serial_p->backe->parameter_type[i][ii]){
+		case 0:
+		  if(counter >= 8){
+		    sprintf(paraload, "pparam %d %d %d\n", serial_p->backe->device_id[i], ii, p_data[8]);
+		  } 
+		  break;
+		case 1:
+		  if(counter >= 8){
+		  sprintf(paraload, "pparam %d %d %d\n", serial_p->backe->device_id[i], ii, (unsigned char)p_data[8]);
+		  }
+		  break;
+		case 2:
+		  if(counter >= 9){
+		    short ppay;
+		    ppay = p_data[8];
+		    ppay <<= 8;
+		    ppay += p_data[9];
+		    sprintf(paraload, "pparam %d %d %d\n", serial_p->backe->device_id[i], ii, ppay);
+		  } 
+		  break;
+		case 3:
+		  if(counter >= 9){
+		    short ppay;
+		    ppay = p_data[8];
+		    ppay <<= 8;
+		    ppay += p_data[9];
+		    sprintf(paraload, "pparam %d %d %d\n", serial_p->backe->device_id[i], ii, (unsigned short)ppay);
+		  }
+		case 4:
+		  if(counter >= 11){
+		    long ppay;
+		    ppay = p_data[8];
+		    ppay <<= 8;
+		    ppay += p_data[9];
+		    ppay <<= 8;
+		    ppay += p_data[10];
+		    ppay <<= 8;
+		    ppay += p_data[11];
+		    sprintf(paraload, "pparam %d %d %ld\n", serial_p->backe->device_id[i], ii, ppay);
+		  } 
+		  break;
+		case 5:
+		  if(counter >= 11){
+		    long ppay;
+		    ppay = p_data[8];
+		    ppay <<= 8;
+		    ppay += p_data[9];
+		    ppay <<= 8;
+		    ppay += p_data[10];
+		    ppay <<= 8;
+		    ppay += p_data[11];
+		    sprintf(paraload, "pparam %d %d %lu\n", serial_p->backe->device_id[i], ii, (unsigned long)ppay);
+		  }
+		  break;
+		case 6:
+		  if(counter >= 9){
+		    float ppay = p_data[9];
+		    float pppay = p_data[8];
+		    ppay = ppay / 10;
+		    sprintf(paraload, "pparam %d %d %f\n", serial_p->backe->device_id[i], ii, ppay+pppay);
+		  }
+		  break;
+		  		  		  
+		}
+
+		for (int i = 0; i < MAX_LISTEN; i++)
+		  {
+		    if (serial_p->server->session_open[i])
+		      {
+			serial_p->server->send_data(i, paraload, strlen(paraload));
+		      }
+		  }
+		
+		// Also send to links
+		spb_links_send(serial_p, -1, -1, paraload, strlen(paraload));    
+		//
+		
+	      }
+	    }
+	}
+    }
+
 }
 
 void
@@ -431,7 +529,10 @@ print_ser_backend(void *ptr)
 			  //
 			  // Run actions from the config files
 			  //
-			  get_vars_load(serial_p, data, counter);
+			  if((unsigned char)data[6] == 0x04)
+			    get_params_load(serial_p, data, counter);
+			  else
+			    get_vars_load(serial_p, data, counter);
 			  //
 
 			  // Send it away to the clients
@@ -447,6 +548,9 @@ print_ser_backend(void *ptr)
 				  serial_p->server->send_data(i, prepare, counter + 5);
 				}
 			    }
+
+			  // Also send to links
+			  spb_links_send(serial_p, -1, -1, prepare, counter + 5);    
 			  //
 
 			}
@@ -1147,7 +1251,10 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  int u_link = spb_links_send(serial_p, listnum, linknum, data, len);
 	  //
 	  // If it comes from a link, then get_vars_load
-	  get_vars_load(serial_p, data + 5, len - 5);	  
+	  if((unsigned char)data[11] == 0x04)
+	    get_params_load(serial_p, data + 5, len - 5);
+	  else
+	    get_vars_load(serial_p, data + 5, len - 5);	  
 	  //
 	  if (!serial_port.IsOpen() && !u_link && linknum < 0)
 	    {
@@ -1355,10 +1462,22 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	      }
 	  }
 	}
+      if (strncmp(data, "getparam", 8) == 0)
+	{
+	  // Send command to links upstream
+	  spb_links_send(serial_p, listnum, linknum, data, len);
+	  //
+	  int devid, param;
+	  if(sscanf(data, "getparam %d %d\n", &devid, &param) > 1 && devid > 0){
+	    backend_exec_get_param(serial_p->backe, param, devid);
+	  }
+	}
       if (strncmp(data, "camadd", 6) == 0 ||
 	  strncmp(data, "camec ", 6) == 0 ||
 	  strncmp(data, "camei ", 6) == 0 ||
-	  strncmp(data, "camep ", 6) == 0)
+	  strncmp(data, "camep ", 6) == 0 ||
+	  strncmp(data, "pparam ", 7) == 0)
+	  
 	{
 	  spb_links_send(serial_p, listnum, linknum, data, len);
 	}
@@ -2445,7 +2564,7 @@ main(int argc, char *argv[])
 	{
 	  wtime();
 	  printf("Loaded %d cached units\n", serial_p.device_num);
-	  backend_load_events(serial_p.backe);
+	  backend_load_backend(serial_p.backe);
 	}
 
       if (serial_port.IsOpen())

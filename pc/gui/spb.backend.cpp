@@ -98,6 +98,16 @@ init_backend()
 	}
     }
   closedir(dp);
+
+  // Zero Params and Events
+  for(int i=0; i<MAX_DEVIDS; i++){
+    for(int ie=0; ie<MAX_EVENT; ie++){
+      backe->event_exist[i][ie] = false;
+    }
+    for(int ip=0; ip<MAX_PARAMETER; ip++){
+      backe->parameter_exist[i][ip] = false;
+    }
+  }
   return backe;
 }
 
@@ -263,7 +273,7 @@ backend_exec(main_backend * backe, int event, int devid, short vspace)
 		  return 1;
 		}
 	    }
-	  backend_load_events(backe);
+	  backend_load_backend(backe);
 	  for (int i = 0; i < backe->devids; i++)
 	    {			// Check again if the device really was added
 	      if (backe->device_id[i] == devid)
@@ -410,7 +420,7 @@ backend_load_var_ops(main_backend * backe, config_t * cfg, char *cname, int opt_
 }
 
 bool
-backend_load_events(main_backend * backe)
+backend_load_backend(main_backend * backe)
 {
   config_t cfg;
   config_setting_t *setting;
@@ -461,6 +471,8 @@ backend_load_events(main_backend * backe)
       backend_load_var_ops(backe, &cfg, tmp, devid);
       //
 
+
+      // Load events
       setting = config_lookup(&cfg, "spb.events");
       if (setting != NULL)
 	{
@@ -472,8 +484,10 @@ backend_load_events(main_backend * backe)
 	      const char *type;
 	      if (!(config_setting_lookup_int(book, "event", &event)) || !(config_setting_lookup_string(book, "type", &type)))
 		continue;
-	      if (sizeof(event) > MAX_EVENT || sizeof(type) > MAX_BUFFER)
+	      if (event > MAX_EVENT || strlen(type) > MAX_BUFFER)
 		continue;
+
+	      backe->event_exist[devid][event] = true;
 	      strcpy(backe->event_exec[devids][event], type);
 
 	      if (strcmp(type, "print") == 0)
@@ -562,6 +576,69 @@ backend_load_events(main_backend * backe)
 
 
 	    }
-	} 
+	}
+
+
+      // Parameters
+
+      setting = config_lookup(&cfg, "spb.parameters");
+      if (setting != NULL)
+	{
+	  int count = config_setting_length(setting);
+	  for (int i = 0; i < count; ++i)
+	    {
+	      config_setting_t *book = config_setting_get_elem(setting, i);
+	      int param;
+	      int type;
+	      int readonly;
+	      const char *descr;
+	      const char *unit;
+
+	      if (!(config_setting_lookup_int(book, "param", &param)) || !(config_setting_lookup_int(book, "type", &type))
+		  || !(config_setting_lookup_string(book, "descr", &descr)) || !(config_setting_lookup_bool(book, "readonly", &readonly)))
+		continue;
+	      if (param > MAX_PARAMETER || strlen(descr) > MAX_BUFFER )
+		continue;
+	      
+	      
+	      backe->parameter_exist[devids][param] = true;
+	      backe->parameter_type[devids][param] = type;
+	      strcpy(backe->parameter_descr[devids][param], descr);
+	      backe->parameter_readonly[devids][param] = readonly;
+	      
+	      if(!config_setting_lookup_string(book, "unit", &unit)){
+		if(!strlen(unit) > MAX_BUFFER){
+		  strcpy(backe->parameter_unit[devids][param], unit);
+		}else
+		  strcpy(backe->parameter_unit[devids][param], ""); 
+	      }else
+		strcpy(backe->parameter_unit[devids][param], "");
+	      
+	      
+	      
+	    }
+	}
+
+    }
+}
+
+bool
+backend_exec_get_param(main_backend * backe, int param, int devid)
+{
+  for (int i = 0; i < backe->devids; i++)
+    {
+      if (backe->device_id[i] == devid)
+	{			// Device id is found in the MAIN device list
+	  if(param < MAX_PARAMETER && backe->parameter_exist[i][param] == true){
+	    int len = 9;
+	    char getdevs[MAX_BUFFER] = { backe->daddr1[i], backe->daddr2[i], addr1, addr2, 0x03, 0x00, 0x04, param, 0x00 };
+	    printf("Senddnign\n");
+#ifdef IS_GUI
+	    m_send(backe->rdata, getdevs, len);
+#else
+	    send(getdevs, len);
+#endif
+	  }
+	}
     }
 }

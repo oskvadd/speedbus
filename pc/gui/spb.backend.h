@@ -1,37 +1,52 @@
 #ifndef __BACKE_H_INCLUDED__
 #define __BACKE_H_INCLUDED__
 
-#define MAX_EVENT    50
-#define MAX_ROWS     20
-#define MAX_WIDGETS  50
-#define MAX_BUFFER   200	// Make this 200 to allow the server to save the printf pattern in there ;)x
-#define MAX_VARIABLE 50
-#define MAX_DEVIDS   50
-#define MAX_OPS      50
+#define MAX_EVENT        50
+#define MAX_PARAMETER    50
+#define MAX_ROWS         20
+#define MAX_WIDGETS      50
+#define MAX_BUFFER       200	// Make this 200 to allow the server to save the printf pattern in there ;)x
+#define MAX_VARIABLE     50
+#define MAX_DEVIDS       50
+#define MAX_OPS          50
 
 
 typedef struct _main_backend {
-	int devids;		// The number off loaded devices
-	int device_id[MAX_DEVIDS];
-	char daddr1[MAX_DEVIDS];
-	char daddr2[MAX_DEVIDS];
-	char event_exec[MAX_DEVIDS][MAX_EVENT][MAX_BUFFER];
-	int event_data[MAX_DEVIDS][MAX_EVENT][MAX_BUFFER];
-	int event_data1[MAX_DEVIDS][MAX_EVENT][MAX_BUFFER];
-	int event_data2[MAX_DEVIDS][MAX_EVENT][MAX_BUFFER];
-	bool event_exist[MAX_DEVIDS][MAX_EVENT];
-	char event_variable[MAX_DEVIDS][MAX_VARIABLE];
-	int var_ops[MAX_OPS][4];
-	int var_opsc;
-	/*
-	   [1]: Variable
-	   [2]: Device id
-	   [3]: Type
-	   [4]: Second arg
-	 */
 
-	void *rdata;		// Share variable, set to the gui:s rdata struct
+  // Overhead
+  int devids;		// The number off loaded devices
+  int device_id[MAX_DEVIDS];
+  char daddr1[MAX_DEVIDS];
+  char daddr2[MAX_DEVIDS];
 
+  // Events
+  char event_exec[MAX_DEVIDS][MAX_EVENT][MAX_BUFFER];
+  int event_data[MAX_DEVIDS][MAX_EVENT][MAX_BUFFER];
+  int event_data1[MAX_DEVIDS][MAX_EVENT][MAX_BUFFER];
+  int event_data2[MAX_DEVIDS][MAX_EVENT][MAX_BUFFER];
+  bool event_exist[MAX_DEVIDS][MAX_EVENT];
+  char event_variable[MAX_DEVIDS][MAX_VARIABLE];
+
+  // Parameters
+  char parameter_descr[MAX_DEVIDS][MAX_PARAMETER][MAX_BUFFER];
+  char parameter_unit[MAX_DEVIDS][MAX_PARAMETER][MAX_BUFFER];
+  int parameter_type[MAX_DEVIDS][MAX_PARAMETER];
+  bool parameter_exist[MAX_DEVIDS][MAX_PARAMETER];
+  bool parameter_readonly[MAX_DEVIDS][MAX_PARAMETER];
+    
+  
+  // Opertions
+  int var_ops[MAX_OPS][4];
+  int var_opsc;
+  /*
+    [1]: Variable
+    [2]: Device id
+    [3]: Type
+    [4]: Second arg
+  */
+  
+  void *rdata;		// Share variable, set to the gui:s rdata struct
+  
 } main_backend;
 
 
@@ -47,7 +62,7 @@ bool backend_exec(main_backend * backe, int event, int devid,
 		  short vspace);
 bool backend_run_event(main_backend * backe, int array_num, int event,
 		       short vspace);
-bool backend_load_events(main_backend * backe);
+bool backend_load_backend(main_backend * backe);
 void backend_check_update_addr(main_backend * backe, int devid);
 main_backend *init_backend();
 

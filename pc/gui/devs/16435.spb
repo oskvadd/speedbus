@@ -38,7 +38,7 @@ spb =
 
   events = ( { event = 1;  // To read this text more clear, use a binary->dec decorder :)
                type = "send"; // Anyway, this first command is simply Nexa LYC On Off Dim.
-               data = (0x0A);
+               data = (0x04, 0x00);
 	       },
 	       { event = 2;   
                type = "getvars";	
@@ -62,8 +62,40 @@ spb =
 //               data = (0x02,0x03,0x00);}
                 	
            );
-};
 
+/*
+
+
+List of prarmeter types:
+0 - Signed byte defined with only one byte. 
+1 - Unsigned byte. 
+2 - Signed short defined with two bytes.
+3 - Unsigned short.
+4 - Signed long defined with four bytes.
+5 - Unsigned long.
+6 - Signed float defined with two bytes(byte1.byte2)
+7 - Unsigned float defined with two bytes(byte1.byte2)
+
+*/ 
+
+  parameters = ({
+  	          param = 0;  // To read this text more clear, use a binary->dec decorder :)
+     	      	  type = 6; // Anyway, this first command is simply Nexa LYC On Off Dim.
+               	  descr = "Temperature";
+		  unit = "°C";
+		  readonly = true;
+		  },
+		  { 
+	       	  param = 1;   
+               	  type = 7;	
+	       	  descr = "Humidelty";
+	       	  unit = "%";
+		  readonly = true;
+	       }
+
+);
+
+};
 
 	/* event types:
 	   0 = shift down, with second_arg
@@ -143,19 +175,5 @@ spb =
               type = 22;
 	      second_arg = 0;}
 	      
-
-
-/*
-            { variable = 257;
-              type = 15;
-              second_arg = 10;},
-            { variable = 257;
-              type = 10;
-              second_arg = 264;}
-*/
-
-
-
-
 
 );
