@@ -11,7 +11,7 @@
 #include <openssl/md5.h>
 #include <mysql/mysql.h>
 
-#define BACKEND_DIR "./"
+#define BACKEND_DIR "/etc/spbserver/"
 #include "spb.backend.cpp"
 #include "http_post.cpp"
 
@@ -321,10 +321,11 @@ get_params_load(void *data, char *p_data, int counter)
 		  break;
 		case 6:
 		  if(counter >= 9){
-		    float ppay = p_data[9];
-		    float pppay = p_data[8];
-		    ppay = ppay / 10;
-		    sprintf(paraload, "pparam %d %d %f\n", serial_p->backe->device_id[i], ii, ppay+pppay);
+		    char buf[MAX_BUFFER];
+		    sprintf(buf, "%d.%d", (unsigned char)p_data[8], (unsigned char)p_data[9]);
+		    float ppay;
+		    sscanf(buf, "%f", &ppay);
+		    sprintf(paraload, "pparam %d %d %.3f\n", serial_p->backe->device_id[i], ii, ppay);	  
 		  }
 		  break;
 		  		  		  
@@ -332,16 +333,12 @@ get_params_load(void *data, char *p_data, int counter)
 
 		for (int i = 0; i < MAX_LISTEN; i++)
 		  {
-		    if (serial_p->server->session_open[i])
+		    if (serial_p->server->session_open[i] && user_type[socket_user_id[i]] != USER_LINK)
 		      {
 			serial_p->server->send_data(i, paraload, strlen(paraload));
 		      }
 		  }
-		
-		// Also send to links
-		spb_links_send(serial_p, -1, -1, paraload, strlen(paraload));    
-		//
-		
+				
 	      }
 	    }
 	}
@@ -529,6 +526,7 @@ print_ser_backend(void *ptr)
 			  //
 			  // Run actions from the config files
 			  //
+			  
 			  if((unsigned char)data[6] == 0x04)
 			    get_params_load(serial_p, data, counter);
 			  else
@@ -1220,6 +1218,45 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 				  
 			    }
 			}
+
+
+
+		      cfg_e = config_lookup(&cfg, "spb.parameters");
+		      if (cfg_e != NULL)
+			{
+			  int count = config_setting_length(cfg_e);
+			  for (int i2 = 0; i2 < count; ++i2)
+			    {
+			      int param,type,readonly;
+			      const char *descr;
+			      const char *unit;
+
+			      config_setting_t * cfg_ee = config_setting_get_elem(cfg_e, i2);
+			      if (!(config_setting_lookup_int(cfg_ee, "param", &param))
+				  || !(config_setting_lookup_int(cfg_ee, "type", &type))
+				  || !(config_setting_lookup_bool(cfg_ee, "readonly", &readonly))
+				  || !(config_setting_lookup_string(cfg_ee, "descr", &descr)))
+				continue;
+			      
+			      char pparam[MAX_BUFFER*2];
+			      sprintf(pparam, "paramlp %d %d %d %d %s\n", serial_p->device_id[i], param, type, readonly, descr);
+			      serial_p->server->send_data(listnum, pparam, strlen(pparam));
+			      
+			      if (config_setting_lookup_string(cfg_ee, "unit", &unit))
+				{
+				  char pparam[MAX_BUFFER*2];
+				  sprintf(pparam, "paramlu %d %d %s\n", serial_p->device_id[i], param, unit);
+				  
+				  serial_p->server->send_data(listnum, pparam, strlen(pparam));
+				}
+			      
+			      
+			    }
+			}
+		      
+
+
+
 		    }
 		}
 	      sprintf(tmp, "notifc %d\n", serial_p->notify_nr);
@@ -1475,8 +1512,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       if (strncmp(data, "camadd", 6) == 0 ||
 	  strncmp(data, "camec ", 6) == 0 ||
 	  strncmp(data, "camei ", 6) == 0 ||
-	  strncmp(data, "camep ", 6) == 0 ||
-	  strncmp(data, "pparam ", 7) == 0)
+	  strncmp(data, "camep ", 6) == 0)
 	  
 	{
 	  spb_links_send(serial_p, listnum, linknum, data, len);
@@ -2566,7 +2602,8 @@ main(int argc, char *argv[])
 	  printf("Loaded %d cached units\n", serial_p.device_num);
 	  backend_load_backend(serial_p.backe);
 	}
-
+      
+      
       if (serial_port.IsOpen())
 	{
 	  if (serial_p.device_num < 1)
