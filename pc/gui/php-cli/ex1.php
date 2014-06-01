@@ -18,6 +18,8 @@ class spb
   public $devlist;
   public $evelist;
   public $gtvlist;
+  public $prmlist;
+
   private $is_root;
   private $status;
   
@@ -26,6 +28,8 @@ class spb
     $this->devlist = array();
     $this->evelist = array();
     $this->gtvlist = array();
+    $this->prmlist = array();
+
     if(isset($password)){
       $this->spb_connect($host,$username,$password , $port); 
     }
@@ -42,6 +46,7 @@ class spb
       if(!feof($this->fp)) {
 	$recv = fgets($this->fp, 128);
 	if(strpos($recv, "Login Failed") !== FALSE){
+	  die("Login Failed!!\n");
 	  fclose($this->fp);
 	  $this->status = -1; // login fail
 	  return -1; // login failed
@@ -84,9 +89,30 @@ class spb
 	$gtvelem["evenr"] = $gtv_evenr;
 	$gtvelem["varnr"] = $gtv_varnr;
 	$gtvelem["dscr"] = $gtv_dscr;
-	array_push($this->gtvlist, $gtvelem);
-      	
+	array_push($this->gtvlist, $gtvelem);	
       }
+
+      if(strpos($recv, "paramlp") !== FALSE){
+	$prmelem = array();
+	$argc = sscanf($recv, "paramlp %d %d %d %d %[^\n]", $prm_devid, $prm_prmnr, $prm_type, $prm_readonly, $prm_dscr);
+	$prmelem["devid"] = $prm_devid;
+	$prmelem["prmnr"] = $prm_prmnr;
+	$prmelem["type"] = $prm_type;
+	$prmelem["readonly"] = $prm_readonly;
+	$prmelem["dscr"] = $prm_dscr;
+	array_push($this->prmlist, $prmelem);	
+      }
+      
+      if(strpos($recv, "paramlu") !== FALSE){
+	$argc = sscanf($recv, "paramlu %d %d %[^\n]", $prm_devid, $prm_prmnr, $prm_unit);
+	
+	for($i=0; $i < count($this->prmlist); $i++){
+	  if($this->prmlist[$i]["devid"] == $prm_devid && $this->prmlist[$i]["prmnr"] == $prm_prmnr){
+	    $this->prmlist[$i]["unit"] = $prm_unit;
+	  }
+	}	
+      }
+
 
       if(strpos($recv, "udevlist") !== FALSE){
 	break;
@@ -150,48 +176,88 @@ class spb
       }
     }
   }
+  
+  public function spb_getparam_info($devid, $param){
+    for($i=0; $i < count($this->prmlist); $i++){
+      if($this->prmlist[$i]["devid"] == $devid && $this->prmlist[$i]["prmnr"] == $param){
+	return $this->prmlist[$i];
+      }
+    }	
+  }
+
+  public function spb_getparam($devid, $param){
+    $out = "getparam $devid $param\n";
+    fwrite($this->fp, $out);
+    while($recv = fread($this->fp, 128)){
+     if(strpos($recv, "pparam $devid $param") !== FALSE){
+	$argc = sscanf($recv, "pparam %d %d %[^\n]", $prm_devid, $prm_prmnr, $value);
+
+	$pinfo = $this->spb_getparam_info($devid, $param);
+	$descr = $pinfo["dscr"];
+	if(isset($pinfo["unit"]))
+	  $unit = $pinfo["unit"];
+	else
+	  $unit = "";
+	
+     	print($descr . ": " . $value . $unit . "\n");
+     	return 1;
+      }
+      if(strpos($recv, "info Cant send") !== FALSE || strpos($recv, "info Error when") !== FALSE){
+	return 0;
+      }
+    }
+  }
 
 
 }
-$spb = new spb("speedbus.org", "root", "toor");
+$spb = new spb("speedbus.org", "admin", "1500");
 if(!$spb->spb_errc()){
   die($spb->spb_errcm() . "\n");
-}
+ }
 
 switch($argv[1]){
-case "getvar": 
-if($spb->spb_getvar_async($argv[2], $argv[3])){
-print("Succefully executed the event!\n");
-}else{
-print("Error executing the event, check event and devid nr!\n");
-}
-break;
+ case "getvar": 
+   if($spb->spb_getvar_async($argv[2], $argv[3])){
+     print("Succefully executed the event!\n");
+   }else{
+     print("Error executing the event, check event and devid nr!\n");
+   }
+   break;
 
-case "evexec":
-if($spb->spb_event_exec($argv[2], $argv[3], $argv[4])){
-print("Succefully executed the event!\n");
-}else{
-print("Error executing the event, check event and devid nr!\n");
-}
-break;
+ case "evexec":
+   if($spb->spb_event_exec($argv[2], $argv[3], $argv[4])){
+     print("Succefully executed the event!\n");
+   }else{
+     print("Error executing the event, check event and devid nr!\n");
+   }
+   break;
 
-case "ping": 
-while(1){
-$out = "ping " . microtime(true) . "\n";
-fwrite($spb->fp, $out);
-$recv = "                                                                                                                                                    ";
-while($recv = fread($spb->fp, 128)){
-if(strpos($recv,"ping") > -1){
-break;}
-}
-$val = substr($recv,5,strpos($recv, "\n")-1);
-print("Pinged in " . round(1000*(microtime(true) - (float)$val)) . "ms\n");
-sleep(1);
-}
-break;
-}
+ case "ping": 
+ while(1){
+   $out = "ping " . microtime(true) . "\n";
+   fwrite($spb->fp, $out);
+   $recv = "                                                                                                                                                    ";
+   while($recv = fread($spb->fp, 128)){
+     if(strpos($recv,"ping") > -1){
+       break;}
+   }
+   $val = substr($recv,5,strpos($recv, "\n")-1);
+   print("Pinged in " . round(1000*(microtime(true) - (float)$val)) . "ms\n");
+   sleep(1);
+ }
+ break;
+ 
+ case "getparam":
+   if($spb->spb_getparam($argv[2], $argv[3])){
+     print("Succefully executed the event!\n");
+   }else{
+     print("Error executing the event, check event and devid nr!\n");
+   }
+   break;
+ }
 //print_r($spb->devlist);
 //print_r($spb->evelist);
 //print_r($spb->gtvlist);
+//print_r($spb->prmlist);
 
 ?>
