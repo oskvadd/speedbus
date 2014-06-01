@@ -455,7 +455,7 @@ backend_load_backend(main_backend * backe)
 	      continue;
 	    }
 	}
-      //if(debug)
+      if(debug)
       printf("Sucess loaded %d.spb\n", devid);
 
       int devids = backe->devids++;
@@ -631,8 +631,7 @@ backend_exec_get_param(main_backend * backe, int param, int devid)
 	{			// Device id is found in the MAIN device list
 	  if(param < MAX_PARAMETER && backe->parameter_exist[i][param] == true){
 	    int len = 9;
-	    char getdevs[MAX_BUFFER] = { backe->daddr1[i], backe->daddr2[i], addr1, addr2, 0x03, 0x00, 0x04, param, 0x00 };
-	    printf("Senddnign\n");
+	    char getdevs[MAX_BUFFER] = { backe->daddr1[i], backe->daddr2[i], addr1, addr2, 0x03, 0x01, 0x04, param, 0x00 };
 #ifdef IS_GUI
 	    m_send(backe->rdata, getdevs, len);
 #else

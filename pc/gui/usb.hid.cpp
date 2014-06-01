@@ -214,11 +214,11 @@ open_usb_hid(main_backend * backe, char *cname)
       fprintf(stderr, "Failed to initialise libusb\n");
       return 0;
     }
-
+  
   r = find_lvr_hidusb(libusb_devices[udevice_num]);
   if (r < 0)
     {
-      fprintf(stderr, "Could not find/open LVR Generic HID device\n");
+      //fprintf(stderr, "Could not find/open LVR Generic HID device\n");
       return 0;
     }
   //printf("Successfully find the LVR Generic HID device\n");
