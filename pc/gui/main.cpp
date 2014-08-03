@@ -848,6 +848,12 @@ client_handler(void *ptr)
 	  struct hostent *he;
 	  char login[400];
 	  he = gethostbyname(((ProgressData *) rdata->share)->host);
+	  // Make sure the host is found
+	  if(he == NULL){
+	    gtk_label_set_text(GTK_LABEL(((ProgressData *) rdata->share)->label1), "Unknown Host");
+	    return 0;
+	  }
+  
 	  sprintf(login, "\n%.*s\n%.*s\n", 199, ((ProgressData *) rdata->share)->user, 199, ((ProgressData *) rdata->share)->pass);
 	  ((ProgressData *) rdata->share)->sslc.sslfree();
 	  int do_retry = 0;
@@ -2059,7 +2065,7 @@ rdev_stamp(GtkWidget * some, gpointer data)
     {
       if (i > 5)
 	{
-	  sprintf(tmp, "No response on stamp...", getaddr1, getaddr2);
+	  sprintf(tmp, "No response on stamp...");
 	  gtk_label_set_text(GTK_LABEL(rdata->rdev_stamp_label), tmp);
 	  break;
 	}
@@ -3055,9 +3061,9 @@ rdeve_load_event_(int levent, gpointer data)
 							      rdata->rdevee_elem_input[oi] = gtk_entry_new();
 							      char tval[50];
 							      if (oat_byte + 1 > edcount)
-								sprintf(tval, "Unset", edata[oat_byte]);
+								sprintf(tval, "Unset");
 							      else if (edata[oat_byte] > 255)
-								sprintf(tval, "(%d)", edata[oat_byte], oat_byte, edcount);
+								sprintf(tval, "(%d)", edata[oat_byte]);
 							      else
 								sprintf(tval, "%d", oevalue);
 							      gtk_entry_set_text(GTK_ENTRY(rdata->rdevee_elem_input[oi]), tval);
@@ -4784,6 +4790,13 @@ connect_to_server(GtkWidget * button, gpointer data)
   strncpy(pdata->pass, adr, MAX_STR(usr));
 
   he = gethostbyname(adr);
+  // Make sure the host is found
+  if(he == NULL){
+   gtk_label_set_text(GTK_LABEL(pdata->label1), "Unknown Host");
+   return 0;
+  }
+  
+  
   sprintf(login, "\n%.*s\n%.*s\n", 199, usr, 199, pwd);
 
   // Fixed reconnect, so the connection not is reset on popup messages...
@@ -5090,6 +5103,9 @@ main(int argc, char *argv[])
   box4 = gtk_hbox_new(FALSE, 10);
   pdata->server_label = gtk_label_new("Addr: ");
   pdata->server_adress = gtk_entry_new();
+  // Connect on enter
+  g_signal_connect(pdata->server_adress, "activate", G_CALLBACK(connect_to_server), pdata);
+
   gtk_box_pack_start(GTK_BOX(box4), pdata->server_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(box4), pdata->server_adress, FALSE, FALSE, 0);
 
@@ -5107,6 +5123,9 @@ main(int argc, char *argv[])
   box2 = gtk_hbox_new(FALSE, 10);
   pdata->login_name = gtk_entry_new();
   pdata->label_name = gtk_label_new("User: ");
+  // Connect on enter
+  g_signal_connect(pdata->login_name, "activate", G_CALLBACK(connect_to_server), pdata);
+
   gtk_box_pack_start(GTK_BOX(box2), pdata->label_name, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(box2), pdata->login_name, FALSE, FALSE, 0);
 
@@ -5125,6 +5144,8 @@ main(int argc, char *argv[])
   pdata->label_pwd = gtk_label_new("Pass: ");
   gtk_box_pack_start(GTK_BOX(box3), pdata->label_pwd, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(box3), pdata->login_pwd, FALSE, FALSE, 0);
+  // Connect on enter
+  g_signal_connect(pdata->login_pwd, "activate", G_CALLBACK(connect_to_server), pdata);
 
   if (config_lookup_string(&pdata->main_cfg, "password", &str_tmp))
     {
