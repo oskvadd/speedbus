@@ -10,7 +10,7 @@
 #include "usb.hid.h"
 #ifndef __SPEEDBLIB_H_INCLUDED__
 #define __SPEEDBLIB_H_INCLUDED__
-#include "../protocoll/speedblib.cpp"
+#include "speedblib.cpp"
 #endif
 
 
@@ -19,6 +19,18 @@ short device_num;
 int device_id[MAX_DEVIDS];
 char device_addr[MAX_DEVIDS][8];
 //
+
+
+bool
+file_exists(const char *filename)
+{
+  if (FILE * file = fopen(filename, "r"))
+    {
+      fclose(file);
+      return true;
+    }
+  return false;
+}
 
 
 void
@@ -75,11 +87,22 @@ init_backend()
   backe = (main_backend *) malloc(sizeof(main_backend));
   backe->devids = 0;
   backe->var_opsc = 0;
+
+  // Zero Params and Events
+  for(int i=0; i<MAX_DEVIDS; i++){
+    for(int ie=0; ie<MAX_EVENT; ie++){
+      backe->event_exist[i][ie] = false;
+    }
+    for(int ip=0; ip<MAX_PARAMETER; ip++){
+      backe->parameter_exist[i][ip] = false;
+    }
+  }
+
   DIR *dp;
   struct dirent *dirp;
   if ((dp = opendir(BACKEND_DIR "usb/")) == NULL)
     {
-      printf("No dir usb/\n");
+      printf("No dir " BACKEND_DIR "usb/\n");
       return backe;
     }
 
@@ -99,15 +122,6 @@ init_backend()
     }
   closedir(dp);
 
-  // Zero Params and Events
-  for(int i=0; i<MAX_DEVIDS; i++){
-    for(int ie=0; ie<MAX_EVENT; ie++){
-      backe->event_exist[i][ie] = false;
-    }
-    for(int ip=0; ip<MAX_PARAMETER; ip++){
-      backe->parameter_exist[i][ip] = false;
-    }
-  }
   return backe;
 }
 

@@ -1,6 +1,0 @@
-spbac = ( 
-  {
-    access_name = "Oscar ID06";
-    tagid = 223469283L;
-    keypad = "";
-  } );

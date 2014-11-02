@@ -6,7 +6,7 @@
 #include <iostream>
 #ifndef __SPEEDBLIB_H_INCLUDED__
 #define __SPEEDBLIB_H_INCLUDED__
-#include "../protocoll/speedblib.cpp"
+#include "speedblib.cpp"
 #endif
 #include <openssl/md5.h>
 #include <mysql/mysql.h>
@@ -125,18 +125,6 @@ bool spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int l
 bool spb_links_send(print_seri * serial_p, int listnum, int linknum, const char * data, int len);
 
 //
-
-
-bool
-file_exists(const char *filename)
-{
-  if (FILE * file = fopen(filename, "r"))
-    {
-      fclose(file);
-      return true;
-    }
-  return false;
-}
 
 bool
 spb_resp_wait(print_seri * serial_p, int listnum, int wait_sec)
