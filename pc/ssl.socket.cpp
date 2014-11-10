@@ -162,6 +162,28 @@ sslserver::sslsocket()
       exit(1);
     }
 
+  struct timeval timeout;
+  timeout.tv_sec = 10;
+  timeout.tv_usec = 0;
+  if (setsockopt(listen_sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0 ||
+      setsockopt(listen_sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0){
+    perror("setsockopt()");
+    exit(EXIT_FAILURE);
+  }
+
+  /* Set the option active */
+  int keepalive = 1;
+  int keepcnt = 3;
+  int keepidle = 60;
+  int keepintvl = 60;
+
+  if(setsockopt(listen_sock, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0 ||
+     setsockopt(listen_sock, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int)) < 0 ||
+     setsockopt(listen_sock, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(int)) < 0 ||
+     setsockopt(listen_sock, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(int)) < 0){
+    perror("setsockopt()");
+    exit(EXIT_FAILURE);
+  }
   err = bind(listen_sock, (struct sockaddr *)&sa_serv, sizeof(sa_serv));
   RETURN_ERR(err, "bind");
   /*
