@@ -560,7 +560,7 @@ exec_package(void *ptr, char *data, int counter)
 	  for (int i = 0; i < counter - 10; i++)
 	    {			// Run this backwards to get the bytes right
 	      devid <<= 8;
-	      devid += data[i + 7];
+	      devid += (unsigned char)data[i + 7];
 	    }
 	  device_add(rdata->backe, data[2], data[3], devid);
 	  gdk_threads_enter();
@@ -1755,6 +1755,10 @@ load_device(gpointer data, int devid)
   //
   gtk_widget_show(rdata->devbutton);
   //
+
+  // Select DeviceID.
+  rdata->c_devid = devid;
+
   sprintf(tmp, ".speedbus/devs/%d.spb", devid);
   /*
    * Read the file. If there is an error, report it and exit. 
@@ -1779,7 +1783,6 @@ load_device(gpointer data, int devid)
       gtk_widget_hide(rdata->separator1);
       return;
     }
-  rdata->c_devid = devid;
 
   sprintf(tmp, "Sucess .speedbus/devs/%d.spb", devid);
   gtk_label_set_text(GTK_LABEL(rdata->label), tmp);

@@ -10,6 +10,11 @@ spb =
 		label = "Get humtemp";
 		event = 1;
 		row   = 0; 
+		},{ 
+		type  = "button";
+		label = "Get humtemp2";
+		event = 5;
+		row   = 0; 
 		},{
 		type  = "label";
 		label = "Temp: %d.%d°C";
@@ -38,7 +43,7 @@ spb =
 
   events = ( { event = 1;  // To read this text more clear, use a binary->dec decorder :)
                type = "send"; // Anyway, this first command is simply Nexa LYC On Off Dim.
-               data = (0x04, 0x00);
+               data = (0x04, 0x00, 0xFF);
 	       },
 	       { event = 2;   
                type = "getvars";	
@@ -53,6 +58,11 @@ spb =
                data = (0x0A);
                var_num = (262,261,264,263,257,258,259,260);
                at_byte = (1,2,3,4,1,2,3,4);}
+	       ,{ event = 5;  // To read this text more clear, use a binary->dec decorder :)
+               type = "send"; // Anyway, this first command is simply Nexa LYC On Off Dim.
+               data = (0x04, 0x02, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106);
+	       }
+
 
 //	     { event = 9;
 //               type = "send";
