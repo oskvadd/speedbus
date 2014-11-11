@@ -281,6 +281,7 @@ get_params_load(void *data, char *p_data, int counter)
 		    ppay += p_data[9];
 		    sprintf(paraload, "pparam %d %d %d\n", serial_p->backe->device_id[i], ii, (unsigned short)ppay);
 		  }
+		  break;
 		case 4:
 		  if(counter >= 11){
 		    long ppay;
