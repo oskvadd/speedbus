@@ -621,7 +621,7 @@ sslclient::get_ssl_finger(char *finger)
 int
 sslclient::find_known_hosts(char *host_entry)
 {
-  FILE *file = fopen("known_hosts", "r");
+  FILE *file = fopen(".speedbus/known_hosts", "r");
   if (file != NULL)
     {
       char line[128];		/* or other suitable maximum line size */
@@ -658,7 +658,7 @@ bool
 sslclient::add_known_hosts(char *host_entry)
 {
   FILE *fp;
-  fp = fopen("known_hosts", "a");
+  fp = fopen(".speedbus/known_hosts", "a");
   if (!fp)
     return 0;
   fprintf(fp, "%s\n", host_entry);

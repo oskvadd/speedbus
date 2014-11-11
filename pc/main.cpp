@@ -2,6 +2,7 @@
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <execinfo.h>
 #include <signal.h>
 
@@ -16,9 +17,10 @@
 #include <dirent.h>
 #include <libconfig.h>
 #include <math.h>
+#include <pwd.h>
 
 #define IS_GUI 1
-#define BACKEND_DIR "./"
+#define BACKEND_DIR ".speedbus/"
 
 
 #include "main.h"
@@ -1406,7 +1408,7 @@ spb_ac_load(void *data, char *p_data, int counter)
       const char *ac_name, *keypad;
       long long tagid;
 
-      if(config_read_file(&cfg, "main.spbac")){
+      if(config_read_file(&cfg, ".speedbus/main.spbac")){
 	setting = config_lookup(&cfg, "spbac");
 	if(setting != NULL){
 	  int count = config_setting_length(setting);
@@ -1455,7 +1457,7 @@ spb_ac_load(void *data, char *p_data, int counter)
 	it = gtk_tree_model_iter_next(rdata->racl_ac_list_tree, &iter);
       }
       
-      if(config_read_file(&cfg, "main.spbac")){
+      if(config_read_file(&cfg, ".speedbus/main.spbac")){
 	setting = config_lookup(&cfg, "spbac");
 	if(setting != NULL){
 	  const char *ac_name, *keypad;
@@ -1753,18 +1755,18 @@ load_device(gpointer data, int devid)
   //
   gtk_widget_show(rdata->devbutton);
   //
-  sprintf(tmp, "devs/%d.spb", devid);
+  sprintf(tmp, ".speedbus/devs/%d.spb", devid);
   /*
    * Read the file. If there is an error, report it and exit. 
    */
   if (!config_read_file(&cfg, tmp))
     {
       char tmp2[50];
-      sprintf(tmp2, "ls devs/|grep %d.spb", devid);
+      sprintf(tmp2, "ls .speedbus/devs/|grep %d.spb", devid);
       FILE *pipe = popen(tmp2, "r");
       if (fgets(tmp2, 50, pipe) == NULL)
 	{
-	  sprintf(tmp, "No File devs/%d.spb", devid);
+	  sprintf(tmp, "No File .speedbus/devs/%d.spb", devid);
 	  gtk_label_set_text(GTK_LABEL(rdata->label), tmp);
 	}
       else
@@ -1779,7 +1781,7 @@ load_device(gpointer data, int devid)
     }
   rdata->c_devid = devid;
 
-  sprintf(tmp, "Sucess devs/%d.spb", devid);
+  sprintf(tmp, "Sucess .speedbus/devs/%d.spb", devid);
   gtk_label_set_text(GTK_LABEL(rdata->label), tmp);
   gtk_widget_show(rdata->separator1);
   int source_width = 0;
@@ -4170,7 +4172,7 @@ rsac_config_load(void *data){
   config_init(&cfg);
   config_setting_t *setting, *tmp;
   gtk_list_store_clear(rdata->rsac_ac_list_list);
-  if(config_read_file(&cfg, "main.spbac")){
+  if(config_read_file(&cfg, ".speedbus/main.spbac")){
     setting = config_lookup(&cfg, "spbac");
     if(setting != NULL){
       const char *ac_name, *keypad;
@@ -4205,7 +4207,7 @@ rsac_config_add(GtkWidget * some, gpointer data){
   config_t cfg;
   config_init(&cfg);
   config_setting_t *setting, *tmp, *tmp2;
-  if(config_read_file(&cfg, "main.spbac")){
+  if(config_read_file(&cfg, ".speedbus/main.spbac")){
     setting = config_lookup(&cfg, "spbac");
     if(setting != NULL){
       const char *ac_name, *keypad;
@@ -4238,7 +4240,7 @@ rsac_config_add(GtkWidget * some, gpointer data){
 		}
 
 		if(is_mod){
-		  config_write_file(&cfg, "main.spbac");
+		  config_write_file(&cfg, ".speedbus/main.spbac");
 		  rsac_config_load(rdata);
 		  return;
 		}
@@ -4269,7 +4271,7 @@ rsac_config_add(GtkWidget * some, gpointer data){
     nelem = config_setting_add(elem, "keypad", CONFIG_TYPE_STRING);
     config_setting_set_string(nelem, ackeypad);
     
-    config_write_file(&cfg, "main.spbac");
+    config_write_file(&cfg, ".speedbus/main.spbac");
     rsac_config_load(rdata);
     return;
     }
@@ -4289,7 +4291,7 @@ rsac_config_remove(GtkWidget * some, gpointer data){
   config_t cfg;
   config_init(&cfg);
   config_setting_t *setting, *tmp;
-  if(config_read_file(&cfg, "main.spbac")){
+  if(config_read_file(&cfg, ".speedbus/main.spbac")){
     setting = config_lookup(&cfg, "spbac");
     if(setting != NULL){
       const char *ac_name;
@@ -4301,7 +4303,7 @@ rsac_config_remove(GtkWidget * some, gpointer data){
 	    {
 	      if(strcmp(ac_name, name) == 0){
 		config_setting_remove_elem(setting, i);
-		config_write_file(&cfg, "main.spbac");
+		config_write_file(&cfg, ".speedbus/main.spbac");
 		rsac_config_load(rdata);
 		return;
 	      }
@@ -4677,7 +4679,7 @@ set_autoconnect(GtkWidget * button, gpointer data)
   config_t cfg;
   config_setting_t *auto_login, *password;
   config_init(&cfg);
-  config_read_file(&cfg, "main.cfg");
+  config_read_file(&cfg, ".speedbus/main.cfg");
   auto_login = config_lookup(&cfg, "auto_login");
   password = config_lookup(&cfg, "password");
   if (!auto_login)
@@ -4695,7 +4697,7 @@ set_autoconnect(GtkWidget * button, gpointer data)
       config_setting_set_string(password, "");
     }
 
-  config_write_file(&cfg, "main.cfg");
+  config_write_file(&cfg, ".speedbus/main.cfg");
   config_destroy(&cfg);
 
 }
@@ -4707,7 +4709,7 @@ set_save_login(GtkWidget * button, gpointer data)
   config_t cfg;
   config_setting_t *host, *username;
   config_init(&cfg);
-  config_read_file(&cfg, "main.cfg");
+  config_read_file(&cfg, ".speedbus/main.cfg");
   host = config_lookup(&cfg, "server_host");
   username = config_lookup(&cfg, "username");
 
@@ -4727,7 +4729,7 @@ set_save_login(GtkWidget * button, gpointer data)
 
     }
 
-  config_write_file(&cfg, "main.cfg");
+  config_write_file(&cfg, ".speedbus/main.cfg");
   config_destroy(&cfg);
 }
 
@@ -4753,19 +4755,15 @@ connect_to_server(GtkWidget * button, gpointer data)
   // Write to config file
   if (pdata->save_con)
     {
-      char tmp[50];
       int auto_open = 0;
       int auto_login = 0;
       pdata->share = NULL;
       config_init(&pdata->main_cfg);
-      if (!config_read_file(&pdata->main_cfg, "main.cfg"))
+      if (!config_read_file(&pdata->main_cfg, ".speedbus/main.cfg"))
 	{
-	  memset(tmp, 0x00, 50);
-	  sprintf(tmp, "ls|grep \"main.cfg\"");
-	  FILE *pipe = popen(tmp, "r");
-	  if (fgets(tmp, 50, pipe) == NULL)
+	  if(!file_exists(".speedbus/main.cfg"))
 	    {
-	      printf("No File main.cfg\n");
+	      printf("No File ~/.speedbus/main.cfg\n");
 	    }
 	  else
 	    {
@@ -4973,34 +4971,40 @@ main(int argc, char *argv[])
   char tmp[50];
   int auto_open = 0;
   int auto_login = 0;
+  int config_open = 0;
   pdata->share = NULL;
   config_init(&pdata->main_cfg);
   addr1 = 20;
   addr2 = 20;
 
-  if (!config_read_file(&pdata->main_cfg, "main.cfg"))
+  const char *homedir;
+  homedir = getpwuid(getuid())->pw_dir;
+  chdir(homedir);
+
+  // Make sure that ~/.speedbus exists or make a dir.
+  struct stat st = {0};
+  if (stat(".speedbus", &st) == -1) {
+    mkdir(".speedbus", 0777);
+  }
+
+  if (!config_read_file(&pdata->main_cfg, ".speedbus/main.cfg"))
     {
-      memset(tmp, 0x00, 50);
-      sprintf(tmp, "ls|grep \"main.cfg\"");
-      FILE *pipe = popen(tmp, "r");
-      if (fgets(tmp, 50, pipe) == NULL)
+      if (!file_exists(".speedbus/main.cfg"))
 	{
-	  printf("No File main.cfg\n");
+	  printf("No File ~/.speedbus/main.cfg\n");
 	}
       else
 	{
 	  printf("Line %d: %s\n", config_error_line(&pdata->main_cfg), config_error_text(&pdata->main_cfg));
 	}
       config_destroy(&pdata->main_cfg);
-
     }
   else
     {
-
+      config_open = 1;
       config_lookup_int(&pdata->main_cfg, "auto_open", &auto_open);	// Fetch width  
       if (auto_open)
 	auto_open = 1;
-
     }
 
   pdata->open = 1;
@@ -5109,16 +5113,6 @@ main(int argc, char *argv[])
   gtk_box_pack_start(GTK_BOX(box4), pdata->server_label, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(box4), pdata->server_adress, FALSE, FALSE, 0);
 
-  const char *str_tmp;
-  int alogin = 0;
-  if (config_lookup_string(&pdata->main_cfg, "server_host", &str_tmp))
-    {
-      gtk_entry_set_text(GTK_ENTRY(pdata->server_adress), str_tmp);
-      alogin++;
-      if (strlen(str_tmp) > 0)
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->save_login), TRUE);
-    }
-
 
   box2 = gtk_hbox_new(FALSE, 10);
   pdata->login_name = gtk_entry_new();
@@ -5128,14 +5122,6 @@ main(int argc, char *argv[])
 
   gtk_box_pack_start(GTK_BOX(box2), pdata->label_name, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(box2), pdata->login_name, FALSE, FALSE, 0);
-
-  if (config_lookup_string(&pdata->main_cfg, "username", &str_tmp))
-    {
-      gtk_entry_set_text(GTK_ENTRY(pdata->login_name), str_tmp);
-      alogin++;
-      if (strlen(str_tmp) > 0)
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->save_login), TRUE);
-    }
 
 
   box3 = gtk_hbox_new(FALSE, 10);
@@ -5147,30 +5133,52 @@ main(int argc, char *argv[])
   // Connect on enter
   g_signal_connect(pdata->login_pwd, "activate", G_CALLBACK(connect_to_server), pdata);
 
-  if (config_lookup_string(&pdata->main_cfg, "password", &str_tmp))
-    {
-      gtk_entry_set_text(GTK_ENTRY(pdata->login_pwd), str_tmp);
-    }
   //
   g_signal_connect(pdata->auto_connect, "clicked", G_CALLBACK(set_autoconnect), pdata);
   g_signal_connect(pdata->save_login, "clicked", G_CALLBACK(set_save_login), pdata);
   //
 
-  if (config_lookup_bool(&pdata->main_cfg, "auto_login", &auto_login))
-    {
-      if (auto_login)
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->auto_connect), TRUE);
+  
+  // If config file exists.
+  if(config_open){
+    const char *str_tmp;
+    int alogin = 0;
+    if (config_lookup_string(&pdata->main_cfg, "server_host", &str_tmp))
+      {
+	gtk_entry_set_text(GTK_ENTRY(pdata->server_adress), str_tmp);
+	alogin++;
+	if (strlen(str_tmp) > 0)
+	  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->save_login), TRUE);
+      }
+  
+    if (config_lookup_string(&pdata->main_cfg, "username", &str_tmp))
+      {
+	gtk_entry_set_text(GTK_ENTRY(pdata->login_name), str_tmp);
+	alogin++;
+	if (strlen(str_tmp) > 0)
+	  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->save_login), TRUE);
+      }
+  
+    if (config_lookup_string(&pdata->main_cfg, "password", &str_tmp))
+      {
+	gtk_entry_set_text(GTK_ENTRY(pdata->login_pwd), str_tmp);
+      }
 
-      if (auto_login && alogin == 2)
-	{
-	  auto_login = 1;
-	}
-      else
-	{
-	  auto_login = 0;
-	}
-    }
+    if (config_lookup_bool(&pdata->main_cfg, "auto_login", &auto_login))
+      {
+	if (auto_login)
+	  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pdata->auto_connect), TRUE);
 
+	if (auto_login && alogin == 2)
+	  {
+	    auto_login = 1;
+	  }
+	else
+	  {
+	    auto_login = 0;
+	  }
+      }
+  }
 
 
   pdata->connect_button = gtk_button_new_with_label("Connect to server");
