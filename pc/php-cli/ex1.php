@@ -105,12 +105,12 @@ class spb
       
             if(strpos($recv, "paramlu") !== FALSE){
                 $argc = sscanf($recv, "paramlu %d %d %[^\n]", $prm_devid, $prm_prmnr, $prm_unit);
-	
                 for($i=0; $i < count($this->prmlist); $i++){
                     if($this->prmlist[$i]["devid"] == $prm_devid && $this->prmlist[$i]["prmnr"] == $prm_prmnr){
                         $this->prmlist[$i]["unit"] = $prm_unit;
                     }
-                }	
+                }
+                $prm_unit = "";
             }
 
 
@@ -213,7 +213,6 @@ class spb
         while($recv = fread($this->fp, 128)){
             if(strpos($recv, "pparam $devid $param") !== FALSE){
                 $argc = sscanf($recv, "pparam %d %d %[^\n]", $prm_devid, $prm_prmnr, $value);
-
                 $pinfo = $this->spb_getparam_info($devid, $param);
                 $descr = $pinfo["dscr"];
                 if(isset($pinfo["unit"]))
@@ -230,6 +229,27 @@ class spb
         }
     }
 
+    public function spb_setparam($devid, $param, $arg){
+        $out = "setparam $devid $param $arg\n";
+        fwrite($this->fp, $out);
+        while($recv = fread($this->fp, 128)){
+            if(strpos($recv, "pparam $devid $param") !== FALSE){
+                $argc = sscanf($recv, "pparam %d %d %[^\n]", $prm_devid, $prm_prmnr, $value);
+                $pinfo = $this->spb_getparam_info($devid, $param);
+                $descr = $pinfo["dscr"];
+                if(isset($pinfo["unit"]))
+                    $unit = $pinfo["unit"];
+                else
+                    $unit = "";
+	
+                print($descr . ": " . $value . $unit . "\n");
+                return 1;
+            }
+            if(strpos($recv, "info Cant send") !== FALSE || strpos($recv, "info Error when") !== FALSE){
+                return 0;
+            }
+        }
+    }
 
 }
 $spb = new spb("192.168.2.17", "oscar", "1500");
@@ -276,6 +296,16 @@ case "getparam":
         print("Error executing the event, check event and devid nr!\n");
     }
     break;
+
+case "setparam":
+    if($spb->spb_setparam($argv[2], $argv[3], $argv[4])){
+        print("Succefully executed the event!\n");
+    }else{
+        print("Error executing the event, check event and devid nr!\n");
+    }
+    break;
+
+
 
 case "sendlcd1":
     $usl = 0;
