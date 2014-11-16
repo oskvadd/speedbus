@@ -655,3 +655,71 @@ backend_exec_get_param(main_backend * backe, int param, int devid)
 	}
     }
 }
+
+bool
+backend_exec_set_param(main_backend * backe, int param, int devid, int *args)
+{
+  for (int i = 0; i < backe->devids; i++)
+    {
+      if (backe->device_id[i] == devid)
+	{			// Device id is found in the MAIN device list
+	  if(param < MAX_PARAMETER && backe->parameter_exist[i][param] == true && !backe->parameter_readonly[devid][param]){
+	    int len = 0;
+	    char getdevs[MAX_BUFFER] = { backe->daddr1[i], backe->daddr2[i], addr1, addr2, 0x03, 0x01, 0x04, param};
+	    printf("parm: %d\n", param);
+	    switch(backe->parameter_type[i][param]){
+	    case 0:
+	      len = 10;
+	      getdevs[8] = (char)(args[0] & 0xFF);
+	      getdevs[9] = 0x00;
+	      break;
+	    case 1:
+	      len = 10;
+	      getdevs[8] = (unsigned char)(args[0] & 0xFF);
+	      getdevs[9] = 0x00;
+	      break;
+	    case 2:
+	      len = 11;
+	      getdevs[8] = (char)((args[0]>>8) & 0xFF);
+	      getdevs[9] = (char)(args[0] & 0xFF);
+	      getdevs[10] = 0x00;
+	      break;
+	    case 3:
+	      len = 11;
+	      getdevs[8] = (unsigned char)((args[0]>>8) & 0xFF);
+	      getdevs[9] = (unsigned char)(args[0] & 0xFF);
+	      getdevs[10] = 0x00;
+	      break;
+	    case 4:
+	      len = 13;
+	      getdevs[8] = (char)((args[0]>>24) & 0xFF);
+	      getdevs[9] = (char)((args[0]>>16) & 0xFF);
+	      getdevs[10] = (char)((args[0]>>8) & 0xFF);
+	      getdevs[11] = (char)(args[0] & 0xFF);
+	      getdevs[12] = 0x00;
+	      break;
+	    case 5:
+	      len = 13;
+	      getdevs[8] = (unsigned char)((args[0]>>24) & 0xFF);
+	      getdevs[9] = (unsigned char)((args[0]>>16) & 0xFF);
+	      getdevs[10] = (unsigned char)((args[0]>>8) & 0xFF);
+	      getdevs[11] = (unsigned char)(args[0] & 0xFF);
+	      getdevs[12] = 0x00;
+	      break;
+	    case 6:
+	      len = 11;
+	      getdevs[8] = (char)(args[0] & 0xFF);
+	      getdevs[9] = (char)(args[1] & 0xFF);
+	      getdevs[10] = 0x00;
+	      break;		  		  		  
+	    }
+
+#ifdef IS_GUI
+	    m_send(backe->rdata, getdevs, len);
+#else
+	    send(getdevs, len);
+#endif
+	  }
+	}
+    }
+}

@@ -1,0 +1,210 @@
+name="Remote On Off";
+source_width=20;
+
+
+// Important! event=0 is simply no event at all, you cant add a event with number 0
+spb =
+{
+  frontend = (  { 
+		type  = "button";
+		label = "Get humtemp";
+		event = 1;
+		row   = 0; 
+		},{
+		type  = "label";
+		label = "Temp: %d.%d°C";
+		var1  = 264;
+		var2  = 259;
+		row   = 1;
+		},{
+		type  = "label";
+		label = "Luftfukt : %d.%d%%";
+		var1  =	262;
+		var2  = 257;
+		row   = 2;
+		}
+//		,{
+//		type  = "button";
+//                label = "PORTC On";
+//                event = 9;
+//                row   = 7;
+//		},{
+//		type  = "button";
+//                label = "PORTC Off";
+//                event = 10;
+//                row   = 7;
+//*		}
+		);
+
+  events = ( { event = 1;  // To read this text more clear, use a binary->dec decorder :)
+               type = "send"; // Anyway, this first command is simply Nexa LYC On Off Dim.
+               data = (0x04, 0x00);
+	       },
+	       { event = 2;   
+               type = "getvars";	
+	       eevent = 1;
+	       descr = "Inside Temp: (264).(259)°C";},
+	       { event = 3;   
+               type = "getvars";	
+	       eevent = 1;
+	       descr = "Inside Hum: (262).(257)%";},
+	       { event = 4;
+               type = "getvars";  	
+               data = (0x0A);
+               var_num = (262,261,264,263,257,258,259,260);
+               at_byte = (1,2,3,4,1,2,3,4);}
+
+//	     { event = 9;
+//               type = "send";
+//               data = (0x02,0x03,0xFE);},
+//	     { event = 10;
+//               type = "send";
+//               data = (0x02,0x03,0x00);}
+                	
+           );
+
+/*
+
+
+List of prarmeter types:
+0 - Signed byte defined with only one byte. 
+1 - Unsigned byte. 
+2 - Signed short defined with two bytes.
+3 - Unsigned short.
+4 - Signed long defined with four bytes.
+5 - Unsigned long.
+6 - Signed float defined with two bytes(byte1.byte2)
+7 - Unsigned float defined with two bytes(byte1.byte2)
+
+*/ 
+
+  parameters = ({
+  	          param = 0;  // To read this text more clear, use a binary->dec decorder :)
+     	      	  type = 6; // Anyway, this first command is simply Nexa LYC On Off Dim.
+               	  descr = "Temperature";
+		  unit = "°C";
+		  readonly = true;
+		  },
+		  { 
+	       	  param = 1;   
+               	  type = 7;	
+	       	  descr = "Humidelty";
+	       	  unit = "%";
+		  readonly = true;
+		  },
+		  { 
+	       	  param = 2;   
+               	  type = 3;	
+	       	  descr = "Light";
+		  readonly = true;
+		  },
+		  { 
+	       	  param = 3;   
+               	  type = 1;	
+	       	  descr = "Led status";
+		  readonly = false;
+		  },
+		  { 
+	       	  param = 4;   
+               	  type = 1;	
+	       	  descr = "Light up led on PIR movment";
+		  readonly = false;
+		  },
+		  { 
+	       	  param = 5;   
+               	  type = 1;	
+	       	  descr = "Beep on movment";
+		  readonly = false;
+		  },
+		  { 
+	       	  param = 6;   
+               	  type = 1;	
+	       	  descr = "Just beep!";
+		  readonly = false;
+		  } 
+
+
+);
+
+};
+
+	/* event types:
+	   0 = shift down, with second_arg
+	   1 = invert variable, second arg not used
+	   2 = subtract with second arg
+	   3 = add with second arg
+	   4 = shift up with second arg
+	   5 = And with second arg
+	   6 = Or with second arg
+	   7 = add, second arg is a gui variable
+	   8 = sub, second arg is a gui variable
+	   9 = shift down with the variable second_arg
+	   10 = subtract with the variable second_arg
+	   11 = add with the variable second_arg
+	   12 = shift up with the variable second_arg
+	   13 = And with the variable second_arg
+	   14 = Or with the variable second_arg
+	*/
+
+  operations = (
+
+  	      // { event = 0;
+  	      //   device_id = 123456;
+              //   type = 1;
+	      //   affected_byte = 5;
+	      //   second_arg = 6;}
+              // Variables
+
+            { variable = 262;
+              type = 4;
+              second_arg = 8;},
+            { variable = 262;
+              type = 14;
+              second_arg = 261;},
+            { variable = 262;
+              type = 16;
+              second_arg = 10;},
+
+            { variable = 264;
+              type = 19; 
+	      second_arg = 0;},
+            { variable = 264;
+              type = 4;
+              second_arg = 8;},
+            { variable = 264;
+              type = 14;
+              second_arg = 263;},
+            { variable = 264;
+              type = 16;
+              second_arg = 10;},
+
+
+            { variable = 257;
+              type = 4;
+              second_arg = 8;},
+            { variable = 257;
+              type = 14;
+              second_arg = 258;},
+            { variable = 257;
+              type = 21;
+              second_arg = 10;},
+
+
+            { variable = 259;
+              type = 19; 
+	      second_arg = 0;},
+            { variable = 259;
+              type = 4;
+              second_arg = 8;},
+            { variable = 259;
+              type = 14;
+              second_arg = 260;},
+            { variable = 259;
+              type = 21;
+              second_arg = 10;},
+	    { variable = 259;
+              type = 22;
+	      second_arg = 0;}
+	      
+
+);
