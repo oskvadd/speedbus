@@ -5023,7 +5023,7 @@ main(int argc, char *argv[])
   pdata->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_title(GTK_WINDOW(pdata->window), "Select Spb interface");
 
-  pdata->trayIcon = gtk_status_icon_new_from_file("spb.png");
+  pdata->trayIcon = gtk_status_icon_new_from_file(".speedbus/spb.png");
   //set popup menu for tray icon
   pdata->menu = gtk_menu_new();
   pdata->menuItemConnect = gtk_menu_item_new_with_label("Set Interface");

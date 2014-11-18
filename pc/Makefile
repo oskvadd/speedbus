@@ -63,3 +63,4 @@ install: sinstall build/spbgui
 	fi
 	cp -f usb/*.hid ~/.speedbus/usb/
 	cp -f devs/*.spb ~/.speedbus/devs/
+	cp -f spb.png ~/.speedbus/
