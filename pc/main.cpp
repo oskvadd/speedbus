@@ -4956,6 +4956,25 @@ sig_handler(int sig)
 int
 main(int argc, char *argv[])
 {
+  
+  if(argc <= 1){
+    // Make sure you can debug by adding a arg to the command.
+    pid_t pid = 0;
+    pid = fork();
+    if (pid < 0)
+      {
+	printf("Failed to fork into background\n");
+	exit(1);
+      }
+    if (pid > 0)
+      {
+	exit(0);
+      }
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+  }
+
   /*
    * GtkWidget is the storage type for widgets 
    */
