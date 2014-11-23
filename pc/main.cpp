@@ -370,6 +370,7 @@ typedef struct _rspeed_gui_rep
   /// rparams_show
   int rparams_open;
   int rparams_cparam;
+  int rparams_cdevid;
   GtkWidget *rparams_gui;
   GtkWidget *rparams_box1;
   GtkWidget *rparams_box2;
@@ -876,7 +877,7 @@ client_handler(void *ptr)
 	      char value[20];
 	      if (len < 210 && sscanf(data, "pparam %d %d %20[^\n]", &devid, &param, value) == 3)
 		{
-		  if(devid != rdata->c_devid)
+		  if(devid != rdata->rparams_cdevid)
 		    continue;
 
 		  GtkTreeIter   iter;
@@ -2069,7 +2070,7 @@ load_device(gpointer data, int devid)
   // Set parameters button enable if there is parameters in the .spb file.
 
   setting = config_lookup(&cfg, "spb.parameters");
-  if (setting != NULL)
+  if (setting != NULL && !rdata->rparams_open)
     gtk_widget_set_sensitive(rdata->rdev_show_params, true);
   else
     gtk_widget_set_sensitive(rdata->rdev_show_params, false);
@@ -4043,7 +4044,7 @@ rparams_show_setparam(GtkWidget * some, gpointer data)
       const char *entry_s;
       entry_s = gtk_entry_get_text(GTK_ENTRY(rdata->rparams_entry));
       if(entry_s != NULL && strlen(entry_s) >= 1){
-	sprintf(tmp, "setparam %d %d %s\n", rdata->c_devid, rdata->rparams_cparam, entry_s);
+	sprintf(tmp, "setparam %d %d %s\n", rdata->rparams_cdevid, rdata->rparams_cparam, entry_s);
 	rdata->sslc.send_data(tmp, strlen(tmp));
       }
     }
@@ -4081,7 +4082,7 @@ rparams_show_getparam(GtkTreeView * treeview, GtkTreePath * path, GtkTreeViewCol
 	}
       else
 	{
-	  sprintf(tmp, "getparam %d %d\n", rdata->c_devid, param);
+	  sprintf(tmp, "getparam %d %d\n", rdata->rparams_cdevid, param);
 	  rdata->sslc.send_data(tmp, strlen(tmp));
 	}
     }
@@ -4094,8 +4095,12 @@ rparams_show(GtkWidget * some, gpointer data)
 {
   rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
 
+  if(rdata->rparams_open)
+    return;
+
   rdata->rparams_open = 1;
   rdata->rparams_cparam = 0;
+  rdata->rparams_cdevid = rdata->c_devid;
 
   config_t cfg;
   config_setting_t *setting;
@@ -4160,6 +4165,8 @@ rparams_show(GtkWidget * some, gpointer data)
 	  }
 	}
     }
+
+  gtk_widget_set_size_request(rdata->rparams_list, -1, 250);
   
   // Actions
   g_signal_connect(rdata->rparams_list, "row-activated", G_CALLBACK(rparams_show_getparam), rdata);
@@ -4168,7 +4175,7 @@ rparams_show(GtkWidget * some, gpointer data)
 
   // Box pack
   gtk_container_add(GTK_CONTAINER(rdata->rparams_gui), rdata->rparams_box1);
-  gtk_box_pack_start(GTK_BOX(rdata->rparams_box1), rdata->rparams_list, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rparams_box1), addScrollBarToTreeView(rdata->rparams_list), FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rparams_box1), rdata->rparams_box2, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rparams_box2), rdata->rparams_etext, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->rparams_box2), rdata->rparams_entry, FALSE, FALSE, 0);
