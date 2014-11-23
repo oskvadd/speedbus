@@ -173,6 +173,7 @@ typedef struct _rspeed_gui_rep
 
   GtkWidget *rdev_is_admin_button;
   GtkWidget *rdev_show_notify;
+  GtkWidget *rdev_show_params;
   GtkWidget *rdev_surve_screen_button;
   GtkWidget *rdev_spbac_screen_button;
 
@@ -365,6 +366,26 @@ typedef struct _rspeed_gui_rep
   GtkTreeIter rnotify_list_iter;
   GtkWidget *rnotify_label;
   GtkWidget *rnotify_update_notify;
+
+  /// rparams_show
+  int rparams_open;
+  int rparams_cparam;
+  GtkWidget *rparams_gui;
+  GtkWidget *rparams_box1;
+  GtkWidget *rparams_box2;
+
+  
+  GtkWidget *rparams_list;
+  GtkTreeModel *rparams_list_tree;
+  GtkListStore *rparams_list_list;
+  GtkTreeIter rparams_list_iter;
+
+  GtkWidget *rparams_label;
+  GtkWidget *rparams_etext;
+  GtkWidget *rparams_entry;
+  GtkWidget *rparams_button;
+
+  
 
   /// rsurve_screen_show
   GtkWidget *rsurve_gui;
@@ -618,6 +639,10 @@ client_handler(void *ptr)
       len = rdata->sslc.recv_data(data);
       if (len > 0)
 	{
+	  if(debug)
+	    printf("%s\n", data);
+	  
+
 	  if (strncmp(data, "send ", 5) == 0)
 	    {
 	      exec_package(rdata, data + 5, len - 5);
@@ -842,6 +867,33 @@ client_handler(void *ptr)
 			  
 	      }
 	    }
+	  if (strncmp(data, "pparam ", 7) == 0)
+	    {
+	      if(!rdata->rparams_open)
+		continue;
+	      
+	      int devid, param;
+	      char value[20];
+	      if (len < 210 && sscanf(data, "pparam %d %d %20[^\n]", &devid, &param, value) == 3)
+		{
+		  if(devid != rdata->c_devid)
+		    continue;
+
+		  GtkTreeIter   iter;
+		  int tparam;
+		  int status = gtk_tree_model_get_iter_first(rdata->rparams_list_tree, &iter);
+		  while(status){
+		    gtk_tree_model_get(rdata->rparams_list_tree, &iter, 0, &tparam, -1);
+		    if(param == tparam){
+		      gdk_threads_enter();
+		      gtk_list_store_set(rdata->rparams_list_list, &iter, 3, value, -1);
+		      gdk_threads_leave();
+		    }
+		    status = gtk_tree_model_iter_next(rdata->rparams_list_tree, &iter);
+		  }
+		}
+	    }
+
 
 	}
       else if (len == 0)
@@ -2014,6 +2066,13 @@ load_device(gpointer data, int devid)
 	}
     }
 
+  // Set parameters button enable if there is parameters in the .spb file.
+
+  setting = config_lookup(&cfg, "spb.parameters");
+  if (setting != NULL)
+    gtk_widget_set_sensitive(rdata->rdev_show_params, true);
+  else
+    gtk_widget_set_sensitive(rdata->rdev_show_params, false);
 
   gtk_widget_show(rdata->box3);
   gtk_widget_show(rdata->label1);
@@ -3964,6 +4023,162 @@ rspeed_set_debug(GtkWidget * some, gpointer data)
     }
 }
 
+// Params actions
+
+
+static void
+rparams_show_setparam(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  char tmp[50];
+
+  if (!((ProgressData *) rdata->share)->connected)
+    {
+      gtk_label_set_text(GTK_LABEL(rdata->rparams_label), "ERROR: Not connected");
+      return;
+    }
+  else
+    {
+      const char *entry_s;
+      entry_s = gtk_entry_get_text(GTK_ENTRY(rdata->rparams_entry));
+      if(entry_s != NULL && strlen(entry_s) >= 1){
+	sprintf(tmp, "setparam %d %d %s\n", rdata->c_devid, rdata->rparams_cparam, entry_s);
+	rdata->sslc.send_data(tmp, strlen(tmp));
+      }
+    }
+}
+
+void
+rparams_show_getparam(GtkTreeView * treeview, GtkTreePath * path, GtkTreeViewColumn * col, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+  GtkTreeModel *model;
+  GtkTreeIter iter;
+  int param, ro;
+  char tmp[50];
+  
+  
+  model = gtk_tree_view_get_model(treeview);
+  if (gtk_tree_model_get_iter(model, &iter, path))
+    {
+      gtk_tree_model_get(model, &iter, 0, (gpointer) & param, 1, (gpointer) & ro , -1);
+      if(ro){
+	gtk_widget_set_sensitive(rdata->rparams_button, FALSE);
+	gtk_label_set_text(GTK_LABEL(rdata->rparams_label), "Parameter is readonly");	
+      }else{
+	char sparam[200];
+	rdata->rparams_cparam = param;
+	gtk_widget_set_sensitive(rdata->rparams_button, TRUE);
+	sprintf(sparam, "Parameter %d selected", param);
+	gtk_label_set_text(GTK_LABEL(rdata->rparams_label), sparam);	
+      }
+      
+      if (!((ProgressData *) rdata->share)->connected)
+	{
+	  gtk_label_set_text(GTK_LABEL(rdata->rparams_label), "ERROR: Not connected");
+	  return;
+	}
+      else
+	{
+	  sprintf(tmp, "getparam %d %d\n", rdata->c_devid, param);
+	  rdata->sslc.send_data(tmp, strlen(tmp));
+	}
+    }
+}
+
+// Params screen
+
+void
+rparams_show(GtkWidget * some, gpointer data)
+{
+  rspeed_gui_rep *rdata = (rspeed_gui_rep *) data;
+
+  rdata->rparams_open = 1;
+  rdata->rparams_cparam = 0;
+
+  config_t cfg;
+  config_setting_t *setting;
+  config_init(&cfg);
+
+  char tmp[50];
+  sprintf(tmp, ".speedbus/devs/%d.spb", rdata->c_devid);
+  if (!config_read_file(&cfg, tmp)){
+    printf("Error while opening the config file.");
+    return;
+  }
+  rdata->rparams_gui = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_position(GTK_WINDOW(rdata->rparams_gui), GTK_WIN_POS_CENTER);
+  gtk_window_set_resizable(GTK_WINDOW(rdata->rparams_gui), FALSE);
+
+  gtk_window_set_title(GTK_WINDOW(rdata->rparams_gui), "Parameters list");
+  g_signal_connect(rdata->rparams_gui, "delete-event", G_CALLBACK(delete_event), &rdata->rparams_open);
+  g_signal_connect(rdata->rparams_gui, "destroy", G_CALLBACK(destroy), &rdata->rparams_open);
+
+  rdata->rparams_box1 = gtk_vbox_new(FALSE, 10);
+  rdata->rparams_box2 = gtk_hbox_new(FALSE, 10);
+
+  rdata->rparams_label = gtk_label_new("");
+  rdata->rparams_etext = gtk_label_new("Parameter value: ");
+  rdata->rparams_entry = gtk_entry_new();
+  rdata->rparams_button = gtk_button_new_with_label("Set param");
+  gtk_widget_set_sensitive(rdata->rparams_button, FALSE);
+
+
+  GtkCellRenderer *renderer;
+  rdata->rparams_list = gtk_tree_view_new();
+  rdata->rparams_list_list = gtk_list_store_new(4, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_STRING, G_TYPE_STRING);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rparams_list), -1, "Nr", renderer, "text", 0, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rparams_list), -1, "Ro", renderer, "text", 1, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rparams_list), -1, "Info", renderer, "text", 2, NULL);
+  renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(rdata->rparams_list), -1, "Value", renderer, "text", 3, NULL);
+
+  setting = config_lookup(&cfg, "spb.parameters");
+  if (setting != NULL) 
+    {
+      int count = config_setting_length(setting);
+
+      for (int i = 0; i < count; ++i)
+	{
+	  config_setting_t *book = config_setting_get_elem(setting, i);
+
+	  const char *info;
+	  int nr;
+	  int readonly;
+	  if(config_setting_lookup_string(book, "descr", &info) && config_setting_lookup_bool(book, "readonly", &readonly) 
+	     && config_setting_lookup_int(book, "param", &nr)){
+	    
+	  gtk_list_store_append(rdata->rparams_list_list, &rdata->rparams_list_iter);
+	  gtk_list_store_set(rdata->rparams_list_list,
+			     &rdata->rparams_list_iter, 0, nr, 1, readonly, 2, info, 3, NULL, -1);
+	  rdata->rparams_list_tree = GTK_TREE_MODEL(rdata->rparams_list_list);
+	  gtk_tree_view_set_model(GTK_TREE_VIEW(rdata->rparams_list), rdata->rparams_list_tree);
+	  }
+	}
+    }
+  
+  // Actions
+  g_signal_connect(rdata->rparams_list, "row-activated", G_CALLBACK(rparams_show_getparam), rdata);
+  g_signal_connect(rdata->rparams_button, "clicked", G_CALLBACK(rparams_show_setparam), rdata);
+ 
+
+  // Box pack
+  gtk_container_add(GTK_CONTAINER(rdata->rparams_gui), rdata->rparams_box1);
+  gtk_box_pack_start(GTK_BOX(rdata->rparams_box1), rdata->rparams_list, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rparams_box1), rdata->rparams_box2, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rparams_box2), rdata->rparams_etext, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rparams_box2), rdata->rparams_entry, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rparams_box2), rdata->rparams_button, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->rparams_box1), rdata->rparams_label, FALSE, FALSE, 0);
+
+
+  gtk_widget_show_all(rdata->rparams_gui);
+}
+
 // Notify screen
 
 void
@@ -4436,6 +4651,8 @@ rspeed_gui(gpointer * data)
   rdata->rac_type=0; // MAke sure that rac_type is zeroed.
   rdata->rsac_gui_isopen = 0;
   rdata->rnotify_open = 0;
+  rdata->rparams_open = 0;
+
   // Start the device backend AFTER the serial has been opened
   rdata->backe = init_backend();
 
@@ -4482,6 +4699,11 @@ rspeed_gui(gpointer * data)
   if (rdata->is_admin && rdata->remote)
     rdata->rdev_is_admin_button = gtk_button_new_with_label("Settings");
   rdata->rdev_show_notify = gtk_button_new_with_label("Notifications");
+  rdata->rdev_show_params = gtk_button_new_with_label("Parameters");
+  // Make sure the button is inactivatet until a device with parameters is selected.
+  gtk_widget_set_sensitive(rdata->rdev_show_params, false);
+
+
   rdata->rdev_surve_screen_button = gtk_button_new_with_label("Surveillance Screen");
   rdata->rdev_spbac_screen_button = gtk_button_new_with_label("Access Editor");
 
@@ -4506,6 +4728,7 @@ rspeed_gui(gpointer * data)
   if (rdata->is_admin && rdata->remote)
     gtk_box_pack_start(GTK_BOX(rdata->box5), rdata->rdev_is_admin_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box5), rdata->rdev_show_notify, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(rdata->box5), rdata->rdev_show_params, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->box5, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->rdev_surve_screen_button, FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(rdata->box1), rdata->rdev_spbac_screen_button, FALSE, FALSE, 0);
@@ -4519,6 +4742,7 @@ rspeed_gui(gpointer * data)
   if (rdata->is_admin && rdata->remote)
     g_signal_connect(rdata->rdev_is_admin_button, "clicked", G_CALLBACK(rserver_settings), rdata);
   g_signal_connect(rdata->rdev_show_notify, "clicked", G_CALLBACK(rnotify_show), rdata);
+  g_signal_connect(rdata->rdev_show_params, "clicked", G_CALLBACK(rparams_show), rdata);
   g_signal_connect(rdata->rdev_surve_screen_button, "clicked", G_CALLBACK(rsurve_screen_show), rdata);
   g_signal_connect(rdata->rdev_spbac_screen_button, "clicked", G_CALLBACK(rsac_screen_show), rdata);
 
@@ -4540,6 +4764,7 @@ rspeed_gui(gpointer * data)
   if (rdata->is_admin && rdata->remote)
     gtk_widget_show(rdata->rdev_is_admin_button);
   gtk_widget_show(rdata->rdev_show_notify);
+  gtk_widget_show(rdata->rdev_show_params);
   gtk_widget_show(rdata->rdev_surve_screen_button);
   gtk_widget_show(rdata->rdev_spbac_screen_button);
   gtk_widget_show(rdata->box2);
