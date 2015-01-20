@@ -1,0 +1,36 @@
+Warning[205] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 1 : Found directive in column 1. (List)
+Warning[205] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 44 : Found directive in column 1. (radix)
+Warning[208] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 676 : Label truncated at 32 characters. (func_is_ocupied_send_response_got_resp)
+Warning[208] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 680 : Label truncated at 32 characters. (func_is_ocupied_send_response_pack)
+Message[302] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 1051 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] ../SpeedBus.PIC.Lib.X/speedlib_main.asm 1178 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 95 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 97 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 102 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 113 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 115 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 122 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 123 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 124 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 132 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 139 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 142 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 144 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 153 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[305] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 408 : Using default destination of 1 (file).
+Message[305] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 712 : Using default destination of 1 (file).
+Message[305] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 791 : Using default destination of 1 (file).
+Message[305] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 922 : Using default destination of 1 (file).
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 937 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 939 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 940 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 943 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 949 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 953 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 955 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 956 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 960 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 962 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 963 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 966 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] /home/moonshine/speedbus/pic/mplabx.proj/speedlib/Wiegand.RFID.Unit.X/main.asm 970 : Register in operand not in bank 0.  Ensure that bank bits are correct.
