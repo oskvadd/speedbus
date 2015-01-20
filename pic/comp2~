@@ -1,7 +1,0 @@
-#!/usr/bin/perl -w
-
-$gpf = `gpasm toggle_led/toggle_led.asm`;
-if(length($gpf) < 2){
-    system("./pk2cmd -PPIC16F690 -T -M -F toggle_led/toggle_led.hex");}
-else{
-print($gpf);}

@@ -1,7 +1,0 @@
-#!/usr/bin/perl -w
-
-//$gpf = `gpasm remote_on_off_controller/main.asm`;
-//if(length($gpf) < 2){
-    system("./pk2cmd -PPIC16F690 -T -M -F remote_on_off_controller/main.hex");//}
-//else{
-//print($gpf);}
