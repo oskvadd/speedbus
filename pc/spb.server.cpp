@@ -318,12 +318,10 @@ get_params_load(void *data, char *p_data, int counter)
 		  }
 		  break;
 		case 7:
-		  if(counter >= 9){
+		  if(counter >= 11){
 		    char buf[MAX_BUFFER];
-		    sprintf(buf, "%d.%d", (unsigned char)p_data[8], (unsigned char)p_data[9]);
-		    float ppay;
-		    sscanf(buf, "%f", &ppay);
-		    sprintf(paraload, "pparam %d %d %.3f\n", serial_p->backe->device_id[i], ii, ppay);	  
+		    sprintf(paraload, "pparam %d %d %d %d.%d %d\n", serial_p->backe->device_id[i], ii, (unsigned char)p_data[8], (unsigned char)p_data[9], 
+			    (unsigned char)p_data[10], (unsigned char)p_data[11]);
 		  }
 		  break;
 		  
@@ -1513,11 +1511,13 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  // Send command to links upstream
 	  spb_links_send(serial_p, listnum, linknum, data, len);
 	  //
-	  int devid, param, sparam1, sparam2;
-	  int args[2];
-	  if(sscanf(data, "setparam %d %d %d.%d\n", &devid, &param, &sparam1, &sparam2) >= 3 && devid > 0){
+	  int devid, param, sparam1, sparam2, sparam3, sparam4;
+	  int args[4];
+	  if(sscanf(data, "setparam %d %d %d %d.%d %d\n", &devid, &param, &sparam1, &sparam2, &sparam3, &sparam4) >= 5 && devid > 0){
 	    args[0] = sparam1;
 	    args[1] = sparam2;
+	    args[2] = sparam3;
+	    args[3] = sparam4;
 	    backend_exec_set_param(serial_p->backe, param, devid, args);
 	  }else if(sscanf(data, "setparam %d %d %d\n", &devid, &param, &sparam1) > 1 && devid > 0){
 	    args[0] = sparam1;
@@ -2481,7 +2481,7 @@ main(int argc, char *argv[])
       users[i][1][0] = '\0';
     }
 
-
+  debug = 1;
 
   int port;
   if (1)

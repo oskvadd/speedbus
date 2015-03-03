@@ -707,10 +707,12 @@ backend_exec_set_param(main_backend * backe, int param, int devid, int *args)
 	      getdevs[12] = 0x00;
 	      break;
 	    case 6:
-	      len = 11;
+	      len = 13;
 	      getdevs[8] = (char)(args[0] & 0xFF);
 	      getdevs[9] = (char)(args[1] & 0xFF);
-	      getdevs[10] = 0x00;
+	      getdevs[10] = (char)(args[2] & 0xFF);
+	      getdevs[11] = (char)(args[3] & 0xFF);
+	      getdevs[12] = 0x00;
 	      break;		  		  		  
 	    }
 
