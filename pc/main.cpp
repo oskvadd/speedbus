@@ -810,19 +810,10 @@ client_handler(void *ptr)
 	      
 	      int date, id, priorty;
 	      char msg[200], time[50];
-	      if (len < 210 && sscanf(data, "notifya %d %d %d", &date, &id, &priorty) == 3)
+	      if (len < 210 && sscanf(data, "notifya %d %d %d %200[^\n]", &date, &id, &priorty, msg) == 4)
 		{
-		  // Take care of the notify message number
-		  sprintf(msg, "notifya %d %d %d", date, id, priorty);
-		  int tmp_len = strlen(msg);
-		  memset(msg, 0, 200);
-		  if (tmp_len < 15)
-		    return 0;
-		  strncpy(msg, data + tmp_len, len - tmp_len);
-		  char *tmp = strchr(msg, '\n');
-		  *tmp = '\0';
-		  struct tm *timeinfo = localtime((const time_t *)&date);
-		  strftime(time, 50, "%y-%m-%d %H:%M:%S", timeinfo);
+		  time_t date_t = date;
+		  strftime(time, 50, "%y-%m-%d %H:%M:%S", gmtime(&date_t));
 		  gdk_threads_enter();
 		  gtk_list_store_append(rdata->rnotify_list_list, &rdata->rnotify_list_iter);
 		  gtk_list_store_set(rdata->rnotify_list_list,
