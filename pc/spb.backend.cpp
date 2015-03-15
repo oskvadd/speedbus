@@ -115,7 +115,7 @@ init_backend()
       if (pos > 0 && pos + 4 == len)
 	{
 	  sprintf(arg, BACKEND_DIR "usb/%s", dirp->d_name);
-	  if (debug)
+	  if (DEBUG_ON)
 	    printf("Loaded: %s\n", arg);
 	  open_usb_hid(backe, arg);
 	}
@@ -459,7 +459,8 @@ backend_load_backend(main_backend * backe)
 	  FILE *pipe = popen(tmp, "r");
 	  if (fgets(tmp, 50, pipe) == NULL)
 	    {
-	      printf("No File devs/%d.spb", devid);
+	      wtime();
+	      printf("No File devs/%d.spb\n", devid);
 	      continue;
 	    }
 	  else
@@ -469,7 +470,7 @@ backend_load_backend(main_backend * backe)
 	      continue;
 	    }
 	}
-      if(debug)
+      if(DEBUG_ON)
       printf("Sucess loaded %d.spb\n", devid);
 
       int devids = backe->devids++;
@@ -645,7 +646,7 @@ backend_exec_get_param(main_backend * backe, int param, int devid)
 	{			// Device id is found in the MAIN device list
 	  if(param < MAX_PARAMETER && backe->parameter_exist[i][param] == true){
 	    int len = 9;
-	    char getdevs[MAX_BUFFER] = { backe->daddr1[i], backe->daddr2[i], addr1, addr2, 0x03, 0x01, 0x04, param, 0x00 };
+	    char getdevs[MAX_BUFFER] = { backe->daddr1[i], backe->daddr2[i], addr1, addr2, 0x03, 0x00, 0x04, param, 0x00 };
 #ifdef IS_GUI
 	    m_send(backe->rdata, getdevs, len);
 #else
@@ -665,8 +666,7 @@ backend_exec_set_param(main_backend * backe, int param, int devid, int *args)
 	{			// Device id is found in the MAIN device list
 	  if(param < MAX_PARAMETER && backe->parameter_exist[i][param] == true && !backe->parameter_readonly[devid][param]){
 	    int len = 0;
-	    char getdevs[MAX_BUFFER] = { backe->daddr1[i], backe->daddr2[i], addr1, addr2, 0x03, 0x01, 0x04, param};
-	    printf("parm: %d\n", param);
+	    char getdevs[MAX_BUFFER] = { backe->daddr1[i], backe->daddr2[i], addr1, addr2, 0x03, 0x00, 0x05, param};
 	    switch(backe->parameter_type[i][param]){
 	    case 0:
 	      len = 10;
@@ -707,6 +707,12 @@ backend_exec_set_param(main_backend * backe, int param, int devid, int *args)
 	      getdevs[12] = 0x00;
 	      break;
 	    case 6:
+	      len = 11;
+	      getdevs[8] = (char)(args[0] & 0xFF);
+	      getdevs[9] = (char)(args[1] & 0xFF);
+	      getdevs[10] = 0x00;      
+	      break;      
+	    case 7:
 	      len = 13;
 	      getdevs[8] = (char)(args[0] & 0xFF);
 	      getdevs[9] = (char)(args[1] & 0xFF);

@@ -6,6 +6,11 @@
 #include <iostream>
 #ifndef __SPEEDBLIB_H_INCLUDED__
 #define __SPEEDBLIB_H_INCLUDED__
+
+#define DEBUG_ON 0            // Show incomming packages
+#define DEBUG_SHOW_PACKAGE 0  // Show with timestamp, incomming and sending packages
+//#define DEBUG_SHOW_SERVER     // Show commands executed on the server
+
 #include "speedblib.cpp"
 #endif
 #include <openssl/md5.h>
@@ -15,7 +20,7 @@
 #include "spb.backend.cpp"
 #include "http_post.cpp"
 
-#define MAX_TEXT_BUFFER 200     // Maximum text buffer for preferences
+#define MAX_TEXT_BUFFER 200      // Maximum text buffer for preferences
 #define MAX_STR(X)  ((strlen(X)) > (MAX_TEXT_BUFFER-1) ? (MAX_TEXT_BUFFER-1) : (strlen(X)+1)) 
 // If the var_dst is sizeof MAX_TEXT_BUFFER, then strncpy(var_dst, var_src, MAX_STR(var_src))  
 
@@ -26,7 +31,8 @@
 #define MAX_NOTIFY_STACK 10
 #define MAX_NOTIFY_SIZE 200	// Maximum size of the notify message
 #define MAX_SURV_MONS 20        // Maximum numbers of surv monitors
-#define MAX_GETVARS 20        // Maximum numbers of variables in getvars async list
+#define MAX_GETVARS 20          // Maximum numbers of variables in getvars async list
+#define MAX_ISPARAM 20          // Maximum numbers of internal server parameters.
 #define SERVER_LOG_FILE "/var/log/spbserver.log"
 #define SERVER_CONFIG_FILE "server.cfg"
 #define SERVER_CONFIG_DIR "/etc/spbserver/"
@@ -98,6 +104,16 @@ typedef struct _print_seri
   int getvars_varid[MAX_GETVARS];
   int getvars_listnum[MAX_GETVARS];
   //
+
+  // Internal Server Parameters
+  int isparam_nr;
+  int isparam_id[MAX_ISPARAM];
+  int isparam_type[MAX_ISPARAM];
+  int *isparam_value[MAX_ISPARAM];
+  char *isparam_notifymsg[MAX_ISPARAM];
+  int isparam_notifypri[MAX_ISPARAM];
+  //
+  
 
 } print_seri;
 
@@ -319,13 +335,10 @@ get_params_load(void *data, char *p_data, int counter)
 		  break;
 		case 7:
 		  if(counter >= 11){
-		    char buf[MAX_BUFFER];
 		    sprintf(paraload, "pparam %d %d %d %d.%d %d\n", serial_p->backe->device_id[i], ii, (unsigned char)p_data[8], (unsigned char)p_data[9], 
 			    (unsigned char)p_data[10], (unsigned char)p_data[11]);
 		  }
 		  break;
-		  
-		  		  		  
 		}
 
 		for (int i = 0; i < MAX_LISTEN; i++)
@@ -340,7 +353,26 @@ get_params_load(void *data, char *p_data, int counter)
 	    }
 	}
     }
+}
 
+static void
+set_isparams_load(void *data, char *p_data, int counter)
+{
+  print_seri *serial_p = (print_seri *) data;
+  for (int i = 0; i < MAX_ISPARAM; i++)
+    {
+      if((unsigned char)p_data[7] == serial_p->isparam_id[i]){
+	switch(serial_p->isparam_type[i]){
+	case 1:
+	  serial_p->isparam_value[i][0] = (unsigned char)p_data[8];
+	  break;
+	}	
+	
+	if(serial_p->isparam_notifymsg[i] != NULL){
+	  spb_write_notify(serial_p, serial_p->isparam_notifymsg[i], serial_p->isparam_notifypri[i]);
+	}
+      }
+    }
 }
 
 void
@@ -387,7 +419,7 @@ device_add(print_seri * serial_p, char addr1, char addr2, int devid)
   //
   char name[7];
   sprintf(name, "%d.%d", (unsigned char)addr1, (unsigned char)addr2);
-  if (debug)
+  if (DEBUG_ON)
     std::cerr << "\n" << serial_p->device_num << ":" << name << "\n";
 
   for (int i = 0; i < serial_p->device_num; i++)
@@ -505,6 +537,17 @@ print_ser_backend(void *ptr)
 		      if (((unsigned char)data[0] == addr1
 			  && (unsigned char)data[1] == addr2) || ((unsigned char)data[0] == 0xFF && (unsigned char)data[1] == 0xFF))
 			{
+
+			  if(DEBUG_SHOW_PACKAGE)
+			    {
+			      wtime();
+			      printf("Recived package: ( ");
+			      for(int i = 0; i < counter; i++){
+				printf("%.2x ", (unsigned char)data[i]);
+			      }
+			      printf(")\n");
+			    }
+
 			  // Store devices that sends device aknowledge
 			  if ((unsigned char)data[0] == addr1 && (unsigned char)data[1] == addr2 && (unsigned char)data[6] == 1)
 			    {
@@ -526,6 +569,8 @@ print_ser_backend(void *ptr)
 			  
 			  if((unsigned char)data[6] == 0x04)
 			    get_params_load(serial_p, data, counter);
+			  else if((unsigned char)data[6] == 0x05)
+			    set_isparams_load(serial_p, data, counter);
 			  else
 			    get_vars_load(serial_p, data, counter);
 			  //
@@ -587,12 +632,12 @@ print_ser_backend(void *ptr)
 	  if (counter > 99)
 	    {
 	      counter = 0;
-	      if (debug)
+	      if (DEBUG_ON)
 		{
 		  std::cerr << "Killed package longer than 99bytes" << std::endl;
 		}
 	    }
-	  if (debug)
+	  if (DEBUG_ON)
 	    std::cerr << std::hex << static_cast < int >(next_byte & 0xFF) << " ";
 	  usleep(40);
 	  justcap = 0;
@@ -801,6 +846,54 @@ spb_links_send(print_seri * serial_p, int listnum, int linknum, const char * dat
   if(got_link)
     return 1;
   return 0;
+}
+
+bool
+spb_inalize_isparam(print_seri * serial_p)
+{
+  
+  serial_p->isparam_nr = 0;
+  config_setting_t *setting, *tmp;
+
+  setting = config_lookup(serial_p->server_cfg, "spb_iparam");
+  if (setting != NULL)
+    {
+      const char *notify_msg;
+      int id, type, notify_pri;
+      int count = config_setting_length(setting);
+      for (int i = 0; i < count; ++i)
+	{
+	  tmp = config_setting_get_elem(setting, i);
+	  if (config_setting_lookup_int(tmp, "id", &id)
+	      && config_setting_lookup_int(tmp, "type", &type))
+	    {
+	      
+	      serial_p->isparam_nr++;
+
+	      serial_p->isparam_id[serial_p->isparam_nr] = id;
+	      serial_p->isparam_type[serial_p->isparam_nr] = type;
+
+
+	      if(config_setting_lookup_string(tmp, "notify_msg", &notify_msg)
+		 && config_setting_lookup_int(tmp, "notify_pri", &notify_pri)){
+		// Notify on parameter called.
+		serial_p->isparam_notifymsg[serial_p->isparam_nr] = (char*) malloc(MAX_TEXT_BUFFER);
+		strncpy(serial_p->isparam_notifymsg[serial_p->isparam_nr], notify_msg, MAX_STR(notify_msg));
+		serial_p->isparam_notifypri[serial_p->isparam_nr] = notify_pri;
+	      }else{
+		// Make sure notify is NULL:ed
+		serial_p->isparam_notifymsg[serial_p->isparam_nr] = NULL;
+	      }
+	      
+	      switch(type){
+	      case 1:
+		// Just an ordinary single byte type
+		serial_p->isparam_value[serial_p->isparam_nr] = (int*) malloc(sizeof(int));
+		break;
+	      }
+	    }
+	}
+    }
 }
 
 
@@ -1107,26 +1200,31 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
    * Receive data from the SSL client 
    */
   int err = 0;
-
+  
   if(linknum > -1)
     goto spb_recv_link;
+  
+#ifdef DEBUG_SHOW_SERVER
+  wtime();
+  printf("Server ln:%d command: %s\n", listnum, data);
+#endif
+
 
   if (!serial_p->server->session_open[listnum])
     {
 
-      char user[MAX_LOGIN_TEXT * 2], pass[MAX_LOGIN_TEXT * 2];
-      sscanf(data, "\n%[^\n]\n%[^\n]", user, pass);
+      char user[MAX_LOGIN_TEXT], pass[MAX_LOGIN_TEXT], login_str[MAX_LOGIN_TEXT * 3];
+      sscanf(data, "\n%" MAX_LOGIN_TEXT_S "[^\n]\n%" MAX_LOGIN_TEXT_S "[^\n]", user, pass);
       md5sum(pass);
-      sprintf(data, "%s:%s", user, pass);
+      sprintf(login_str, "%s:%s", user, pass);
 
       // sleep(1); Wait for further acess limitations, cant just sleep the whole fucking server -.-
       for (int i = 0; i < userc; i++)
 	{
-	  char tmp[MAX_LOGIN_TEXT * 2 + 1];
+	  char tmp[MAX_LOGIN_TEXT * 3];
 	  sprintf(tmp, "%s:%s", users[i][1], users[i][2]);
 
-	  //printf("%s:%s\n", user, pass);
-	  if (strncmp(data, tmp, len) == 0)
+	  if (strncmp(login_str, tmp, strlen(tmp)) == 0)
 	    {
 	      socket_user_id[listnum] = i;
 	      if (user_type[i] >= USER_ADMIN)
@@ -1287,6 +1385,8 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	  // If it comes from a link, then get_vars_load
 	  if((unsigned char)data[11] == 0x04)
 	    get_params_load(serial_p, data + 5, len - 5);
+	  else if((unsigned char)data[11] == 0x05)
+	    set_isparams_load(serial_p, data + 5, len - 5);
 	  else
 	    get_vars_load(serial_p, data + 5, len - 5);	  
 	  //
@@ -1518,6 +1618,10 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	    args[1] = sparam2;
 	    args[2] = sparam3;
 	    args[3] = sparam4;
+	    backend_exec_set_param(serial_p->backe, param, devid, args);
+	  }else if(sscanf(data, "setparam %d %d %d.%d\n", &devid, &param, &sparam1, &sparam2) >= 3 && devid > 0){
+	    args[0] = sparam1;
+	    args[1] = sparam2;
 	    backend_exec_set_param(serial_p->backe, param, devid, args);
 	  }else if(sscanf(data, "setparam %d %d %d\n", &devid, &param, &sparam1) > 1 && devid > 0){
 	    args[0] = sparam1;
@@ -2481,7 +2585,6 @@ main(int argc, char *argv[])
       users[i][1][0] = '\0';
     }
 
-  debug = 1;
 
   int port;
   if (1)
@@ -2656,6 +2759,9 @@ main(int argc, char *argv[])
       spb_inalize_links(&serial_p);
       wtime();
       printf("Links loaded\n");      
+      spb_inalize_isparam(&serial_p);
+      wtime();
+      printf("Internal Server Parameters loaded\n");      
       
       spb_write_notify(&serial_p, "Server Started!", 3);
       //device_add(&serial_p,0,0,16432);
