@@ -6,7 +6,6 @@ using namespace LibSerial;
 
 SerialStream serial_port;
 bool         verbose = 1;
-bool         debug   = 0;
 char         tx_data[100];
 char         addr1;
 char         addr2;
@@ -99,7 +98,7 @@ int escape(char * data, int * len){
     default:
       data[i+p] = tmp_data[i];
     }
-    if(debug){std::cerr << std::hex << i << ": - " << static_cast<int>(data[i] & 0xFF) << " " << std::endl;}
+    if(DEBUG_ON){std::cerr << std::hex << i << ": - " << static_cast<int>(data[i] & 0xFF) << " " << std::endl;}
   }
   *len = *len + p;
 }
@@ -122,11 +121,11 @@ void *print_ser(void *ptr){
 	  bool loopback = memcmp(data, tx_data, counter);
 	  unescape(data,&counter); // Unescape the incomming package, check rfc1662 for escape rules
 	  if(crcstrc(data,counter) && counter > 5){ // Min packet length 5
-	    if(loopback != 0 || debug){
+	    if(loopback != 0 || DEBUG_ON){
 	      if(verbose && (unsigned char)data[6] != 0){std::cerr << std::endl;}
 	      switch((unsigned char)data[6]){
 	      case 0:
-		if(debug){
+		if(DEBUG_ON){
 		  std::cerr << "Recived broadcast aknowlegde (0x00) to '" << std::dec  << (data[0] & 0xff) << "." <<
 		    (data[1] & 0xff) << "' from '" << std::dec  << (data[2] & 0xff) << "." << (data[3] & 0xff) << "'";}
 		if(resp_addr1 == data[2] && resp_addr2 == data[3]){
@@ -174,11 +173,11 @@ void *print_ser(void *ptr){
 	}
 	if(counter > 99){
 	  counter = 0;
-	  if(debug){
+	  if(DEBUG_ON){
 	    std::cerr << "Killed package longer than 99bytes" << std::endl;
 	  }
 	}
-	if(debug)
+	if(DEBUG_ON)
 	  std::cerr << std::hex << static_cast<int>(next_byte & 0xFF) << " ";
 	usleep(40);
 	justcap = 0;
@@ -193,10 +192,20 @@ void    send(char * data, int len){
   crcstr(data,len);
   escape(data,&len); // Important that you run this AFTER the CRC calc
   //      memcpy(tx_data,data,len+2);
-  if(debug){
+  if(DEBUG_ON){
     for(int i=0; i < len+2; i++){
       std::cerr << std::hex << (static_cast<int>(data[i]) & 0xff);if(i<len+1){std::cerr << " ";}}
   }
+  
+  if(DEBUG_SHOW_PACKAGE)
+    {
+      wtime();
+      printf("Sent package: ( ");
+      for(int i = 0; i < len; i++){
+	printf("%.2x ", (unsigned char)data[i]);
+      }
+      printf(")\n");
+    }
   resp_addr1 = (unsigned char)data[0];
   resp_addr2 = (unsigned char)data[1];
   for(int ic=0; ic<10; ic++){

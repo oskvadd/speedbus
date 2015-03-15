@@ -206,20 +206,31 @@ sslserver::read_data(int listnum)
   int errc = 0;
   timeout.tv_sec = 5;
   timeout.tv_usec = 0;
+  ERR_clear_error();
   while (1)
     {
       err = SSL_read(ssllist[listnum], buf + errc, 4096 - (1 + errc));
       errc += err;
-      RETURN_SSL(err);
 
-      if (!SSL_pending(ssllist[listnum]))
+      // Pretty messy fix, but there was a problem with the android interface
+      // that the server recived packages in two pices, first byte in one pice
+      // and the rest of the bytes in the other pice, therefore we make sure that
+      // the packages is lager than 1
+      
+      int ssl_error = SSL_get_error (ssllist[listnum], err);
+      if (errc > 1 && ssl_error == SSL_ERROR_NONE)
 	break;
+
+      switch (ssl_error) {
+      case SSL_ERROR_WANT_WRITE:
+	return -1;
+      case SSL_ERROR_ZERO_RETURN:
+	return -1;
+      default:
+	break;
+      }
     }
   
-  if (err < 0)
-    {
-      return -1;
-    }
   buf[errc] = '\0';
   return errc;
 }
@@ -326,6 +337,7 @@ sslserver::addclient()
 	   * A SSL structure is created 
 	   */
 	  ssllist[listnum] = SSL_new(ctx);
+
 
 	  RETURN_NULL(ssllist[listnum]);
 
