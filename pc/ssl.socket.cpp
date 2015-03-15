@@ -212,7 +212,11 @@ sslserver::read_data(int listnum)
       errc += err;
       RETURN_SSL(err);
 
-      if (!SSL_pending(ssllist[listnum]))
+      // Pretty messy fix, but there was a problem with the android interface
+      // that the server recived packages in two pices, first byte in one pice
+      // and the rest of the bytes in the other pice, therefore we make sure that
+      // the packages is lager than 1
+      if (!SSL_pending(ssllist[listnum]) && errc > 1)
 	break;
     }
   
