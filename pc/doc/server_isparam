@@ -1,0 +1,15 @@
+Just a small guide, how to configure internal server parameters.
+
+This configuration will send a notice when recived a package
+like:
+Recived package: ( 14 14 00 00 03 00 05 05 01 00 86 05 )
+
+spb_iparam = (
+  {
+    id = 5;
+    type = 1;
+    notify_msg = "Motion detected at the backside.";
+    notify_pri = 3;
+  },{
+  // Second param
+  } );
