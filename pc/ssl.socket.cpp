@@ -222,12 +222,12 @@ sslserver::read_data(int listnum)
 	break;
 
       switch (ssl_error) {
-      case SSL_ERROR_WANT_WRITE:
-	return -1;
-      case SSL_ERROR_ZERO_RETURN:
-	return -1;
-      default:
+      case SSL_ERROR_NONE:
 	break;
+      case SSL_ERROR_WANT_READ:
+	break;
+      default:
+	return -1;
       }
     }
   
