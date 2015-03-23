@@ -110,7 +110,7 @@ typedef struct _print_seri
   int isparam_id[MAX_ISPARAM];
   int isparam_type[MAX_ISPARAM];
   int *isparam_value[MAX_ISPARAM];
-  char *isparam_notifymsg[MAX_ISPARAM];
+  char *isparam_notifymsg[MAX_TEXT_BUFFER];
   int isparam_notifypri[MAX_ISPARAM];
   //
   
@@ -133,6 +133,9 @@ bool mod_user(config_t * server_cfg, char *user, char *user_n, char *pass_n, int
 bool add_link(print_seri * serial_p, char *host, int port, char *user, char *pass);
 bool del_link(print_seri * serial_p, char *host, int port);
 bool mod_link(print_seri * serial_p ,char *mhost, int mport, char *host, int port, char *user, char *pass);
+bool add_isparam(print_seri * serial_p, int id, int type, int notify_pri, char *notify_msg);
+bool del_isparam(print_seri * serial_p, int id);
+bool mod_isparam(print_seri * serial_p, int mod_id, int id, int type, int notify_pri, char *notify_msg);
 bool set_tty(print_seri * serial_p, const char *tty);
 bool spb_write_log(const char *w_log);
 bool spb_write_notify(print_seri * serial_p, const char *w_log, int prio);
@@ -854,6 +857,12 @@ spb_inalize_isparam(print_seri * serial_p)
   
   serial_p->isparam_nr = 0;
   config_setting_t *setting, *tmp;
+
+  for (int i = 0; i < MAX_ISPARAM; i++)
+    {
+      serial_p->isparam_id[i] = 0;
+      serial_p->isparam_value[i] = NULL;
+    }
 
   setting = config_lookup(serial_p->server_cfg, "spb_iparam");
   if (setting != NULL)
@@ -1952,9 +1961,71 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
 	    
 	  }
 	}
+      if (strncmp(data, "ispadd", 6) == 0)
+	{
+	  char send[MAX_LOGIN_TEXT * 4];
+	  char notify_msg[MAX_LOGIN_TEXT * 4];
+	  int id, type, notify_pri;
+	  sscanf(data, "ispadd %d %d %d\n%" MAX_LOGIN_TEXT_S "s\n", &id, &type, &notify_pri, notify_msg);
+	  if(add_isparam(serial_p, id, type, notify_pri, notify_msg))
+	  serial_p->server->send_data(listnum, "sinfo isparam added!\n", strlen("sinfo isparam added!\n"));		
+	}
       
-    }
+      if (strncmp(data, "ispdel", 6) == 0)
+	{
+	  int id;
+	  sscanf(data, "ispdel %d\n", &id);
+	  for (int i = 0; i < MAX_ISPARAM; i++)
+	    {
+	      if(del_isparam(serial_p, id)){
+		serial_p->server->send_data(listnum, "sinfo isparam deleted\n", strlen("sinfo isparam deleted\n"));		
+		return 1;
+	      }else{
+		serial_p->server->send_data(listnum, "sinfo failed to delete isparam\n", strlen("sinfo failed to delete isparam\n"));		
+		return 0;
+	      }
+		
+	    }
+	  serial_p->server->send_data(listnum, "sinfo isparam not found\n", strlen("sinfo isparam not found\n"));		
+	}
+
+      if (strncmp(data, "isplist", 7) == 0)
+	{
+	send_isplist:
+	  for (int i = 0; i < MAX_ISPARAM; i++)
+	    {
+	      if(serial_p->isparam_value[i] != NULL){
+	      char send[MAX_LOGIN_TEXT * 2];
+	      sprintf(send, "isplist %d %d %d\n%" MAX_LOGIN_TEXT_S "s\n", serial_p->isparam_id[i], serial_p->isparam_type[i], serial_p->isparam_notifypri[i], serial_p->isparam_notifymsg[i]);
+
+	      //printf(send, "userlist %s %d\n", users[i][1], user_type[i]);
+	      serial_p->server->send_data(listnum, send, strlen(send));
+	      }
+	    }
+      
+	}
+      if (strncmp(data, "ispmod", 6) == 0)
+	{
+	  char notify_msg[MAX_LOGIN_TEXT];	// RECV_MAX is to big in 99.9% of all times, but a small price for preveting BOF
+	  int mod_id, id, type, notify_pri;
+	  if(sscanf(data, "ispmod %d %d %d %d %" MAX_LOGIN_TEXT_S "[^\n]", &mod_id, &id, &type, &notify_pri, notify_msg) < 4){
+	    serial_p->server->send_data(listnum, "slinfo Failed to mod isparam, syntax error\n", strlen("slinfo Failed to mod isparam, syntax error\n"));
+	    return 0;
+	  }
+	  if (mod_isparam(serial_p, mod_id, id, type, notify_pri, notify_msg))
+	    {
+	      serial_p->server->send_data(listnum, "slinfo isparam modded!\n", strlen("slinfo isparam modded!\n"));
+	      goto send_isplist;
+	    }
+	  else
+	    {
+	      serial_p->server->send_data(listnum, "slinfo Failed to mod link\n", strlen("slinfo Failed to mod link\n"));
+	    }
+
+	}
+
   
+    }
 }
 
 void
@@ -2509,6 +2580,200 @@ mod_user_end:
 
 }
 
+
+bool
+add_isparam(print_seri * serial_p, int id, int type, int notify_pri, char *notify_msg)
+{
+  config_setting_t *root, *setting, *isparams_c, *isparam_c;
+  int index;  
+  
+  for (int i = 0; i < MAX_ISPARAM; i++)
+    {
+      if(id == serial_p->isparam_id[i]){
+	return 0;
+      }
+    }
+  
+  for (int i = 0; i < MAX_ISPARAM; i++)
+    {
+      if(serial_p->isparam_value[i] == NULL){
+	serial_p->isparam_id[i] = id;
+	serial_p->isparam_type[i] = type;
+	switch(type){
+	case 1:
+	  // Just an ordinary single byte type
+	  serial_p->isparam_value[i] = (int*) malloc(sizeof(int));
+	  break;
+	}
+	serial_p->isparam_notifypri[i] = notify_pri;
+	if(strlen(notify_msg) > 0)
+	  strcpy(serial_p->isparam_notifymsg[i], notify_msg);
+	else
+	  serial_p->isparam_notifymsg[i] = NULL;
+	serial_p->isparam_nr++;
+	// Add to config
+	isparams_c = config_lookup(serial_p->server_cfg, "spb_iparam");	// Pretty messy, but if you already got a "users" in the config, the config_root_setting will make SIGSEG
+	if (!isparams_c)
+	  {
+	    root = config_root_setting(serial_p->server_cfg);
+	    isparam_c = config_setting_add(root, "spb_iparam", CONFIG_TYPE_LIST);
+	  }
+  
+	isparam_c = config_setting_add(isparams_c, "iparam", CONFIG_TYPE_GROUP);
+	setting = config_setting_add(isparam_c, "id", CONFIG_TYPE_INT);
+	config_setting_set_int(setting, id);
+	setting = config_setting_add(isparam_c, "type", CONFIG_TYPE_INT);
+	config_setting_set_int(setting, type);
+	setting = config_setting_add(isparam_c, "notify_pri", CONFIG_TYPE_INT);
+	config_setting_set_int(setting, notify_pri);
+	setting = config_setting_add(isparam_c, "notify_msg", CONFIG_TYPE_STRING);
+	config_setting_set_string(setting, notify_msg);
+
+
+	if (!config_write_file(serial_p->server_cfg, SERVER_CONFIG_URI))
+	  {
+	    printf("Unable to write server.cfg :/ do i have the right access? Bye!\n");
+	  }
+	//
+	return 1;
+      }
+    }
+  return 0;
+}
+
+bool
+del_isparam(print_seri * serial_p, int id)
+{
+  for (int i = 0; i < MAX_ISPARAM; i++)
+    {
+      if(serial_p->isparam_id[i] == id && serial_p->isparam_value[i] != NULL){
+	// Delete from ram
+	serial_p->isparam_id[i] = 0;
+	free(serial_p->isparam_value[i]);
+	serial_p->isparam_value[i] = NULL;
+
+	// Delete from configfile
+	config_setting_t *setting;
+	setting = config_lookup(serial_p->server_cfg, "spb_iparam");
+	if (setting != NULL)
+	  {
+	    int count = config_setting_length(setting);
+	    for (int i = 0; i < count; ++i)
+	      {
+		config_setting_t *element = config_setting_get_elem(setting, i);
+		/*
+		 * Only output the record if all of the expected fields are present. 
+		 */
+		int id_c;
+		if (config_setting_lookup_int(element, "id", &id_c))
+		  {
+		    if (id == id_c)
+		      {
+			config_setting_remove_elem(setting, i);
+			break;
+		      }
+		  }
+	      }
+
+	    if (!config_write_file(serial_p->server_cfg, SERVER_CONFIG_URI)){
+	      printf("Unable to write server.cfg :/ do i have the right access? Bye!\n");
+	      return 0;
+	    }
+	    return 1;
+	  }
+	else
+	  {
+	    printf("No users found in server.cfg while deleting\n");
+	    return 0;
+	  }
+      }
+    }
+  return 0;
+}
+
+bool
+mod_isparam(print_seri * serial_p, int mod_id, int id, int type, int notify_pri, char *notify_msg)
+{
+  
+  // Check so there is not any doublets
+  if(mod_id != id){
+    for(int ii = 0; ii < MAX_ISPARAM; ii++){
+      if(serial_p->isparam_id[ii] == id){
+	// Doublet found, return.
+	return 0;
+      }
+    }
+  }
+
+  for(int li=0; li < MAX_ISPARAM; li++){
+    if(serial_p->isparam_id[li] == mod_id){
+
+      serial_p->isparam_id[li] = id;
+      // Realoccate type if its changed.
+      if(serial_p->isparam_type[li] != type){
+	free(serial_p->isparam_value[li]);
+	switch(type){
+	case 1:
+	  // Just an ordinary single byte type
+	  serial_p->isparam_value[li] = (int*) malloc(sizeof(int));
+	  break;
+	}
+      }
+      serial_p->isparam_notifypri[li] = notify_pri;
+      if(strlen(notify_msg) > 0)
+	strncpy(serial_p->isparam_notifymsg[li], notify_msg, MAX_STR(notify_msg));
+      else
+	serial_p->isparam_notifymsg[li] = NULL;
+
+      // Change config
+      config_setting_t *setting;
+      setting = config_lookup(serial_p->server_cfg, "spb_iparam");
+      if (setting != NULL)
+	{
+	  int count = config_setting_length(setting);
+      
+	  for (int i = 0; i < count; ++i)
+	    {
+	      config_setting_t *element = config_setting_get_elem(setting, i);
+	      config_setting_t *member;
+	      /*
+	       * Only output the record if all of the expected fields are present. 
+	       */
+	      int id_c;
+	      if (config_setting_lookup_int(element, "id", &id_c))
+		{
+		  if (mod_id == id_c)
+		    {
+		      if (id_c > 0)
+			{
+			  // Change id
+			  member = config_setting_get_member(element, "id");
+			  config_setting_set_int(member, id);		      
+			  // Change type 
+			  member = config_setting_get_member(element, "type");
+			  config_setting_set_int(member, type);
+			  // Change notifypri
+			  member = config_setting_get_member(element, "notify_pri");
+			  config_setting_set_int(member, type);
+			  // Change notifymsg
+			  member = config_setting_get_member(element, "notify_msg");
+			  config_setting_set_string(member, notify_msg);
+		      
+			  if (!config_write_file(serial_p->server_cfg, SERVER_CONFIG_URI))
+			    {
+			      printf("Unable to write server.cfg :/ do i have the right access? Bye!\n");
+			      return 0;
+			    }
+			}
+		    }
+		}
+	    }
+	}
+      return 1;
+    }
+  }
+  return 0;
+}
 
 void
 make_new_admin(config_t * server_cfg, char user_arg[2][MAX_LOGIN_TEXT])
