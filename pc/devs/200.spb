@@ -75,7 +75,7 @@ List of prarmeter types:
 5 - Unsigned long.
 6 - Signed float defined with two bytes(byte1.byte2)
 7 - Unsigned float defined with two bytes(byte1.byte2)
-
+50 - WTD Parameter
 */ 
 
   parameters = ({
@@ -120,6 +120,12 @@ List of prarmeter types:
 	       	  param = 6;   
                	  type = 1;	
 	       	  descr = "Just beep!";
+		  readonly = false;
+		  },
+		  { 
+	       	  param = 7;   
+               	  type = 1;	
+	       	  descr = "Notice on PIR!";
 		  readonly = false;
 		  } 
 
