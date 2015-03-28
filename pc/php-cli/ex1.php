@@ -212,6 +212,7 @@ class spb
         fwrite($this->fp, $out);
         while($recv = fread($this->fp, 128)){
             if(strpos($recv, "pparam $devid $param") !== FALSE){
+                print($recv);
                 $argc = sscanf($recv, "pparam %d %d %[^\n]", $prm_devid, $prm_prmnr, $value);
                 $pinfo = $this->spb_getparam_info($devid, $param);
                 $descr = $pinfo["dscr"];
@@ -252,7 +253,7 @@ class spb
     }
 
 }
-$spb = new spb("192.168.2.17", "oscar", "1500");
+$spb = new spb("speedbus.org", "oscar", "1500");
 if(!$spb->spb_errc()){
     die($spb->spb_errcm() . "\n");
 }
@@ -346,8 +347,27 @@ case "sendlcd2":
     usleep($usl);
     $spb->spb_send("send " . chr(0x0) . chr(0x0) . chr(20) . chr(20) . chr(0x03) . chr(0x01) . chr(0x04) . chr(0x08) . chr(67) . chr(67) . chr(67) . chr(67) . chr(67) . chr(67) . chr(67) . chr(67) . chr(67) . chr(67) . "\n");
     break;
-
+    
+case "cc":
+    stream_set_blocking($spb->fp, 0);
+    $handle = fopen ("php://stdin","r");
+    while(1){
+        print("Send command> ");
+        $line = fgets($handle);
+        if(trim($line) == "q" || trim($line) == "quit")
+            die("ByeBye\n");
+        fwrite($spb->fp, $line);
+        usleep(20000);
+        for($i = 0; $i < 10; $i++){
+            $buf = fread($spb->fp, 2048);
+            if(strlen($buf) < 1){
+                break;}
+            print($buf);
+        }
+    }
+break;
 }
+die("Bye");
 //print_r($spb->devlist);
 //print_r($spb->evelist);
 //print_r($spb->gtvlist);

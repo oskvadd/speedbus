@@ -22,6 +22,9 @@
 #define IS_GUI 1
 #define BACKEND_DIR ".speedbus/"
 
+#define DEBUG_ON 0            // Show incomming packages
+#define DEBUG_SHOW_PACKAGE 0
+
 
 #include "main.h"
 #include "spb.backend.cpp"
@@ -490,6 +493,9 @@ typedef struct _rspeed_gui_rep
 
 } rspeed_gui_rep;
 
+
+// 
+int debug = 0;
 
 void
 m_send(void *ptr, char *data, int len)
