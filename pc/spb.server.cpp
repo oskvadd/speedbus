@@ -1645,7 +1645,7 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       if (strncmp(data, "camadd", 6) == 0 ||
 	  strncmp(data, "camec ", 6) == 0 ||
 	  strncmp(data, "camei ", 6) == 0 ||
-	  strncmp(data, "camep ", 6) == 0) ||
+	  strncmp(data, "camep ", 6) == 0 ||
 	  strncmp(data, "pparam ", 7) == 0)
 	  
 	{
