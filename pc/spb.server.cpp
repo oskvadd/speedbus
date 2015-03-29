@@ -351,6 +351,10 @@ get_params_load(void *data, char *p_data, int counter)
 			serial_p->server->send_data(i, paraload, strlen(paraload));
 		      }
 		  }
+		
+		// Send command to links upstream
+		spb_links_send(serial_p, -1, -1, paraload, strlen(paraload));
+		//
 				
 	      }
 	    }
@@ -1641,7 +1645,8 @@ spb_exec(print_seri * serial_p, int listnum, int linknum, char *data, int len)
       if (strncmp(data, "camadd", 6) == 0 ||
 	  strncmp(data, "camec ", 6) == 0 ||
 	  strncmp(data, "camei ", 6) == 0 ||
-	  strncmp(data, "camep ", 6) == 0)
+	  strncmp(data, "camep ", 6) == 0) ||
+	  strncmp(data, "pparam ", 7) == 0)
 	  
 	{
 	  spb_links_send(serial_p, listnum, linknum, data, len);
