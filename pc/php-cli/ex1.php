@@ -208,27 +208,31 @@ class spb
     }
 
     public function spb_getparam($devid, $param){
+        $pinfo = $this->spb_getparam_info($devid, $param);
+        $descr = $pinfo["dscr"];
+        if(isset($pinfo["unit"]))
+            $unit = $pinfo["unit"];
+        else
+            $unit = "";
+        
+        print($descr . ": " . $this->spb_getparam_val($devid, $param) . $unit . "\n");
+        return 1;
+    }
+
+    public function spb_getparam_val($devid, $param){
         $out = "getparam $devid $param\n";
         fwrite($this->fp, $out);
         while($recv = fread($this->fp, 128)){
             if(strpos($recv, "pparam $devid $param") !== FALSE){
-                print($recv);
                 $argc = sscanf($recv, "pparam %d %d %[^\n]", $prm_devid, $prm_prmnr, $value);
-                $pinfo = $this->spb_getparam_info($devid, $param);
-                $descr = $pinfo["dscr"];
-                if(isset($pinfo["unit"]))
-                    $unit = $pinfo["unit"];
-                else
-                    $unit = "";
-	
-                print($descr . ": " . $value . $unit . "\n");
-                return 1;
+                return $value;
             }
             if(strpos($recv, "info Cant send") !== FALSE || strpos($recv, "info Error when") !== FALSE){
-                return 0;
+                return "";
             }
         }
     }
+
 
     public function spb_setparam($devid, $param, $arg){
         $out = "setparam $devid $param $arg\n";
@@ -366,8 +370,17 @@ case "cc":
         }
     }
 break;
+
+case "listparam":
+    foreach($spb->prmlist as $prm){
+        if($prm["devid"] == $argv[2]){
+            print($prm["prmnr"] . ": " . $prm["dscr"] . "\n");
+        }
+    }
+    break;
+
 }
-die("Bye");
+//die("Bye");
 //print_r($spb->devlist);
 //print_r($spb->evelist);
 //print_r($spb->gtvlist);
