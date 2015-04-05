@@ -20,7 +20,7 @@ void wtime()
   char buffer[80];
   time(&rawtime);
   timeinfo = localtime(&rawtime);
-  strftime(buffer, 80, "* [%H:%M:%S] - ", timeinfo);
+  strftime(buffer, 80, "* [%d/%b/%X] - ", timeinfo);
   std::cout << buffer;
 }
 
